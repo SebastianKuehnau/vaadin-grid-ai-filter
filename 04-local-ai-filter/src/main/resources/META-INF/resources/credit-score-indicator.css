@@ -1,0 +1,30 @@
+/*
+ * Styling for the creditworthiness traffic-light (CreditScoreIndicator).
+ * The dot color uses the Aura theme palette tokens, so it adapts automatically
+ * to the light/dark color scheme.
+ */
+
+.credit-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+.credit-indicator__dot {
+    width: 0.75em;
+    height: 0.75em;
+    border-radius: 50%;
+    flex: 0 0 auto;
+}
+
+.credit-indicator--good .credit-indicator__dot {
+    background-color: var(--aura-green);
+}
+
+.credit-indicator--medium .credit-indicator__dot {
+    background-color: var(--aura-yellow);
+}
+
+.credit-indicator--poor .credit-indicator__dot {
+    background-color: var(--aura-red);
+}
