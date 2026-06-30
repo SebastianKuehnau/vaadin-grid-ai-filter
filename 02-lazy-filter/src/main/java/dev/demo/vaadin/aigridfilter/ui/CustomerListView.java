@@ -1,5 +1,6 @@
 package dev.demo.vaadin.aigridfilter.ui;
 
+import com.vaadin.copilot.shaded.checkerframework.checker.units.qual.C;
 import com.vaadin.flow.component.AbstractField;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.Component;
@@ -13,8 +14,7 @@ import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.datepicker.DatePickerVariant;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.component.select.Select;
-import com.vaadin.flow.component.select.SelectVariant;
+import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.textfield.TextFieldVariant;
 import com.vaadin.flow.function.SerializableConsumer;
@@ -26,6 +26,7 @@ import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
+import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -88,6 +89,11 @@ public class CustomerListView extends VerticalLayout {
                 .setComponent(createDateFilterField(event ->
                         onDateFilterFieldChanged(event, customer -> filterCustomer.setLastOrderDate(event.getValue()))));
 
+        headerRow.getCell(grid.getColumnByKey("annualRevenue"))
+                .setComponent(createIntegerFilterField(event ->
+                        onIntegerFilterFieldChanged(event, customer -> filterCustomer.setAnnualRevenue(
+                                event.getValue() != null ? BigDecimal.valueOf(event.getValue()) : null))));
+
         headerRow.getCell(grid.getColumnByKey("address"))
                 .setComponent(createFilterField(event ->
                         onFilterFieldChanged(event, customer -> addressFilter = event.getValue())));
@@ -104,11 +110,6 @@ public class CustomerListView extends VerticalLayout {
         add(grid);
 
         setSizeFull();
-    }
-
-    private void onFilterFieldChanged(AbstractField.ComponentValueChangeEvent<TextField, String> event, SerializableConsumer<Customer> customerConsumer) {
-        customerConsumer.accept(filterCustomer);
-        customerGridLazyDataView.refreshAll();
     }
 
     private Specification<Customer> buildCustomerSpecification() {
@@ -140,6 +141,11 @@ public class CustomerListView extends VerticalLayout {
                 predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.<LocalDate>get("lastOrderDate"), filterCustomer.getLastOrderDate()));
             }
 
+            if (filterCustomer.getAnnualRevenue() != null) {
+                predicates.add(criteriaBuilder.equal(root.<BigDecimal>get("annualRevenue"), filterCustomer.getAnnualRevenue()));
+            }
+
+
             if (addressFilter != null && !addressFilter.isEmpty()) {
                 String addressPattern = "%" + addressFilter.toLowerCase() + "%";
                 var address = root.get("address");
@@ -168,22 +174,45 @@ public class CustomerListView extends VerticalLayout {
         };
     }
 
-    private Component createFilterField(HasValue.ValueChangeListener<AbstractField.ComponentValueChangeEvent<TextField, String>> listener) {
-        var filterField = new TextField();
-        filterField.addThemeVariants(TextFieldVariant.SMALL);
-        filterField.addValueChangeListener(listener);
-        filterField.setClearButtonVisible(true);
-        return filterField;
-    }
+
 
     private void onDateFilterFieldChanged(AbstractField.ComponentValueChangeEvent<DatePicker, LocalDate> event, SerializableConsumer<Customer> customerConsumer) {
         customerConsumer.accept(filterCustomer);
         customerGridLazyDataView.refreshAll();
     }
 
+    private void onIntegerFilterFieldChanged(AbstractField.ComponentValueChangeEvent<IntegerField, Integer> event, SerializableConsumer<Customer> customerConsumer) {
+        customerConsumer.accept(filterCustomer);
+        customerGridLazyDataView.refreshAll();
+    }
+
+    private void onFilterFieldChanged(AbstractField.ComponentValueChangeEvent<TextField, String> event, SerializableConsumer<Customer> customerConsumer) {
+        customerConsumer.accept(filterCustomer);
+        customerGridLazyDataView.refreshAll();
+    }
+
+    private Component createFilterField(HasValue.ValueChangeListener<AbstractField.ComponentValueChangeEvent<TextField, String>> listener) {
+        var filterField = new TextField();
+        filterField.setWidthFull();
+        filterField.addThemeVariants(TextFieldVariant.SMALL);
+        filterField.addValueChangeListener(listener);
+        filterField.setClearButtonVisible(true);
+        return filterField;
+    }
+
     private Component createDateFilterField(HasValue.ValueChangeListener<AbstractField.ComponentValueChangeEvent<DatePicker, LocalDate>> listener) {
         var filterField = new DatePicker();
+        filterField.setWidthFull();
         filterField.addThemeVariants(DatePickerVariant.LUMO_SMALL);
+        filterField.addValueChangeListener(listener);
+        filterField.setClearButtonVisible(true);
+        return filterField;
+    }
+
+    private Component createIntegerFilterField(HasValue.ValueChangeListener<? super AbstractField.ComponentValueChangeEvent<IntegerField, Integer>> listener) {
+        var filterField = new IntegerField();
+        filterField.addThemeVariants(TextFieldVariant.SMALL);
+        filterField.setWidthFull();
         filterField.addValueChangeListener(listener);
         filterField.setClearButtonVisible(true);
         return filterField;
