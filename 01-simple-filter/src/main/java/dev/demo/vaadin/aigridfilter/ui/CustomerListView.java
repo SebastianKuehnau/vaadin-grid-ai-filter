@@ -29,6 +29,7 @@ public class CustomerListView extends VerticalLayout {
 
         var filterField = new TextField("", "filter for ...");
         filterField.addValueChangeListener(this::onFilter);
+        filterField.setClearButtonVisible(true);
         filterField.setWidthFull();
         add(filterField);
 
