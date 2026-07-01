@@ -68,11 +68,8 @@ public class CustomerListView extends VerticalLayout {
                 .setSortProperty("address.country", "address.city", "address.postalCode");
         grid.addComponentColumn(CreditScoreIndicator::new).setKey("creditRating").setHeader("Credit Rating")
                 .setSortProperty("creditScore");
-
-        GridLazyDataView<Customer> customerGridLazyDataView = grid.setItems(gridQuery ->
-                        customerRepository.findAll(VaadinSpringDataHelpers.toSpringPageRequest(gridQuery)).stream(),
-                _ -> Math.toIntExact(customerRepository.count()));
         grid.setSizeFull();
+        resetGrid();
         add(grid);
 
         setSizeFull();
@@ -111,7 +108,7 @@ public class CustomerListView extends VerticalLayout {
 
     private void onFilter(AbstractField.ComponentValueChangeEvent<TextField, String> event) {
         if (event.getValue() == null || event.getValue().isBlank()) {
-            return;
+            resetGrid();
         }
 
         chatClient.prompt()
@@ -135,6 +132,12 @@ public class CustomerListView extends VerticalLayout {
                         () -> getUI().ifPresent(ui -> ui.access(() -> {
                             filterField.setEnabled(true);
                         })));
+    }
+
+    private void resetGrid() {
+        grid.setItems(gridQuery ->
+                        customerRepository.findAll(VaadinSpringDataHelpers.toSpringPageRequest(gridQuery)).stream(),
+                _ -> Math.toIntExact(customerRepository.count()));
     }
 
     @Tool(description = """
@@ -185,6 +188,11 @@ public class CustomerListView extends VerticalLayout {
                     query -> Math.toIntExact(customerRepository.count(customerSpecification))
             );
         }));
+    }
+
+    @Tool(description = "Current date and time")
+    LocalDateTime currentLocalDateTime() {
+        return LocalDateTime.now();
     }
 
     private Specification<Customer> buildCustomerSpecification(String companyName, String contactName, String email,
@@ -248,11 +256,6 @@ public class CustomerListView extends VerticalLayout {
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
-    }
-
-    @Tool(description = "Current date and time")
-    LocalDateTime currentLocalDateTime() {
-        return LocalDateTime.now();
     }
 }
 
