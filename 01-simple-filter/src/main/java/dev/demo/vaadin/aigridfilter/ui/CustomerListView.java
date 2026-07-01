@@ -33,8 +33,7 @@ public class CustomerListView extends VerticalLayout {
         filterField.setWidthFull();
         add(filterField);
 
-        this.grid = new Grid<>(Customer.class);
-        var grid = this.grid;
+        grid = new Grid<>(Customer.class);
         grid.setColumns("companyName", "contactName", "email", "phone", "customerSince", "lastOrderDate");
         grid.addColumn(customer -> customer.getAnnualRevenue() == null ?
                         "" : REVENUE_FORMAT.format(customer.getAnnualRevenue()) + " €")
