@@ -1,0 +1,28 @@
+{
+  "name": "Claude Code Sandbox",
+  "image": "ghcr.io/sebastiankuehnau/claude-container:latest",
+  "initializeCommand": "touch \"${localWorkspaceFolder}/.devcontainer/devcontainer.env\"",
+  "runArgs": [
+    "--cap-add=NET_ADMIN",
+    "--cap-add=NET_RAW",
+    "--add-host=host.docker.internal:host-gateway",
+    "--env-file", "${localWorkspaceFolder}/.devcontainer/devcontainer.env"
+  ],
+  "remoteUser": "node",
+  "mounts": [
+    "source=claude-code-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
+    "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/.devcontainer/m2-cache,target=/home/node/.m2,type=bind,consistency=cached"
+  ],
+  "forwardPorts": [9222],
+  "containerEnv": {
+    "NODE_OPTIONS": "--max-old-space-size=4096",
+    "CLAUDE_CONFIG_DIR": "/home/node/.claude",
+    "PLAYWRIGHT_BROWSERS_PATH": "/opt/playwright-browsers",
+    "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1",
+    "OLLAMA_BASE_URL": "http://host.docker.internal:11434"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspace",
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh"
+}
