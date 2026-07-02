@@ -72,6 +72,10 @@ public class CustomerSearchService {
      * can be unit-tested deterministically without calling the model.
      */
     static String systemPrompt(LocalDate today) {
+        LocalDate yesterday = today.minusDays(1);
+        LocalDate thisWeekMonday = today.minusDays(today.getDayOfWeek().getValue() - 1L);
+        LocalDate lastWeekMonday = thisWeekMonday.minusWeeks(1);
+        LocalDate lastMonthStart = today.withDayOfMonth(1).minusMonths(1);
         return """
                 You translate a user's request into a CustomerFilter that filters a list of customers.
 
@@ -145,16 +149,17 @@ public class CustomerSearchService {
                     -> [ city CONTAINS Berlin, creditRating EQUALS GOOD, creditRating EQUALS POOR ]
                   "customers since 2020"
                     -> [ customerSince GREATER_OR_EQUAL 2020-01-01 ]
-                  "customers who placed an order yesterday" (today = 2026-06-26)
-                    -> [ lastOrderDate EQUALS 2026-06-25 ]
-                  "customers who placed an order today" (today = 2026-06-26)
-                    -> [ lastOrderDate EQUALS 2026-06-26 ]
-                  "customers who ordered last week" (today = 2026-06-26, week starts Mon 2026-06-22)
-                    -> [ lastOrderDate GREATER_OR_EQUAL 2026-06-15 ]
-                  "customers who ordered last month" (today = 2026-06-26)
-                    -> [ lastOrderDate GREATER_OR_EQUAL 2026-05-01 ]
+                  "customers who placed an order yesterday" (today = %s)
+                    -> [ lastOrderDate EQUALS %s ]
+                  "customers who placed an order today" (today = %s)
+                    -> [ lastOrderDate EQUALS %s ]
+                  "customers who ordered last week" (today = %s, week starts Mon %s)
+                    -> [ lastOrderDate GREATER_OR_EQUAL %s ]
+                  "customers who ordered last month" (today = %s)
+                    -> [ lastOrderDate GREATER_OR_EQUAL %s ]
                   "show all customers"
                     -> [ ]
-                """.formatted(today);
+                """.formatted(today, today, yesterday, today, today, today, thisWeekMonday, lastWeekMonday, today,
+                lastMonthStart);
     }
 }
