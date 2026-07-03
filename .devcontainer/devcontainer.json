@@ -1,20 +1,52 @@
 {
   "name": "Claude Code Sandbox",
-  "image": "ghcr.io/sebastiankuehnau/claude-container:latest",
-  "initializeCommand": "touch \"${localWorkspaceFolder}/.devcontainer/devcontainer.env\"",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "TZ": "${localEnv:TZ:Europe/Berlin}",
+      "CLAUDE_CODE_VERSION": "latest",
+      "JAVA_VERSION": "${localEnv:JAVA_VERSION:25}",
+      "JAVA_VENDOR": "${localEnv:JAVA_VENDOR:temurin}"
+    }
+  },
+  "initializeCommand": "touch \"${localWorkspaceFolder}/.devcontainer/devcontainer.env\" && mkdir -p \"${localEnv:HOME}/.claude-m2-cache\"",
   "runArgs": [
     "--cap-add=NET_ADMIN",
     "--cap-add=NET_RAW",
     "--add-host=host.docker.internal:host-gateway",
     "--env-file", "${localWorkspaceFolder}/.devcontainer/devcontainer.env"
   ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.vscode-docker",
+        "eamodio.gitlens",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "redhat.java",
+        "vscjava.vscode-java-pack",
+        "vscjava.vscode-maven"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "editor.formatOnSave": true,
+        "java.configuration.detectJdksAtStart": true
+      }
+    }
+  },
   "remoteUser": "node",
   "mounts": [
     "source=claude-code-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
     "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached",
-    "source=${localWorkspaceFolder}/.devcontainer/m2-cache,target=/home/node/.m2,type=bind,consistency=cached"
+    "source=${localEnv:HOME}/.claude-m2-cache,target=/home/node/.m2/repository,type=bind,consistency=cached"
   ],
   "forwardPorts": [9222],
+  "portsAttributes": {
+    "9222": {
+      "label": "Playwright CDP",
+      "onAutoForward": "silent"
+    }
+  },
   "containerEnv": {
     "NODE_OPTIONS": "--max-old-space-size=4096",
     "CLAUDE_CONFIG_DIR": "/home/node/.claude",
@@ -24,5 +56,6 @@
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
-  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh"
+  "postCreateCommand": "sudo chown -R node:node /home/node/.m2"
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
 }
