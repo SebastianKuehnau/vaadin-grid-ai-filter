@@ -30,17 +30,6 @@ abstract class CustomerSearchIT {
     @Autowired
     CustomerSearchService service;
 
-    @Autowired
-    CustomerRepository repository;
-
-    /** Only called by tests that need a customer whose last order was actually yesterday. */
-    private void setLastOrderDateToYesterday() {
-        repository.findById(3L).ifPresent(customer -> {
-            customer.setLastOrderDate(LocalDate.now().minusDays(1));
-            repository.save(customer);
-        });
-    }
-
     @Test
     void singleCity() {
         CustomerFilter filter = service.requestFilter("show me all customers in Berlin");
@@ -114,7 +103,6 @@ abstract class CustomerSearchIT {
 
     @Test
     void orderedYesterday() {
-        setLastOrderDateToYesterday();
         CustomerFilter filter = service.requestFilter("show me all customers who made an order yesterday");
         String yesterday = LocalDate.now().minusDays(1).toString();
         assertThat(hasCriterion(filter, "lastOrderDate", Operator.EQUALS.toString(), yesterday)).isTrue();
@@ -206,6 +194,39 @@ abstract class CustomerSearchIT {
     void showAllCustomers_noCriteria() {
         CustomerFilter filter = service.requestFilter("show all customers");
         assertThat(filter.criteria()).isNullOrEmpty();
+    }
+
+    @Test
+    void resetTheFilter_German() {
+        CustomerFilter filter = service.requestFilter("setze den Filter zurück");
+        assertThat(filter.criteria()).isNullOrEmpty();
+    }
+
+    @Test
+    void citiesAndCreditRating_German() {
+        CustomerFilter filter = service.requestFilter("zeige mir Kunden aus Berlin oder Hamburg mit einer positiven Kreditwürdigkeit");
+        assertThat(hasCriterion(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
+        assertThat(hasCriterion(filter, "city", Operator.CONTAINS.toString(), "hamburg")).isTrue();
+        assertThat(hasCriterion(filter, "creditRating",
+                new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "good", "creditworthy")).isTrue();
+    }
+
+    @Test
+    void notInCityWithRevenueRange_keepsEveryCondition_German() {
+        CustomerFilter filter = service.requestFilter(
+                "Alle Kunden ausser aus Hamburg mit einem Umsatz von 500000 bis 1000000");
+        assertThat(hasCriterion(filter, "city",
+                new String[]{Operator.NOT_EQUALS.toString(), Operator.NOT_CONTAINS.toString()}, "hamburg")).isTrue();
+        assertThat(hasCriterion(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "500000")).isTrue();
+        assertThat(hasCriterion(filter, "annualRevenue", Operator.LESS_OR_EQUAL.toString(), "1000000")).isTrue();
+    }
+
+    @Test
+    void contactNameAndCity_German() {
+        CustomerFilter filter = service.requestFilter(
+                "Zeigen mir Kunden deren Kontaktname Julia ist und die in Berlin sind.");
+        assertThat(hasCriterion(filter, "contactName", Operator.EQUALS.toString(), "julia")).isTrue();
+        assertThat(hasCriterion(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
     }
 
     /** True if any criterion is on {@code fieldString} (ignoring case) with a value containing {@code valueSubstring}. */
