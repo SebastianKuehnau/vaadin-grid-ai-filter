@@ -84,7 +84,82 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+			<plugin>
+				<!-- Ollama IT infrastructure classes (LocalOllamaTests, TestContainerOllamaTests)
+				     end in *Tests, which surefire's default include pattern would otherwise pick
+				     up; keep them out of the plain unit-test run, they only run via failsafe under
+				     the it-* profiles below. Excluding by the shared "*Tests.java" suffix (rather
+				     than each exact filename) also sidesteps a surefire quirk where excluding
+				     "TestContainerOllamaTests.java" by its exact name was silently ignored because
+				     the name also matches the "Test*.java" default include pattern. -->
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>**/Test*.java</exclude>
+						<exclude>**/LocalOllamaTests.java</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<executions>
+					<execution>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<!-- No profile active: no includes match, so no Ollama IT runs by default. -->
+					<includes>
+						<include>none</include>
+					</includes>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<profile>
+			<!-- Runs LocalOllamaTests against a native Ollama instance (OLLAMA_BASE_URL). -->
+			<id>it-local-ollama</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-failsafe-plugin</artifactId>
+						<configuration>
+							<!-- combine.children="append": so activating both it-* profiles together
+							     runs both infra classes instead of one profile's includes replacing
+							     the other's. -->
+							<includes combine.children="append">
+								<include>**/LocalOllamaTests.java</include>
+							</includes>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+		<profile>
+			<!-- Runs TestContainerOllamaTests against an Ollama Testcontainer (Docker required). -->
+			<id>it-testcontainer</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-failsafe-plugin</artifactId>
+						<configuration>
+							<includes combine.children="append">
+								<include>**/TestContainerOllamaTests.java</include>
+							</includes>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 
 </project>
