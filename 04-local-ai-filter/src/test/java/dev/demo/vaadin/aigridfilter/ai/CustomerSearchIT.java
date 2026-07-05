@@ -13,15 +13,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Shared integration tests of the AI layer (natural language -> {@link CustomerFilter}) against a real
- * Ollama. Subclasses only provide the connection:
+ * Ollama. Included as a {@code @Nested} suite by the infrastructure classes, which only provide the
+ * connection:
  * <ul>
- *   <li>{@link CustomerSearchServiceLocalOllamaIT} — a native Ollama instance (no Docker), and</li>
- *   <li>{@link CustomerSearchServiceTestContainerIT} — an Ollama Testcontainer (Docker).</li>
+ *   <li>{@link LocalOllamaTests} — a native Ollama instance (no Docker), and</li>
+ *   <li>{@link TestContainerOllamaTests} — an Ollama Testcontainer (Docker).</li>
  * </ul>
  * Both run the {@link #MODEL} model. Assertions are tolerant: the LLM is non-deterministic, so we only
  * check that the expected criteria are present (field + value substring), ignoring operator and extras.
  */
-abstract class CustomerSearchIT {
+class CustomerSearchIT {
 
     /** Model used by both variants. The container variant needs a matching pre-built image. */
     static final String MODEL = "llama3.1:8b";
