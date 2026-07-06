@@ -5,11 +5,12 @@
     "args": {
       "TZ": "${localEnv:TZ:Europe/Berlin}",
       "CLAUDE_CODE_VERSION": "latest",
+
       "JAVA_VERSION": "${localEnv:JAVA_VERSION:25}",
       "JAVA_VENDOR": "${localEnv:JAVA_VENDOR:temurin}"
     }
   },
-  "initializeCommand": "touch \"${localWorkspaceFolder}/.devcontainer/devcontainer.env\" && mkdir -p \"${localEnv:HOME}/.claude-m2-cache\"",
+  "initializeCommand": "touch \"${localWorkspaceFolder}/.devcontainer/devcontainer.env\" && mkdir -p \"${localEnv:HOME}/.claude-m2-cache\" && mkdir -p \"${localEnv:HOME}/.claude-container/claude\" && touch \"${localEnv:HOME}/.claude-container/claude.json\"",
   "runArgs": [
     "--cap-add=NET_ADMIN",
     "--cap-add=NET_RAW",
@@ -37,7 +38,8 @@
   "remoteUser": "node",
   "mounts": [
     "source=claude-code-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
-    "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude-container/claude,target=/home/node/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude-container/claude.json,target=/home/node/.claude.json,type=bind,consistency=cached",
     "source=${localEnv:HOME}/.claude-m2-cache,target=/home/node/.m2/repository,type=bind,consistency=cached"
   ],
   "forwardPorts": [9222],
@@ -56,6 +58,6 @@
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
-  "postCreateCommand": "sudo chown -R node:node /home/node/.m2"
+  "postCreateCommand": "sudo chown -R node:node /home/node/.claude /home/node/.claude.json /home/node/.m2",
   "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
 }
