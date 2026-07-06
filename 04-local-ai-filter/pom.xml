@@ -143,23 +143,6 @@
 				</plugins>
 			</build>
 		</profile>
-		<profile>
-			<!-- Runs TestContainerOllamaTests against an Ollama Testcontainer (Docker required). -->
-			<id>it-testcontainer</id>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-failsafe-plugin</artifactId>
-						<configuration>
-							<includes combine.children="append">
-								<include>**/TestContainerOllamaTests.java</include>
-							</includes>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
 	</profiles>
 
 </project>

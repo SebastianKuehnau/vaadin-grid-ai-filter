@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
         "spring.ai.model.chat=ollama",
-        "spring.ai.ollama.chat.model=" + CustomerSearchIT.MODEL,
+        "spring.ai.ollama.chat.model=llama3.1:8b",
         "spring.ai.ollama.chat.think=false",
         "spring.ai.ollama.chat.num-ctx=4096",
         "spring.ai.ollama.init.pull-model-strategy=never",
@@ -42,7 +42,7 @@ class LocalOllamaTests {
         assumeTrue(OllamaTestSupport.reachable(baseUrl), "native Ollama not reachable at " + baseUrl + " — skipping");
     }
 
-    @Nested
-    class CustomerSearch extends CustomerSearchIT {
-    }
+//    @Nested
+//    class CustomerSearch extends CustomerSearchIT {
+//    }
 }

@@ -22,11 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Both run the {@link #MODEL} model. Assertions are tolerant: the LLM is non-deterministic, so we only
  * check that the expected criteria are present (field + value substring), ignoring operator and extras.
  */
-class CustomerSearchIT {
+class CustomerSearchIT extends LocalOllamaTests {
 
-    /** Model used by both variants. The container variant needs a matching pre-built image. */
-    static final String MODEL = "llama3.1:8b";
-//    static final String MODEL = "qwen3.5:4b-mlx";
 
     @Autowired
     CustomerSearchService service;
