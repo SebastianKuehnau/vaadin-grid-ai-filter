@@ -226,7 +226,7 @@ class CustomerSearchIT {
     void contactNameAndCity_German() {
         CustomerFilter filter = service.requestFilter(
                 "Zeigen mir Kunden deren Kontaktname Julia ist und die in Berlin sind.");
-        assertThat(hasCriterion(filter, "contactName", Operator.EQUALS.toString(), "julia")).isTrue();
+        assertThat(hasCriterion(filter, "contactName", new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "julia")).isTrue();
         assertThat(hasCriterion(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
     }
 

@@ -1,8 +1,8 @@
 package dev.demo.vaadin.aigridfilter.ai;
 
-import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.ai.filter.CustomerFilter;
 import dev.demo.vaadin.aigridfilter.ai.filter.CustomerFilterSpecifications;
+import dev.demo.vaadin.aigridfilter.data.Customer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
