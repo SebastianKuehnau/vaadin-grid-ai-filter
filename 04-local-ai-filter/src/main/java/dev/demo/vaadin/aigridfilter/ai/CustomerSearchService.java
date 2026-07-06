@@ -13,16 +13,15 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.util.List;
 
 /**
  * The AI layer: turns a natural-language query into a JPA {@link Specification}.
  * <p>
  * Instead of letting the model call a tool, it asks the model to return a single
  * {@link CustomerFilter} as <em>structured output</em> ({@code .entity(...)}). One JSON object
- * matching a fixed, flat schema is far more reliable for smaller/local models than multi-step
- * tool calling. The class owns the {@link ChatClient} and the prompt and knows nothing about
- * Vaadin, so it can be tested in isolation.
+ * matching a fixed schema is far more reliable for smaller/local models than multi-step tool
+ * calling. The class owns the {@link ChatClient} and the prompt and knows nothing about Vaadin,
+ * so it can be tested in isolation.
  */
 @Service
 public class CustomerSearchService {
@@ -37,7 +36,8 @@ public class CustomerSearchService {
 
     /**
      * Turns the query into a JPA {@link Specification}: ask the LLM for a {@link CustomerFilter}
-     * ({@link #requestFilter}) and translate it. An empty filter (e.g. on a bad response) matches all.
+     * ({@link #requestFilter}) and translate it. A filter with a {@code null} root (e.g. on a bad
+     * response) matches all.
      */
     public Specification<Customer> resolveFilter(String naturalLanguageQuery) {
         return CustomerFilterSpecifications.from(requestFilter(naturalLanguageQuery));
@@ -45,8 +45,8 @@ public class CustomerSearchService {
 
     /**
      * Asks the LLM to express the query as a {@link CustomerFilter}. Package-private so the AI layer
-     * can be tested directly on the produced filter. Returns an empty filter (match all) if the model
-     * produces nothing usable, so the UI never breaks on a bad response.
+     * can be tested directly on the produced filter. Returns a filter with a {@code null} root
+     * (match all) if the model produces nothing usable, so the UI never breaks on a bad response.
      */
     CustomerFilter requestFilter(String naturalLanguageQuery) {
         try {
@@ -63,7 +63,7 @@ public class CustomerSearchService {
         } catch (Exception e) {
             logger.warn("Could not turn query into a filter; showing all customers. Query: '{}'",
                     naturalLanguageQuery, e);
-            return new CustomerFilter(List.of());
+            return new CustomerFilter(null);
         }
     }
 
@@ -79,20 +79,32 @@ public class CustomerSearchService {
         return """
                 You translate a user's request into a CustomerFilter that filters a list of customers.
 
-                A CustomerFilter is just a flat LIST of criteria. There is no AND/OR switch — how the
-                criteria combine is fixed and intuitive:
-                  - Criteria on the SAME field are alternatives, combined with OR. So several cities
-                    means "any of them" — this also covers the colloquial "Berlin and Hamburg", which
-                    means customers located in either city.
-                  - Criteria on DIFFERENT fields must all hold (AND).
-                  - A value RANGE on one field is two criteria on that field, e.g. revenue between
-                    100000 and 500000 -> annualRevenue GREATER_OR_EQUAL 100000 AND LESS_OR_EQUAL 500000.
-                To show all customers, return an empty list.
+                A CustomerFilter has a single "root" node, which is a tree of AND / OR / NOT / CONDITION
+                nodes:
+                  - CONDITION is a leaf: { type: CONDITION, field, operator, value }.
+                  - AND has children: [ ... ]; ALL children must match.
+                  - OR has children: [ ... ]; AT LEAST ONE child must match.
+                  - NOT has a single child: { type: NOT, child: ... }; negates it.
+                Children of AND/OR can be any node type, so trees nest to any depth, e.g.
+                "(city=Berlin OR city=Hamburg) AND (revenue>=500000 OR creditRating=GOOD)" is an AND of
+                two ORs. To show all customers, return an AND with an empty children list (or omit root).
 
                 IMPORTANT: include EVERY condition the user mentions. Never drop one (e.g. keep the
                 revenue condition even when cities are also given).
 
-                Each criterion has:
+                Building the tree:
+                  - Several values for the SAME field ("Berlin or Hamburg", or the colloquial "Berlin
+                    and Hamburg" meaning either city) -> an OR of CONDITIONs on that field.
+                  - Several requirements across DIFFERENT fields that must all hold -> an AND.
+                  - A value RANGE on one field is an AND of two CONDITIONs on that field, e.g. revenue
+                    between 100000 and 500000 -> AND[ annualRevenue GREATER_OR_EQUAL 100000,
+                    annualRevenue LESS_OR_EQUAL 500000 ].
+                  - Cross-field OR ("in Berlin or with revenue above 1 million") -> an OR whose children
+                    are on different fields — this is now possible and expected when the user says "or"
+                    across different kinds of conditions.
+                  - "not (X and Y)" / "neither X nor Y" -> NOT wrapping the AND/OR of X and Y.
+
+                Each CONDITION has:
                   - field: one of companyName, contactName, email, phone, annualRevenue, creditRating,
                            customerSince, lastOrderDate, country, city, postalCode, street, houseNumber,
                            state, countryCode
@@ -130,35 +142,42 @@ public class CustomerSearchService {
                   - Today is %s. Resolve relative dates ("yesterday", "today", "last month", "this year",
                     "last week") against this date.
 
-                Examples (criteria list only):
+                Examples (root node only; CONDITION written as "field OP value" for brevity):
                   "customers in Berlin"
-                    -> [ city CONTAINS Berlin ]
+                    -> city CONTAINS Berlin
                   "customers in Berlin or Hamburg"
-                    -> [ city CONTAINS Berlin, city CONTAINS Hamburg ]
+                    -> OR[ city CONTAINS Berlin, city CONTAINS Hamburg ]
                   "all customers in Berlin and Hamburg with a minimal revenue of 100000"
-                    -> [ city CONTAINS Berlin, city CONTAINS Hamburg, annualRevenue GREATER_OR_EQUAL 100000 ]
+                    -> AND[ OR[ city CONTAINS Berlin, city CONTAINS Hamburg ], annualRevenue GREATER_OR_EQUAL 100000 ]
                   "customers whose contact name starts with M"
-                    -> [ contactName STARTS_WITH M ]
+                    -> contactName STARTS_WITH M
                   "companies not in Munich with revenue between 100000 and 500000"
-                    -> [ city NOT_EQUALS Munich, annualRevenue GREATER_OR_EQUAL 100000, annualRevenue LESS_OR_EQUAL 500000 ]
+                    -> AND[ city NOT_EQUALS Munich, annualRevenue GREATER_OR_EQUAL 100000, annualRevenue LESS_OR_EQUAL 500000 ]
                   "creditworthy customers in Berlin"
-                    -> [ city CONTAINS Berlin, creditRating EQUALS GOOD ]
+                    -> AND[ city CONTAINS Berlin, creditRating EQUALS GOOD ]
                   "customers at risk"
-                    -> [ creditRating EQUALS POOR ]
+                    -> creditRating EQUALS POOR
                   "customers in Berlin with a good and an at-risk credit rating"
-                    -> [ city CONTAINS Berlin, creditRating EQUALS GOOD, creditRating EQUALS POOR ]
+                    -> AND[ city CONTAINS Berlin, OR[ creditRating EQUALS GOOD, creditRating EQUALS POOR ] ]
+                  "customers in Berlin or with revenue above 1 million" (cross-field OR)
+                    -> OR[ city CONTAINS Berlin, annualRevenue GREATER_OR_EQUAL 1000000 ]
+                  "(city=Berlin or city=Hamburg) and (revenue>=500000 or creditRating=GOOD)"
+                    -> AND[ OR[ city CONTAINS Berlin, city CONTAINS Hamburg ],
+                            OR[ annualRevenue GREATER_OR_EQUAL 500000, creditRating EQUALS GOOD ] ]
+                  "not (in Berlin and revenue under 100000)"
+                    -> NOT( AND[ city CONTAINS Berlin, annualRevenue LESS_OR_EQUAL 100000 ] )
                   "customers since 2020"
-                    -> [ customerSince GREATER_OR_EQUAL 2020-01-01 ]
+                    -> customerSince GREATER_OR_EQUAL 2020-01-01
                   "customers who placed an order yesterday" (today = %s)
-                    -> [ lastOrderDate EQUALS %s ]
+                    -> lastOrderDate EQUALS %s
                   "customers who placed an order today" (today = %s)
-                    -> [ lastOrderDate EQUALS %s ]
+                    -> lastOrderDate EQUALS %s
                   "customers who ordered last week" (today = %s, week starts Mon %s)
-                    -> [ lastOrderDate GREATER_OR_EQUAL %s ]
+                    -> lastOrderDate GREATER_OR_EQUAL %s
                   "customers who ordered last month" (today = %s)
-                    -> [ lastOrderDate GREATER_OR_EQUAL %s ]
+                    -> lastOrderDate GREATER_OR_EQUAL %s
                   "show all customers"
-                    -> [ ]
+                    -> AND[]
                 """.formatted(today, today, yesterday, today, today, today, thisWeekMonday, lastWeekMonday, today,
                 lastMonthStart);
     }

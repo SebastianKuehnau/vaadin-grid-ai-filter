@@ -1,5 +1,9 @@
 package dev.demo.vaadin.aigridfilter.ai.filter;
 
+import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.And;
+import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Condition;
+import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Not;
+import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Or;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -14,27 +18,22 @@ import org.springframework.data.jpa.domain.Specification;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
- * Translates a flat {@link CustomerFilter} (as produced by the LLM) into a JPA
- * {@link Specification}, so filtering and paging happen in the database.
+ * Translates a {@link CustomerFilter} tree (as produced by the LLM) into a JPA {@link Specification},
+ * so filtering and paging happen in the database.
  * <p>
- * There is no explicit AND/OR switch. How the criteria combine is fixed and intuitive — and it is
- * resolved <em>here</em>, not by the model:
+ * The translation is a straightforward recursive walk of the {@link FilterNode} tree:
  * <ul>
- *   <li>Criteria on the <b>same field</b> using {@code CONTAINS}/{@code EQUALS} are alternatives and
- *       are combined with <b>OR</b> (so "Berlin or Hamburg" — or even the colloquial "Berlin and
- *       Hamburg" meaning either city — works).</li>
- *   <li>All other criteria on a field ({@code >=}, {@code <=}, {@code NOT_*}) are constraints and are
- *       combined with <b>AND</b> (so a value range like 100000..500000 works).</li>
- *   <li>Different fields are combined with <b>AND</b> (every field must hold).</li>
+ *   <li>{@link And} → {@link CriteriaBuilder#and}</li>
+ *   <li>{@link Or} → {@link CriteriaBuilder#or}</li>
+ *   <li>{@link Not} → {@link CriteriaBuilder#not}</li>
+ *   <li>{@link Condition} → one of the field-specific predicate builders below</li>
  * </ul>
- * This expresses the common {@code (city = Berlin OR city = Hamburg) AND revenue >= 100000} without
- * any nesting. The one thing it cannot do is cross-field OR (e.g. "in Berlin OR revenue > 1M").
+ * An empty {@code And}/{@code Or} (no children) matches everything, as does a {@code null} filter/root.
  */
 public final class CustomerFilterSpecifications {
 
@@ -55,70 +54,50 @@ public final class CustomerFilterSpecifications {
     private CustomerFilterSpecifications() {
     }
 
-    /** Builds a {@link Specification} from a flat filter. An empty filter matches everything. */
+    /** Builds a {@link Specification} from a filter tree. A {@code null} filter/root matches everything. */
     public static Specification<Customer> from(CustomerFilter filter) {
         return (root, query, cb) -> {
-            if (filter == null || filter.criteria() == null || filter.criteria().isEmpty()) {
+            if (filter == null || filter.root() == null) {
                 return cb.conjunction();
             }
-
-            // Group criteria by field: same field = alternatives, different fields = all required.
-            Map<String, List<FilterCriterion>> byField = new LinkedHashMap<>();
-            for (FilterCriterion criterion : filter.criteria()) {
-                if (criterion != null && criterion.field() != null) {
-                    byField.computeIfAbsent(criterion.field(), _ -> new ArrayList<>()).add(criterion);
-                }
-            }
-
-            List<Predicate> perField = new ArrayList<>();
-            for (List<FilterCriterion> group : byField.values()) {
-                Predicate predicate = fieldPredicate(root, cb, group);
-                if (predicate != null) {
-                    perField.add(predicate);
-                }
-            }
-
-            return perField.isEmpty() ? cb.conjunction() : cb.and(perField.toArray(new Predicate[0]));
+            return toPredicate(root, cb, filter.root());
         };
     }
 
-    /** Combines all criteria on a single field: CONTAINS/EQUALS as OR-alternatives, the rest as AND. */
-    private static Predicate fieldPredicate(Root<Customer> root, CriteriaBuilder cb, List<FilterCriterion> group) {
-        List<Predicate> alternatives = new ArrayList<>(); // CONTAINS / EQUALS / STARTS_WITH / ENDS_WITH -> OR
-        List<Predicate> constraints = new ArrayList<>();   // NOT_*, >=, <=                               -> AND
-
-        for (FilterCriterion criterion : group) {
-            Predicate predicate = toPredicate(root, cb, criterion);
-            if (predicate == null) {
-                continue;
-            }
-            Operator operator = criterion.operator() == null ? Operator.CONTAINS : criterion.operator();
-            if (operator == Operator.CONTAINS || operator == Operator.EQUALS
-                    || operator == Operator.STARTS_WITH || operator == Operator.ENDS_WITH) {
-                alternatives.add(predicate);
-            } else {
-                constraints.add(predicate);
-            }
-        }
-
-        List<Predicate> parts = new ArrayList<>();
-        if (!alternatives.isEmpty()) {
-            parts.add(cb.or(alternatives.toArray(new Predicate[0])));
-        }
-        parts.addAll(constraints);
-
-        return parts.isEmpty() ? null : cb.and(parts.toArray(new Predicate[0]));
+    /** Recursively translates one {@link FilterNode} (and its children) into a {@link Predicate}. */
+    private static Predicate toPredicate(Root<Customer> root, CriteriaBuilder cb, FilterNode node) {
+        return switch (node) {
+            case Condition c -> conditionPredicate(root, cb, c);
+            case And a -> combine(root, cb, a.children(), cb::and);
+            case Or o -> combine(root, cb, o.children(), cb::or);
+            case Not n -> cb.not(toPredicate(root, cb, n.child()));
+        };
     }
 
-    private static Predicate toPredicate(Root<Customer> root, CriteriaBuilder cb, FilterCriterion criterion) {
-        if (criterion == null || criterion.field() == null
-                || criterion.value() == null || criterion.value().isBlank()) {
-            return null;
+    /** Combines the predicates of {@code children} with {@code combiner}; an empty list matches everything. */
+    private static Predicate combine(Root<Customer> root, CriteriaBuilder cb, List<FilterNode> children,
+                                     Function<Predicate[], Predicate> combiner) {
+        if (children == null || children.isEmpty()) {
+            return cb.conjunction();
+        }
+        List<Predicate> predicates = new ArrayList<>();
+        for (FilterNode child : children) {
+            if (child != null) {
+                predicates.add(toPredicate(root, cb, child));
+            }
+        }
+        return predicates.isEmpty() ? cb.conjunction() : combiner.apply(predicates.toArray(new Predicate[0]));
+    }
+
+    private static Predicate conditionPredicate(Root<Customer> root, CriteriaBuilder cb, Condition condition) {
+        if (condition == null || condition.field() == null
+                || condition.value() == null || condition.value().isBlank()) {
+            return cb.conjunction();
         }
 
-        String field = criterion.field();
-        Operator operator = criterion.operator() == null ? Operator.CONTAINS : criterion.operator();
-        String value = criterion.value();
+        String field = condition.field();
+        Operator operator = condition.operator() == null ? Operator.CONTAINS : condition.operator();
+        String value = condition.value();
 
         if (CREDIT_RATING_FIELD.equals(field)) {
             return creditRatingPredicate(root, cb, operator, value);
@@ -137,7 +116,7 @@ public final class CustomerFilterSpecifications {
         }
 
         logger.warn("Ignoring unknown filter field: {}", field);
-        return null;
+        return cb.conjunction();
     }
 
     private static Predicate datePredicate(Root<Customer> root, CriteriaBuilder cb,
@@ -168,14 +147,13 @@ public final class CustomerFilterSpecifications {
 
     /**
      * Translates a credit rating into a creditScore condition. The bound is open-ended where it makes
-     * sense (GOOD -> {@code >= 70}, POOR -> {@code <= 39}), so two ratings on this field combine as
-     * {@code (creditScore >= 70 OR creditScore <= 39)} via the same-field OR rule. NOT_* negates it.
+     * sense (GOOD -> {@code >= 70}, POOR -> {@code <= 39}). NOT_* negates it.
      */
     private static Predicate creditRatingPredicate(Root<Customer> root, CriteriaBuilder cb,
                                                    Operator operator, String value) {
         CreditRating rating = parseRating(value);
         if (rating == null) {
-            return null;
+            return cb.conjunction();
         }
         Path<Integer> score = root.get("creditScore");
         int min = rating.minScoreInclusive();

@@ -3,16 +3,16 @@ package dev.demo.vaadin.aigridfilter.ai.filter;
 import com.fasterxml.jackson.annotation.JsonClassDescription;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 
-import java.util.List;
-
 /**
- * A flat filter: just a list of {@link FilterCriterion}. There is no explicit AND/OR switch — how
- * the criteria combine is fixed and resolved in {@link CustomerFilterSpecifications}: criteria on the
- * same field are OR-alternatives, different fields are AND-combined. This keeps the structure simple
- * enough for smaller, local LLMs to produce reliably as structured output.
+ * A customer filter: a tree of {@link FilterNode}s, combining conditions with AND/OR/NOT to
+ * arbitrary depth. This makes any boolean combination expressible, including cross-field OR
+ * (e.g. {@code city=Berlin OR annualRevenue>=1000000}), which a flat list of conditions cannot
+ * represent. See {@link FilterNode} for the tree shape and a worked JSON example.
+ * <p>
+ * A {@code null} root, or an AND/OR node with no children, matches every customer.
  */
-@JsonClassDescription("A flat customer filter: a list of conditions. Same-field conditions are OR'd, different fields are AND'd.")
+@JsonClassDescription("A customer filter: a tree of AND/OR/NOT/condition nodes. A null root matches all customers.")
 public record CustomerFilter(
-        @JsonPropertyDescription("the conditions to apply; use an empty list to show all customers")
-        List<FilterCriterion> criteria) {
+        @JsonPropertyDescription("the root node of the filter tree; omit or use an AND with no children to show all customers")
+        FilterNode root) {
 }
