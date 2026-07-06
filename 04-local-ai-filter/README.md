@@ -3,6 +3,44 @@
 AI filtering via structured output (`CustomerFilter` → JPA Specifications), running against local
 Ollama models instead of a hosted provider (see `spring.ai.model.chat=ollama`).
 
+## Filter structure
+
+`CustomerFilter` wraps a single `root` `FilterNode` — a tree of `AND` / `OR` / `NOT` / `CONDITION`
+nodes (see `FilterNode.java`). This lets the LLM express any boolean combination, including
+cross-field OR (`city = Berlin OR annualRevenue >= 1000000`), which a flat list of conditions
+cannot represent. `CustomerFilterSpecifications` translates the tree into a JPA `Specification`
+with a straightforward recursive walk (AND → `cb.and`, OR → `cb.or`, NOT → `cb.not`, CONDITION →
+the existing per-field predicate builders). A `null` root, or an `AND`/`OR` with no children,
+matches every customer.
+
+Example — `(city=Berlin OR city=Hamburg) AND (annualRevenue>=500000 OR creditRating=GOOD)`:
+
+```json
+{
+  "root": {
+    "type": "AND",
+    "children": [
+      { "type": "OR", "children": [
+          { "type": "CONDITION", "field": "city", "operator": "CONTAINS", "value": "Berlin" },
+          { "type": "CONDITION", "field": "city", "operator": "CONTAINS", "value": "Hamburg" } ] },
+      { "type": "OR", "children": [
+          { "type": "CONDITION", "field": "annualRevenue", "operator": "GREATER_OR_EQUAL", "value": "500000" },
+          { "type": "CONDITION", "field": "creditRating", "operator": "EQUALS", "value": "GOOD" } ] }
+    ]
+  }
+}
+```
+
+This tree is strictly more expressive than the previous flat structure (a same-field/cross-field
+heuristic hard-coded in `CustomerFilterSpecifications` that could never express cross-field OR),
+but it is also a bigger ask of the model: it must correctly nest AND/OR/NOT rather than emit one
+flat list. Smaller local models are more likely to flatten a nested query incorrectly (e.g. drop a
+condition, or misplace it inside the wrong branch), especially for cross-field OR and NOT-negated
+groups. `CustomerSearchIT` tags its test cases by the nesting complexity they require
+(`small-model-query`, `medium-model-query`, `large-model-query`) so the difference shows up in the
+test report per model; see `src/test/scripts/benchmark_models.py` for automated pass-rate
+comparisons across models.
+
 ## Ollama integration test architecture
 
 The Ollama-backed integration tests use a `@Nested`-based, **N+2** class structure instead of one

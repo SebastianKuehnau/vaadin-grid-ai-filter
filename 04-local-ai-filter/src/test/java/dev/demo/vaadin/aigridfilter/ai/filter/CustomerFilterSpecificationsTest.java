@@ -1,5 +1,9 @@
 package dev.demo.vaadin.aigridfilter.ai.filter;
 
+import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.And;
+import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Condition;
+import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Not;
+import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Or;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
@@ -17,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Deterministic, fast test of the filter translation ({@link CustomerFilter} -> JPA
  * {@link Specification}) against the seeded H2 database — no LLM, no Docker. This is the safety net
- * for the field-grouping rules in {@link CustomerFilterSpecifications}.
+ * for the recursive tree traversal in {@link CustomerFilterSpecifications}.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE) // keep configured H2 + data.sql
@@ -26,17 +30,28 @@ class CustomerFilterSpecificationsTest {
     @Autowired
     CustomerRepository repository;
 
-    private List<Customer> findAll(FilterCriterion... criteria) {
-        return repository.findAll(CustomerFilterSpecifications.from(new CustomerFilter(List.of(criteria))));
+    private List<Customer> findAll(FilterNode root) {
+        return repository.findAll(CustomerFilterSpecifications.from(new CustomerFilter(root)));
+    }
+
+    private static Condition city(Operator operator, String value) {
+        return new Condition("city", operator, value);
+    }
+
+    private static Condition revenue(Operator operator, String value) {
+        return new Condition("annualRevenue", operator, value);
+    }
+
+    private static Condition creditRating(String value) {
+        return new Condition("creditRating", Operator.EQUALS, value);
     }
 
     @Test
     void sameFieldIsOr_differentFieldIsAnd() {
-        // "(city = Berlin OR city = Hamburg) AND revenue >= 100000" — the previously broken case.
-        var result = findAll(
-                new FilterCriterion("city", Operator.CONTAINS, "Berlin"),
-                new FilterCriterion("city", Operator.CONTAINS, "Hamburg"),
-                new FilterCriterion("annualRevenue", Operator.GREATER_OR_EQUAL, "100000"));
+        // "(city = Berlin OR city = Hamburg) AND revenue >= 100000".
+        var result = findAll(new And(List.of(
+                new Or(List.of(city(Operator.CONTAINS, "Berlin"), city(Operator.CONTAINS, "Hamburg"))),
+                revenue(Operator.GREATER_OR_EQUAL, "100000"))));
 
         assertThat(result).isNotEmpty();
         assertThat(result).allSatisfy(c -> {
@@ -50,17 +65,17 @@ class CustomerFilterSpecificationsTest {
 
     @Test
     void singleCity() {
-        var result = findAll(new FilterCriterion("city", Operator.EQUALS, "Berlin"));
+        var result = findAll(city(Operator.EQUALS, "Berlin"));
         assertThat(result).isNotEmpty();
         assertThat(result).allSatisfy(c -> assertThat(c.getAddress().getCity()).isEqualTo("Berlin"));
     }
 
     @Test
     void rangeOnSameNumericFieldIsAnd() {
-        // Two criteria on annualRevenue must be AND-combined (a range), not OR.
-        var result = findAll(
-                new FilterCriterion("annualRevenue", Operator.GREATER_OR_EQUAL, "100000"),
-                new FilterCriterion("annualRevenue", Operator.LESS_OR_EQUAL, "500000"));
+        // Two conditions on annualRevenue must be AND-combined (a range), not OR.
+        var result = findAll(new And(List.of(
+                revenue(Operator.GREATER_OR_EQUAL, "100000"),
+                revenue(Operator.LESS_OR_EQUAL, "500000"))));
         assertThat(result).isNotEmpty();
         assertThat(result).allSatisfy(c ->
                 assertThat(c.getAnnualRevenue()).isBetween(new BigDecimal("100000"), new BigDecimal("500000")));
@@ -68,10 +83,8 @@ class CustomerFilterSpecificationsTest {
 
     @Test
     void twoCreditRatingsAreOr() {
-        // "good AND at-risk rating" means EITHER band — the previously broken case (AND -> empty).
-        var result = findAll(
-                new FilterCriterion("creditRating", Operator.EQUALS, "GOOD"),
-                new FilterCriterion("creditRating", Operator.EQUALS, "POOR"));
+        // "good OR at-risk rating" means EITHER band.
+        var result = findAll(new Or(List.of(creditRating("GOOD"), creditRating("POOR"))));
 
         assertThat(result).isNotEmpty();
         // Every match is in one of the two bands, never the MEDIUM middle.
@@ -84,12 +97,11 @@ class CustomerFilterSpecificationsTest {
 
     @Test
     void creditRatingCombinesWithCityAsAnd() {
-        // Mirrors "customers in Berlin with a good and an at-risk credit rating":
+        // "customers in Berlin with a good and an at-risk credit rating":
         // (city = Berlin) AND (rating = GOOD OR rating = POOR).
-        var result = findAll(
-                new FilterCriterion("city", Operator.CONTAINS, "Berlin"),
-                new FilterCriterion("creditRating", Operator.EQUALS, "GOOD"),
-                new FilterCriterion("creditRating", Operator.EQUALS, "POOR"));
+        var result = findAll(new And(List.of(
+                city(Operator.CONTAINS, "Berlin"),
+                new Or(List.of(creditRating("GOOD"), creditRating("POOR"))))));
 
         assertThat(result).isNotEmpty();
         assertThat(result).allSatisfy(c -> {
@@ -101,14 +113,72 @@ class CustomerFilterSpecificationsTest {
 
     @Test
     void notEqualsExcludesCity() {
-        var result = findAll(new FilterCriterion("city", Operator.NOT_EQUALS, "Berlin"));
+        var result = findAll(city(Operator.NOT_EQUALS, "Berlin"));
         assertThat(result).isNotEmpty();
         assertThat(result).noneMatch(c -> "Berlin".equalsIgnoreCase(c.getAddress().getCity()));
     }
 
     @Test
-    void emptyFilterMatchesAll() {
-        var result = repository.findAll(CustomerFilterSpecifications.from(new CustomerFilter(List.of())));
+    void nullRootMatchesAll() {
+        var result = repository.findAll(CustomerFilterSpecifications.from(new CustomerFilter(null)));
         assertThat(result).hasSize((int) repository.count());
+    }
+
+    @Test
+    void emptyAndMatchesAll() {
+        var result = findAll(new And(List.of()));
+        assertThat(result).hasSize((int) repository.count());
+    }
+
+    @Test
+    void emptyOrMatchesAll() {
+        var result = findAll(new Or(List.of()));
+        assertThat(result).hasSize((int) repository.count());
+    }
+
+    @Test
+    void crossFieldOr() {
+        // "city = Berlin OR revenue >= 100000" — impossible with the old flat structure.
+        var result = findAll(new Or(List.of(
+                city(Operator.EQUALS, "Berlin"),
+                revenue(Operator.GREATER_OR_EQUAL, "100000"))));
+
+        assertThat(result).isNotEmpty();
+        assertThat(result).allSatisfy(c ->
+                assertThat("Berlin".equals(c.getAddress().getCity())
+                        || c.getAnnualRevenue().compareTo(new BigDecimal("100000")) >= 0).isTrue());
+        // Both alternatives actually contribute matches that the other alone wouldn't.
+        assertThat(result).anyMatch(c -> "Berlin".equals(c.getAddress().getCity())
+                && c.getAnnualRevenue().compareTo(new BigDecimal("100000")) < 0);
+        assertThat(result).anyMatch(c -> !"Berlin".equals(c.getAddress().getCity())
+                && c.getAnnualRevenue().compareTo(new BigDecimal("100000")) >= 0);
+    }
+
+    @Test
+    void nestedOrsCombinedWithAnd() {
+        // (city=Berlin OR city=Hamburg) AND (revenue>=500000 OR creditRating=GOOD)
+        var result = findAll(new And(List.of(
+                new Or(List.of(city(Operator.CONTAINS, "Berlin"), city(Operator.CONTAINS, "Hamburg"))),
+                new Or(List.of(revenue(Operator.GREATER_OR_EQUAL, "500000"), creditRating("GOOD"))))));
+
+        assertThat(result).isNotEmpty();
+        assertThat(result).allSatisfy(c -> {
+            assertThat(c.getAddress().getCity()).isIn("Berlin", "Hamburg");
+            assertThat(c.getAnnualRevenue().compareTo(new BigDecimal("500000")) >= 0
+                    || c.getCreditRating() == CreditRating.GOOD).isTrue();
+        });
+    }
+
+    @Test
+    void notNegatesGroup() {
+        // NOT (city=Berlin AND revenue < 100000)
+        var negated = new Not(new And(List.of(
+                city(Operator.EQUALS, "Berlin"),
+                revenue(Operator.LESS_OR_EQUAL, "100000"))));
+        var result = findAll(negated);
+
+        assertThat(result).isNotEmpty();
+        assertThat(result).noneMatch(c -> "Berlin".equals(c.getAddress().getCity())
+                && c.getAnnualRevenue().compareTo(new BigDecimal("100000")) <= 0);
     }
 }
