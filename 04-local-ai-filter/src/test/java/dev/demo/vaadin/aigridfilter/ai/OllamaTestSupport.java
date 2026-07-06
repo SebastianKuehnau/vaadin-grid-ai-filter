@@ -4,8 +4,8 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 
 /**
- * Shared setup for the Ollama-backed integration test infrastructure classes
- * ({@link LocalOllamaTests} and {@link TestContainerOllamaTests}).
+ * Shared setup for the Ollama-backed integration test infrastructure classes, currently
+ * {@link LocalOllamaTests}.
  * <p>
  * Note: the {@code @SpringBootTest(properties = ...)} array itself cannot be extracted here since
  * annotation attributes require compile-time constant literals, not a reference to a field.

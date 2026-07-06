@@ -85,13 +85,9 @@
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
 			<plugin>
-				<!-- Ollama IT infrastructure classes (LocalOllamaTests, TestContainerOllamaTests)
-				     end in *Tests, which surefire's default include pattern would otherwise pick
-				     up; keep them out of the plain unit-test run, they only run via failsafe under
-				     the it-* profiles below. Excluding by the shared "*Tests.java" suffix (rather
-				     than each exact filename) also sidesteps a surefire quirk where excluding
-				     "TestContainerOllamaTests.java" by its exact name was silently ignored because
-				     the name also matches the "Test*.java" default include pattern. -->
+				<!-- LocalOllamaTests (the Ollama IT infrastructure class) ends in *Tests, which
+				     surefire's default include pattern would otherwise pick up; keep it out of the
+				     plain unit-test run, it only runs via failsafe under the it-* profiles below. -->
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
@@ -124,7 +120,8 @@
 
 	<profiles>
 		<profile>
-			<!-- Runs LocalOllamaTests against a native Ollama instance (OLLAMA_BASE_URL). -->
+			<!-- Runs CustomerSearchIT (extends LocalOllamaTests) against a native Ollama instance
+			     (OLLAMA_BASE_URL). -->
 			<id>it-local-ollama</id>
 			<build>
 				<plugins>
@@ -132,11 +129,8 @@
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-failsafe-plugin</artifactId>
 						<configuration>
-							<!-- combine.children="append": so activating both it-* profiles together
-							     runs both infra classes instead of one profile's includes replacing
-							     the other's. -->
-							<includes combine.children="append">
-								<include>**/LocalOllamaTests.java</include>
+							<includes>
+								<include>**/CustomerSearchIT.java</include>
 							</includes>
 						</configuration>
 					</plugin>
