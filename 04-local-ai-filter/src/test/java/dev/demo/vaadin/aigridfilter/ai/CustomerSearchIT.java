@@ -12,15 +12,13 @@ import java.util.Arrays;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Shared integration tests of the AI layer (natural language -> {@link CustomerFilter}) against a real
- * Ollama. Included as a {@code @Nested} suite by the infrastructure classes, which only provide the
- * connection:
- * <ul>
- *   <li>{@link LocalOllamaTests} — a native Ollama instance (no Docker), and</li>
- *   <li>{@link TestContainerOllamaTests} — an Ollama Testcontainer (Docker).</li>
- * </ul>
- * Both run the {@link #MODEL} model. Assertions are tolerant: the LLM is non-deterministic, so we only
- * check that the expected criteria are present (field + value substring), ignoring operator and extras.
+ * Integration tests of the AI layer (natural language -> {@link CustomerFilter}) against a real Ollama.
+ * Extends {@link LocalOllamaTests}, which provides the connection to a native Ollama instance (no
+ * Docker) and skips gracefully when it is unreachable. Run with {@code -Pit-local-ollama} (see
+ * {@code 04-local-ai-filter/pom.xml}), or directly with {@code -Dit.test=CustomerSearchIT}.
+ * <p>
+ * Assertions are tolerant: the LLM is non-deterministic, so we only check that the expected criteria
+ * are present (field + value substring), ignoring operator and extras.
  */
 class CustomerSearchIT extends LocalOllamaTests {
 

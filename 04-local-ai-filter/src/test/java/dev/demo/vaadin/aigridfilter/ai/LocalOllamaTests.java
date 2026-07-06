@@ -1,7 +1,6 @@
 package dev.demo.vaadin.aigridfilter.ai;
 
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Nested;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -14,12 +13,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * must be pulled there. Skips gracefully when no Ollama is reachable, so a plain {@code ./mvnw verify}
  * does not fail when it is not running.
  * <p>
- * The Spring context is started once for this class and shared by all {@code @Nested} suites. Add a new
- * use case by adding a {@code @Nested} class here that extends its shared {@code *IT} suite, e.g.
- * {@code @Nested class ProductValidation extends ProductValidationIT {}}.
+ * Add a new use case by subclassing this class, e.g. {@link CustomerSearchIT}, and including that
+ * subclass in the failsafe {@code <includes>} of the {@code it-local-ollama} profile.
  * <p>
- * Run with {@code -Pit-local-ollama}, or a single suite with
- * {@code -Dit.test=LocalOllamaTests\$CustomerSearch}.
+ * Run with {@code -Pit-local-ollama}, or a single suite with {@code -Dit.test=CustomerSearchIT}.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
         "spring.ai.model.chat=ollama",
@@ -41,8 +38,4 @@ class LocalOllamaTests {
         String baseUrl = OllamaTestSupport.localBaseUrl();
         assumeTrue(OllamaTestSupport.reachable(baseUrl), "native Ollama not reachable at " + baseUrl + " — skipping");
     }
-
-//    @Nested
-//    class CustomerSearch extends CustomerSearchIT {
-//    }
 }
