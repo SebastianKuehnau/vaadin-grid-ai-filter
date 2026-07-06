@@ -21,8 +21,9 @@ import java.util.stream.Collectors;
 
 /**
  * Standalone Java benchmark comparing local Ollama models on the natural-language -&gt; CustomerFilter
- * task. Replicates the ~24 {@code CustomerSearchIT} test cases as raw Ollama HTTP calls (no Maven/JUnit,
- * no Spring context) and reports accuracy, latency/throughput, and basic resource usage.
+ * task. Replicates the {@code CustomerSearchIT} test cases (including the nested AND/OR/NOT tree
+ * cases) as raw Ollama HTTP calls (no Maven/JUnit, no Spring context) and reports accuracy,
+ * latency/throughput, and basic resource usage.
  *
  * <p>Run directly with Java's single-file source launcher (no external dependencies, JDK stdlib only):
  * <pre>
@@ -133,7 +134,9 @@ public class BenchmarkLocalModels {
                 lastWeekMonday, today, lastMonthStart);
 
         return prompt + "\n\nRespond ONLY with a JSON object of this exact shape, nothing else:\n"
-                + "{\"criteria\":[{\"field\":\"...\",\"operator\":\"...\",\"value\":\"...\"}]}";
+                + "{\"root\": {\"type\":\"AND\"|\"OR\"|\"NOT\"|\"CONDITION\", "
+                + "\"children\":[...] (AND/OR only), \"child\":{...} (NOT only), "
+                + "\"field\":\"...\",\"operator\":\"...\",\"value\":\"...\" (CONDITION only)}}";
     }
 
     private static Path locateCustomerSearchService() {
@@ -246,6 +249,34 @@ public class BenchmarkLocalModels {
                 "Zeigen mir Kunden deren Kontaktname Julia ist und die in Berlin sind.",
                 ExpectedCriterion.of("contactName", new String[]{"EQUALS", "CONTAINS"}, "julia"),
                 ExpectedCriterion.of("city", "CONTAINS", "berlin")));
+
+        // --- medium-model-query: nested combinations (an AND of two ORs) ---
+        cases.add(TestCase.of("citiesWithRevenueRange_nestedCombination",
+                "Berlin or Hamburg with revenue between 100000 and 500000",
+                ExpectedCriterion.of("city", "CONTAINS", "berlin"),
+                ExpectedCriterion.of("city", "CONTAINS", "hamburg"),
+                ExpectedCriterion.of("annualRevenue", "GREATER_OR_EQUAL", "100000"),
+                ExpectedCriterion.of("annualRevenue", "LESS_OR_EQUAL", "500000")));
+        cases.add(TestCase.of("nestedOrOfOrs",
+                "customers in Berlin or Hamburg who either have a revenue of at least 500000 or a good credit rating",
+                ExpectedCriterion.of("city", "CONTAINS", "berlin"),
+                ExpectedCriterion.of("city", "CONTAINS", "hamburg"),
+                ExpectedCriterion.of("annualRevenue", "GREATER_OR_EQUAL", "500000"),
+                ExpectedCriterion.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "good", "creditworthy")));
+
+        // --- large-model-query: cross-field OR, only possible with the nested filter tree ---
+        cases.add(TestCase.of("crossFieldOr_cityOrRevenue",
+                "customers in Berlin or with revenue above 1 million",
+                ExpectedCriterion.of("city", "CONTAINS", "berlin"),
+                ExpectedCriterion.of("annualRevenue", "GREATER_OR_EQUAL", "1000000")));
+        cases.add(TestCase.of("crossFieldOr_cityOrCreditRating",
+                "Hamburg or good credit rating",
+                ExpectedCriterion.of("city", "CONTAINS", "hamburg"),
+                ExpectedCriterion.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "good", "creditworthy")));
+        cases.add(TestCase.of("negatedGroup",
+                "show me customers that are not both from Berlin and have a revenue under 100000",
+                ExpectedCriterion.of("city", "CONTAINS", "berlin"),
+                ExpectedCriterion.of("annualRevenue", "LESS_OR_EQUAL", "100000")));
         return cases;
     }
 
@@ -468,7 +499,7 @@ public class BenchmarkLocalModels {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Response parsing & tolerant matching (port of CustomerSearchIT.hasCriterion)
+    // Response parsing & tolerant matching (port of CustomerSearchIT.hasCondition/flatten)
     // ---------------------------------------------------------------------------------------------
 
     @SuppressWarnings("unchecked")
@@ -480,6 +511,12 @@ public class BenchmarkLocalModels {
         return "";
     }
 
+    /**
+     * Best-effort: returns every CONDITION leaf anywhere in the model's {@code root} filter tree, [] if
+     * the shape is off. Also accepts a bare {@code {"criteria": [...]}} flat list for models that ignore
+     * the nested schema, so a model's degree of non-compliance shows up as lower accuracy rather than
+     * being silently masked.
+     */
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> parseCriteria(String content) {
         Object data;
@@ -494,21 +531,56 @@ public class BenchmarkLocalModels {
                 return List.of();
             }
         }
-        List<?> criteria;
-        if (data instanceof List<?> list) {
-            criteria = list;
-        } else if (data instanceof Map<?, ?> map && map.get("criteria") instanceof List<?> list) {
-            criteria = list;
-        } else {
-            return List.of();
-        }
         List<Map<String, Object>> result = new ArrayList<>();
-        for (Object o : criteria) {
-            if (o instanceof Map<?, ?> m) {
-                result.add((Map<String, Object>) m);
+        if (data instanceof List<?> list) {
+            for (Object o : list) {
+                if (o instanceof Map<?, ?> m) {
+                    flatten((Map<String, Object>) m, result);
+                }
+            }
+        } else if (data instanceof Map<?, ?> map) {
+            if (map.get("criteria") instanceof List<?> list) {          // legacy flat shape
+                for (Object o : list) {
+                    if (o instanceof Map<?, ?> m) {
+                        result.add((Map<String, Object>) m);
+                    }
+                }
+            } else if (map.get("root") instanceof Map<?, ?> root) {
+                flatten((Map<String, Object>) root, result);
             }
         }
         return result;
+    }
+
+    /** Collects every CONDITION leaf anywhere in a FilterNode tree, mirroring CustomerSearchIT.flatten. */
+    @SuppressWarnings("unchecked")
+    private static void flatten(Map<String, Object> node, List<Map<String, Object>> into) {
+        if (node == null) {
+            return;
+        }
+        String type = String.valueOf(node.getOrDefault("type", "")).toUpperCase();
+        switch (type) {
+            case "CONDITION" -> into.add(node);
+            case "AND", "OR" -> {
+                if (node.get("children") instanceof List<?> children) {
+                    for (Object child : children) {
+                        if (child instanceof Map<?, ?> m) {
+                            flatten((Map<String, Object>) m, into);
+                        }
+                    }
+                }
+            }
+            case "NOT" -> {
+                if (node.get("child") instanceof Map<?, ?> child) {
+                    flatten((Map<String, Object>) child, into);
+                }
+            }
+            default -> {
+                if (node.containsKey("field")) { // model returned a bare condition without "type"
+                    into.add(node);
+                }
+            }
+        }
     }
 
     private static boolean caseCorrect(List<Map<String, Object>> criteria, List<ExpectedCriterion> expected) {
