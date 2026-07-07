@@ -1,2 +1,4 @@
 /.devcontainer/devcontainer.env
 /.devcontainer/m2-cache/*
+
+/tasks/
