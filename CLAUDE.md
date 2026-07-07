@@ -8,7 +8,7 @@ Top priority for all code: **easy to understand, presentable, extensible** — c
 | Module | Approach |
 |---|---|
 | `01-non-ai-filter` | Classic filtering without AI (baseline): an in-memory `Stream` filter view and a lazy `Specification`-based filter view |
-| `03-ai-filter` | AI filtering via tool calling |
+| `02-ai-filter-agent` | AI filtering via tool calling |
 | `04-local-ai-filter` | AI filtering via structured output (`CustomerFilter` → JPA Specifications), against local Ollama models |
 
 Each module is a standalone Spring Boot app (`<ModuleName>Application`) with its own `data.sql`.
@@ -45,7 +45,7 @@ Iterate on your own until all points are met before reporting the task as done.
 - Keep layers separated: view (Vaadin) / AI service / repository — no AI calls inside views.
 - UI texts and code comments in English.
 - Changes affecting multiple modules must be applied consistently in **all** affected modules
-  (01 → 03 → 04 increase in complexity; same domain, different filtering mechanism).
+  (01 → 02 → 04 increase in complexity; same domain, different filtering mechanism).
 - CSS belongs in theme files, not inline in Java components.
 - Commit after every completed, verified step (Conventional Commits, no push).
 
