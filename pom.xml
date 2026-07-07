@@ -23,8 +23,7 @@
 	</properties>
 
 	<modules>
-		<module>01-simple-filter</module>
-		<module>02-lazy-filter</module>
+		<module>01-non-ai-filter</module>
 		<module>03-ai-filter</module>
 		<module>04-local-ai-filter</module>
 	</modules>
