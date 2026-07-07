@@ -17,6 +17,7 @@
 # Definition of Done (in addition to CLAUDE.md)
 - <Task-specific acceptance criteria, e.g., "Filter query X returns result Y">
 - <UI criterion, e.g., "Traffic light component right-aligned, screenshot as evidence">
+- Revise the README.md and CLAUDE.md files and update them to reflect the current status of the project. Delete any outdated information.
 
 # Final Report
 Summarize at the end: what was changed (per commit), which tests are green,

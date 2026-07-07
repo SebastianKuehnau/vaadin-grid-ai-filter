@@ -17,6 +17,7 @@
 # Definition of Done (zusätzlich zu CLAUDE.md)
 - <Task-spezifische Abnahmekriterien, z. B. "Filterabfrage X liefert Ergebnis Y">
 - <UI-Kriterium, z. B. "Ampel-Komponente rechtsbündig, Screenshot als Beleg">
+- überarbeite README.md und CLAUDE.md Dateien und passe sie an den aktuellen Stand im Projekt an. Lösche veraltete Informationen.
 
 # Abschlussmeldung
 Fasse am Ende zusammen: was geändert wurde (pro Commit), welche Tests grün sind,
