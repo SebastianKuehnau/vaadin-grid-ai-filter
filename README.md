@@ -3,7 +3,7 @@
 A tutorial repository that shows how to filter a Vaadin `Grid` of `Customer` records, building up from
 a plain text filter to natural-language filtering driven by an LLM.
 
-It is a **Maven multi-module reactor**: a root parent POM aggregates four self-contained Spring Boot +
+It is a **Maven multi-module reactor**: a root parent POM aggregates three self-contained Spring Boot +
 Vaadin applications. They share the same `Customer`/`Address` data model and the
 `dev.demo.vaadin.aigridfilter` package, and are meant to be read and run in order. Each module runs on
 its own port, so several can run at the same time.
@@ -19,15 +19,15 @@ its own port, so several can run at the same time.
 
 | Module | Port | What it shows |
 | --- | --- | --- |
-| `01-simple-filter` | 8081 | A simple grid with an **in-memory data provider**, filtered with plain Java (a `Stream` over all rows). |
-| `02-lazy-filter` | 8082 | A **lazy-loading grid** with a per-column filter form. The filter state is turned into a JPA `Specification`, so filtering and paging happen as SQL queries in the database. |
+| `01-non-ai-filter` | 8081 | Two non-AI baseline views: an **in-memory data provider** filtered with plain Java (a `Stream` over all rows), and a **lazy-loading grid** with a per-column filter form whose state is turned into a JPA `Specification`, so filtering and paging happen as SQL queries in the database. |
 | `03-ai-filter` | 8083 | A first take on **natural-language filtering using AI tool calling**. The LLM calls a `@Tool` method and passes the filter values; the query is built from those values. |
 | `04-local-ai-filter` | 8084 | Filtering with a **local LLM**, where the AI generates the filter as **structured output**. A side challenge here is finding a suitable local model (via a benchmark) and testing the model's capabilities. |
 
-- **`01-simple-filter`** — One `TextField` over the whole grid. `CustomerListView` loads all customers
-  into memory and filters one paramter with a Java `Stream`. The simplest possible approach; not lazy.
-- **`02-lazy-filter`** — Per-column filter fields in the grid header row. A lazy data view builds a JPA
-  `Specification` from the multi field filter form, so the work is pushed to the database instead of memory. No AI.
+- **`01-non-ai-filter`** — The non-AI baseline, as two views. `InMemoryCustomerListView` (route `/`,
+  alias `/in-memory`) loads all customers into memory and filters with a single `TextField` via a Java
+  `Stream`; the simplest possible approach, not lazy. `LazyCustomerListView` (route `/lazy`) has
+  per-column filter fields in the grid header row, and a lazy data view builds a JPA `Specification`
+  from them, so the work is pushed to the database instead of memory. No AI in either view.
 - **`03-ai-filter`** — A single natural-language `TextField`. The LLM parses the request and calls a
   `@Tool`-annotated `searchCustomers(...)` method (one parameter per field); the tool builds the
   `Specification` and updates the grid. First step towards filtering data with natural language.
@@ -100,8 +100,7 @@ Use the root Maven wrapper (`./mvnw`) from the repository root. Modules have no 
 `-pl` alone is enough to run one.
 
 ```bash
-./mvnw -pl 01-simple-filter   spring-boot:run   # http://localhost:8081
-./mvnw -pl 02-lazy-filter     spring-boot:run   # http://localhost:8082
+./mvnw -pl 01-non-ai-filter   spring-boot:run   # http://localhost:8081 (/ or /in-memory, and /lazy)
 ./mvnw -pl 03-ai-filter       spring-boot:run   # http://localhost:8083
 ./mvnw -pl 04-local-ai-filter spring-boot:run   # http://localhost:8084
 ```
@@ -115,7 +114,7 @@ the whole reactor at once:
 
 ## Configuration
 
-- **`01-` / `02-`** need no configuration — they do not call a model.
+- **`01-non-ai-filter`** needs no configuration — it does not call a model.
 - **`03-ai-filter`** uses the **OpenAI** chat model and needs an API key. Set the `OPENAI_API_KEY`
   environment variable before running.
 - **`04-local-ai-filter`** is configured for a **local Ollama** by default. Start Ollama and pull the
