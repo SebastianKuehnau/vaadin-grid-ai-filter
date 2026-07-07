@@ -1,29 +1,27 @@
-# Auftrag
-Die README und CLAUDE Dateien sollen auf den aktuellen Stand gebacht werden und dem Betrachter helfen, 
-sich im Projekt zurecht zu finden, die relevanten Sourcen zu finden und die Anwendung zu verstehen und zu nutzen.
+# Task
+The README and CLAUDE files should be brought up to date and help the reader find their way around the project, locate the relevant sources, and understand and use the application.
 
-Die Wahrheit steht im Code und es soll sich nichts ausgedacht werden.
+The truth is in the code and nothing should be made up.
 
-# Kontext
-- Betroffene Module: 01-simple-filter bis 04-advanced-ai-filter sowie das Hauptmodul
-- Zweck: Ich nutze dieses Projekt für Präsentationen und das Publikum soll das Projekt nutzen, um sich in die Thematik AI in Java Anwendungen einzuarbeiten.
+# Context
+- Affected modules: 01-simple-filter to 04-advanced-ai-filter as well as the main module
+- Purpose: I use this project for presentations and the audience should use the project to learn about AI in Java applications.
 
-# Vorgehen
-1. Erstelle zuerst einen Plan (Plan-Mode) und zeige ihn mir. Warte auf mein OK.
-2. Setze den Plan um. Arbeite in sinnvollen Schritten, committe nach jedem
-   verifizierten Schritt (Conventional Commits, kein Push).
-3. Verifiziere selbstständig nach der Definition of Done in CLAUDE.md.
-   Iteriere bei Fehlern eigenständig — füge mir keine Fehlermeldungen zur
-   Analyse vor, die du selbst reproduzieren und beheben kannst.
+# Approach
+1. First create a plan (plan mode) and show it to me. Wait for my OK.
+2. Implement the plan. Work in meaningful steps, commit after each
+   verified step (Conventional Commits, no push).
+3. Verify independently according to the Definition of Done in CLAUDE.md.
+   Iterate on errors independently — don't present me with error messages for
+   analysis that you can reproduce and fix yourself.
 
-# Definition of Done (zusätzlich zu CLAUDE.md)
-- <Task-spezifische Abnahmekriterien, z. B. "Filterabfrage X liefert Ergebnis Y">
-- CLAUDE.md und README.md Dateien sind auf dem aktuellen Stand
-- kurz und sachlich erklärt:
-  - im Hauptmodul wie das Projekt strukturiert ist
-  - in den Untermodulen wie die Anwendungen zu starten sind und welche Absicht das Projekt hat
-- es soll kein langen Fliesstext geben sondern einfach nur kurz erklären was sache ist und eine Orientierung im Modul geben 
+# Definition of Done (in addition to CLAUDE.md)
+- CLAUDE.md and README.md files are up to date
+- briefly and factually explained:
+    - in the main module how the project is structured
+    - in the submodules how to start the applications and what the purpose of the project is
+- there should be no long continuous text but just briefly explain what's what and provide orientation in the module
 
-# Abschlussmeldung
-Fasse am Ende zusammen: was geändert wurde (pro Commit), welche Tests grün sind,
-offene Punkte/Entscheidungen, die ich treffen muss.
+# Final Report
+Summarize at the end: what was changed (per commit), which tests are green,
+open points/decisions that I need to make.
