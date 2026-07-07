@@ -84,7 +84,59 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+			<plugin>
+				<!-- LocalOllamaTests (the Ollama IT infrastructure class) ends in *Tests, which
+				     surefire's default include pattern would otherwise pick up; keep it out of the
+				     plain unit-test run, it only runs via failsafe under the it-* profiles below. -->
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>**/Test*.java</exclude>
+						<exclude>**/LocalOllamaTests.java</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<executions>
+					<execution>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<!-- No profile active: no includes match, so no Ollama IT runs by default. -->
+					<includes>
+						<include>none</include>
+					</includes>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<profile>
+			<!-- Runs CustomerSearchAgentIT (extends LocalOllamaTests) against a native Ollama instance
+			     (OLLAMA_BASE_URL). -->
+			<id>it-local-ollama</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-failsafe-plugin</artifactId>
+						<configuration>
+							<includes>
+								<include>**/CustomerSearchAgentIT.java</include>
+							</includes>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 
 </project>
