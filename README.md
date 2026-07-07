@@ -12,7 +12,7 @@ its own port, so several can run at the same time.
 
 - **Java 25**, **Spring Boot 4.1.0**
 - **Vaadin 25.2.0** (Flow — server-side Java UI, Aura theme)
-- **Spring AI 2.0.0** (modules 3 and 4 only)
+- **Spring AI 2.0.0** (modules 2 and 4 only)
 - **Spring Data JPA** + **H2** in-memory database, seeded from `data.sql` on startup
 - **Vaadin Browserless Testing** (`browserless-test-spring`, module 1 only) — drives real
   Vaadin views and Grid interactions without a browser or servlet container
@@ -119,8 +119,14 @@ the whole reactor at once:
 ## Configuration
 
 - **`01-non-ai-filter`** needs no configuration — it does not call a model.
-- **`02-ai-filter-agent`** uses the **OpenAI** chat model and needs an API key. Set the `OPENAI_API_KEY`
-  environment variable before running.
+- **`02-ai-filter-agent`** is configured for a **local Ollama** by default (same as `04-local-ai-filter`).
+  Start Ollama and pull the model first:
+  ```bash
+  ollama pull llama3.1:8b
+  ```
+  It has both the OpenAI and Ollama starters on the classpath; switch to OpenAI by setting
+  `app.ai.provider=openai` in its `application.properties` (needs the `OPENAI_API_KEY` environment
+  variable).
 - **`04-local-ai-filter`** is configured for a **local Ollama** by default. Start Ollama and pull the
   model first:
   ```bash
