@@ -10,8 +10,7 @@ Top priority for all code: **easy to understand, presentable, extensible** — c
 | `01-simple-filter` | Classic filtering without AI (baseline) |
 | `02-lazy-filter` | Lazy loading / DataProvider-based filtering |
 | `03-ai-filter` | AI filtering via tool calling |
-| `04-advanced-ai-filter` | AI filtering via structured output (`CustomerFilter` → JPA Specifications) |
-| `04-local-ai-filter` | Same as 04, but against local Ollama models |
+| `04-local-ai-filter` | AI filtering via structured output (`CustomerFilter` → JPA Specifications), against local Ollama models |
 
 Each module is a standalone Spring Boot app (`<ModuleName>Application`) with its own `data.sql`.
 For a module's architecture details, see `<module>/README.md` — do **not** duplicate them here.
@@ -35,10 +34,10 @@ A task is only finished when:
 2. For UI changes: the app has been started and the change verified via a Playwright screenshot
    (save screenshots to `~/screenshots/`).
 3. For changes to filter/AI logic: the relevant IT class passes —
-   `CustomerSearchIT` (provider-agnostic), `CustomerSearchServiceLocalOllamaIT` (local Ollama instance),
-   `CustomerSearchServiceTestContainerIT` (Ollama in a Testcontainer).
+   `CustomerSearchIT` (test cases, provider-agnostic), run via `LocalOllamaTests$CustomerSearch`
+   (against a native Ollama instance, profile `it-local-ollama`).
 4. For new filter capabilities: a corresponding test case has also been added to
-   `04-advanced-ai-filter/src/test/scripts/benchmark_models.py`.
+   `04-local-ai-filter/src/test/scripts/benchmark_models.py`.
 
 Iterate on your own until all points are met before reporting the task as done.
 

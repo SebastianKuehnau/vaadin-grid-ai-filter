@@ -31,12 +31,64 @@ its own port, so several can run at the same time.
 - **`03-ai-filter`** — A single natural-language `TextField`. The LLM parses the request and calls a
   `@Tool`-annotated `searchCustomers(...)` method (one parameter per field); the tool builds the
   `Specification` and updates the grid. First step towards filtering data with natural language.
-- **`04-local-ai-filter`** — The same natural-language idea, but the model returns a single, flat
+- **`04-local-ai-filter`** — The same natural-language idea, but the model returns a single
   `CustomerFilter` object as **structured output** (instead of calling a tool), which Java translates
   into a `Specification`. This is more reliable for smaller, local models. The module is layered
   (`ui` / `ai` / `data`) so the AI layer is testable in isolation, and it ships a benchmark script and
-  integration tests to pick and validate a local model. See `COMPARISON.md` for the tool-calling (03)
-  vs. structured-output (04) write-up.
+  integration tests to pick and validate a local model.
+
+### 04-local-ai-filter: filter tree structure
+
+`CustomerFilter` wraps a single `root` `FilterNode` — a tree of `AND` / `OR` / `NOT` / `CONDITION`
+nodes (see `FilterNode.java`). This lets the LLM express any boolean combination, including
+cross-field OR (`city = Berlin OR annualRevenue >= 1000000`), which a flat list of conditions
+cannot represent. `CustomerFilterSpecifications` translates the tree into a JPA `Specification`
+with a recursive walk (AND → `cb.and`, OR → `cb.or`, NOT → `cb.not`, CONDITION → the per-field
+predicate builders). A `null` root, or an `AND`/`OR` with no children, matches every customer.
+
+Example — `(city=Berlin OR city=Hamburg) AND (annualRevenue>=500000 OR creditRating=GOOD)`:
+
+```json
+{
+  "root": {
+    "type": "AND",
+    "children": [
+      { "type": "OR", "children": [
+          { "type": "CONDITION", "field": "city", "operator": "CONTAINS", "value": "Berlin" },
+          { "type": "CONDITION", "field": "city", "operator": "CONTAINS", "value": "Hamburg" } ] },
+      { "type": "OR", "children": [
+          { "type": "CONDITION", "field": "annualRevenue", "operator": "GREATER_OR_EQUAL", "value": "500000" },
+          { "type": "CONDITION", "field": "creditRating", "operator": "EQUALS", "value": "GOOD" } ] }
+    ]
+  }
+}
+```
+
+Nesting is a bigger ask of the model than a flat list — it must correctly place AND/OR/NOT rather
+than emit one flat list. Smaller local models are more likely to flatten a nested query incorrectly
+(e.g. drop a condition, or misplace it in the wrong branch), especially for cross-field OR and
+NOT-negated groups. `CustomerSearchIT` tags its test cases by the nesting complexity they require
+(`small-model-query`, `medium-model-query`, `large-model-query`) so the difference shows up per model
+in the benchmark below.
+
+### 04-local-ai-filter: Ollama integration test architecture
+
+The Ollama-backed integration tests use a `@Nested`-based structure instead of one test class per
+use case:
+
+```
+ai/
+├── CustomerSearchIT.java     (abstract-free, test cases only)
+└── LocalOllamaTests.java     (infrastructure: native Ollama)
+    └── @Nested CustomerSearch (extends CustomerSearchIT)
+```
+
+- `CustomerSearchIT` holds the actual test cases and assertions. It declares no `@SpringBootTest`
+  of its own — it relies on the Spring context of the infrastructure class that nests it.
+- `LocalOllamaTests` is the infrastructure class: it starts one Spring context shared by all of its
+  `@Nested` suites and skips gracefully (via `assumeTrue`) if Ollama is unreachable.
+- Adding a second use case (e.g. `ProductValidation`) needs one new abstract test-case class
+  (`ProductValidationIT`) plus one `@Nested` line in `LocalOllamaTests` — not a whole new class.
 
 In every module the LLM only produces filter *intent* (`field` / `operator` / `value`); it never sees
 the customer data and never writes the final query — Java turns the intent into a `Specification` and
@@ -77,68 +129,53 @@ the whole reactor at once:
 ## Tests (module 4)
 
 ```bash
-./mvnw -pl 04-local-ai-filter test -Dtest=CustomerFilterSpecificationsTest      # fast unit test (no Docker)
-./mvnw -pl 04-local-ai-filter test -Dtest=CustomerSearchServiceLocalOllamaIT    # AI test vs native Ollama (skips if unreachable)
-./mvnw -pl 04-local-ai-filter test -Dtest=CustomerSearchServiceTestContainerIT  # AI test vs Ollama in Docker (needs a pre-built image)
+./mvnw -pl 04-local-ai-filter test   -Dtest=CustomerFilterSpecificationsTest   # fast unit test (no Ollama)
+./mvnw -pl 04-local-ai-filter verify -Pit-local-ollama                        # AI test vs native Ollama (skips if unreachable)
 ```
 
 ### Model benchmark
 
-To compare local models for accuracy and speed, run the benchmark script against a native Ollama
-(`--openai <model>` adds a cloud model for reference):
+`BenchmarkLocalModels.java` compares local Ollama models for accuracy and speed on the same 28
+natural-language queries as `CustomerSearchIT`. It is a dependency-free Java single-file program (JDK
+stdlib only) run directly with Java's source launcher — no Maven, no JUnit, no Spring context:
 
 ```bash
-python3 04-local-ai-filter/src/test/scripts/benchmark_models.py
+cd 04-local-ai-filter/src/test/scripts
+java BenchmarkLocalModels.java                          # auto-discovers tool-capable models from Ollama
+java BenchmarkLocalModels.java llama3.1:8b qwen3:8b      # or benchmark specific models
 ```
+
+It talks to Ollama at `OLLAMA_BASE_URL` (default `http://localhost:11434`), so start Ollama and pull
+the models to compare first. Results are printed to the console and written as
+`benchmark-report-<timestamp>.md`/`.txt` in the current directory.
 
 **Test system:** MacBook Pro, Apple **M2 Pro** (12 cores: 8 performance + 4 efficiency), 32 GB unified
 memory, macOS 26.5.1 (build 25F80), Ollama 0.30.11. Apple-Silicon-optimized `mlx` variants were
-preferred where available. Run on 2026-06-30.
+preferred where available. Run on 2026-07-06 with `BenchmarkLocalModels.java`.
 
-A run over 22 test cases (5 runs per model; `gpt-5.4-mini` for cloud reference):
-
-```bash
-python3 04-local-ai-filter/src/test/scripts/benchmark_models.py --runs 5 \
-  qwen3:8b qwen3.5:4b-mlx qwen3.5:9b-mlx qwen3.5:27b-mlx \
-  gemma4:e4b-mlx gemma4:12b-mlx gemma4:26b-mlx \
-  llama3.1:8b ministral-3:8b phi4-mini:3.8b deepseek-r1:8b \
-  --openai gpt-5.4-mini
-```
-
-| Model | Accuracy | Median latency | TTFT | Tokens/s | Wall-clock |
+| Model | Accuracy | Median latency | TTFT | Tokens/s | Model size |
 | --- | --- | --- | --- | --- | --- |
-| `qwen3:8b` | 22/22 | 1008 ms | 271 ms | 31.6 | 129.3 s |
-| `qwen3.5:4b-mlx` | 21/22 | 825 ms | **69 ms** | 44.9 | 133.8 s |
-| `qwen3.5:9b-mlx` | 22/22 | 2011 ms | 110 ms | 27.1 | 276.3 s |
-| `qwen3.5:27b-mlx` | 21/22 | 2995 ms | 921 ms | 9.7 | 522.6 s |
-| `gemma4:e4b-mlx` | 18/22 | 943 ms | 108 ms | 42.6 | 126.9 s |
-| `gemma4:12b-mlx` | 22/22 | 1708 ms | 468 ms | 20.1 | 295.8 s |
-| `gemma4:26b-mlx` | 21/22 | 843 ms | 276 ms | 39.5 | 139.2 s |
-| `llama3.1:8b` | 22/22 | 810 ms | 277 ms | 34.5 | 119.2 s |
-| `ministral-3:8b` | 20/22 | 1231 ms | 337 ms | 30.9 | 159.4 s |
-| `phi4-mini:3.8b` | 18/22 | 850 ms | 238 ms | 55.9 | 126.4 s |
-| `deepseek-r1:8b` | 5/22 | 16784 ms | 12090 ms | 30.8 | 2130.7 s |
-| `openai/gpt-5.4-mini` | 22/22 (1 err) | 819 ms | 512 ms | 39.0 | 171.7 s |
+| `llama3.2:1b` | 12/32 | 1195 ms | 179 ms | 113.9 | 1.2 GB |
+| `qwen3.5:9b-mlx` | 26/32 | 3898 ms | 9270 ms | 26.8 | 8.3 GB |
+| `qwen3.5:4b-mlx` | 29/32 | 1366 ms | 5164 ms | 45.0 | 3.7 GB |
+| `gemma4:e4b` | 29/32 | 1726 ms | 442 ms | 41.2 | 8.9 GB |
+| `gemma4:e4b-mlx` | 28/32 | 1664 ms | 3582 ms | 42.5 | 9.0 GB |
+| `gemma4:12b-mlx` | 30/32 | 2814 ms | 16431 ms | 20.2 | 6.3 GB |
+| `qwen3:8b` | 29/32 | 1796 ms | 291 ms | 30.3 | 4.9 GB |
+| `gemma4:26b-mlx` | 31/32 | 1571 ms | 6149 ms | 40.5 | 15.5 GB |
+| `llama3.1:8b` (module default) | 27/32 | 1561 ms | **290 ms** | 33.0 | 4.6 GB |
 
 Takeaways:
 
-- **`llama3.1:8b` is the module's default** — fastest of the models that reach full accuracy (22/22),
-  on par with `gpt-5.4-mini`. `qwen3:8b` and `gemma4:12b-mlx` also reach 22/22 but are slower.
-- **`qwen3.5:4b-mlx` is the best interactive choice** — near-perfect (21/22) with by far the lowest
-  time-to-first-token (69 ms), high throughput and a 4 GB footprint, so it feels instant while typing.
-  Its single failure is arguable (it maps "Germany" to `countryCode = DEU`).
-- **Bigger is not better here.** `qwen3.5:27b-mlx` scored *lower* (21/22) than the 4B model while being
-  the slowest local model by far — no need for a large local model on this task.
-- **The cloud model is not needed.** `gpt-5.4-mini` matched, but did not beat, the best local models;
-  the feature runs fully local.
-- **Local and cloud numbers aren't directly comparable.** The benchmark fires all prompts back-to-back,
-  so every local model runs *warm* — its cold-start model load is diluted away. In real single-request
-  use a local model is often cold (Ollama unloads it after a timeout) and competes with the app for the
-  machine's resources, whereas the cloud model is always warm on dedicated hardware. That is why cloud
-  feels faster in practice even though its measured latency here is on par with the fast local models.
-- **Reasoning models are unsuitable.** `deepseek-r1:8b` collapsed to 5/22 with a 12 s TTFT and ~35 min
-  wall-clock — its thinking traces dominate and the structured output mostly never lands.
-- **`phi4-mini:3.8b`** is the throughput leader (55.9 tok/s) but anchors dates to 2023 instead of the
-  current date, failing relative-date prompts ("yesterday", "this year").
+- **`gemma4:26b-mlx` is the most accurate** (31/32), but at 15.5 GB it's the heaviest model tested.
+- **`llama3.1:8b`, the module's configured default, is not the most accurate** (27/32) — `qwen3:8b`,
+  `gemma4:e4b`, `qwen3.5:4b-mlx` (all 29/32) and `gemma4:12b-mlx` (30/32) score higher at a similar or
+  smaller size; it remains the default mainly for its fast, consistent time-to-first-token (290 ms).
+- **`llama3.2:1b` is unsuitable** (12/32) — too small to reliably nest AND/OR/NOT filter trees.
+- **High TTFT hurts the "MLX" quantizations** despite otherwise-decent accuracy — `gemma4:12b-mlx`
+  (16.4 s) and `qwen3.5:9b-mlx` (9.3 s) feel slow to first response even though their token throughput
+  is fine once generation starts.
+- Alternative models are available by uncommenting the corresponding line in
+  `04-local-ai-filter/src/main/resources/application.properties`.
 
 Results are non-deterministic and hardware-dependent, so treat them as a trend rather than fixed numbers.
