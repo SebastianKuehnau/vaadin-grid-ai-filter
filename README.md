@@ -146,6 +146,16 @@ Both views are covered by BrowserlessTests — no browser or servlet container n
 ./mvnw -pl 01-non-ai-filter test   # InMemoryCustomerListViewBrowserlessTest + LazyCustomerListViewBrowserlessTest
 ```
 
+### 02-ai-filter-agent
+
+```bash
+./mvnw -pl 02-ai-filter-agent test                        # unit tests + CustomerListViewBrowserlessTest (no LLM)
+./mvnw -pl 02-ai-filter-agent verify -Pit-local-ollama     # CustomerSearchAgentIT vs native Ollama (skips if unreachable)
+```
+
+See `02-ai-filter-agent/README.md` for details, including a known model-capability limitation
+around relative-date queries.
+
 ### 04-local-ai-filter
 
 ```bash
