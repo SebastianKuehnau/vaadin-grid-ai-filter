@@ -75,22 +75,24 @@ in the benchmark below.
 
 ### 04-local-ai-filter: Ollama integration test architecture
 
-The Ollama-backed integration tests use a `@Nested`-based structure instead of one test class per
-use case:
+The Ollama-backed integration tests use a subclassing structure instead of one unrelated test
+class per use case:
 
 ```
 ai/
-├── CustomerSearchIT.java     (abstract-free, test cases only)
-└── LocalOllamaTests.java     (infrastructure: native Ollama)
-    └── @Nested CustomerSearch (extends CustomerSearchIT)
+├── LocalOllamaTests.java     (infrastructure: native Ollama, @SpringBootTest)
+└── CustomerSearchIT.java     (test cases, provider-agnostic) extends LocalOllamaTests
 ```
 
+- `LocalOllamaTests` is the infrastructure class: it declares the `@SpringBootTest` that wires
+  Spring AI to a native Ollama instance and skips gracefully (via `assumeTrue`) if Ollama is
+  unreachable at `OLLAMA_BASE_URL`.
 - `CustomerSearchIT` holds the actual test cases and assertions. It declares no `@SpringBootTest`
-  of its own — it relies on the Spring context of the infrastructure class that nests it.
-- `LocalOllamaTests` is the infrastructure class: it starts one Spring context shared by all of its
-  `@Nested` suites and skips gracefully (via `assumeTrue`) if Ollama is unreachable.
-- Adding a second use case (e.g. `ProductValidation`) needs one new abstract test-case class
-  (`ProductValidationIT`) plus one `@Nested` line in `LocalOllamaTests` — not a whole new class.
+  of its own — it inherits the Spring context and reachability check from `LocalOllamaTests`.
+- Adding a second use case (e.g. `ProductValidation`) needs one new class, `ProductValidationIT
+  extends LocalOllamaTests`, plus adding it to the failsafe `<includes>` of the
+  `it-local-ollama` profile — not changes to the infrastructure class itself.
+- Run with `-Pit-local-ollama`, or a single suite with `-Dit.test=CustomerSearchIT`.
 
 In every module the LLM only produces filter *intent* (`field` / `operator` / `value`); it never sees
 the customer data and never writes the final query — Java turns the intent into a `Specification` and

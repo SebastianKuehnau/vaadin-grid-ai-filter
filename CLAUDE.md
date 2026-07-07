@@ -33,10 +33,10 @@ A task is only finished when:
 2. For UI changes: the app has been started and the change verified via a Playwright screenshot
    (save screenshots to `~/screenshots/`).
 3. For changes to filter/AI logic: the relevant IT class passes —
-   `CustomerSearchIT` (test cases, provider-agnostic), run via `LocalOllamaTests$CustomerSearch`
-   (against a native Ollama instance, profile `it-local-ollama`).
+   `CustomerSearchIT` (test cases, provider-agnostic) extends the `LocalOllamaTests` infrastructure
+   base class, run via `-Pit-local-ollama` (against a native Ollama instance).
 4. For new filter capabilities: a corresponding test case has also been added to
-   `04-local-ai-filter/src/test/scripts/benchmark_models.py`.
+   `04-local-ai-filter/src/test/scripts/BenchmarkLocalModels.java`.
 
 Iterate on your own until all points are met before reporting the task as done.
 
