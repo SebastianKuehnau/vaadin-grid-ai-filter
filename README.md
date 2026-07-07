@@ -14,6 +14,8 @@ its own port, so several can run at the same time.
 - **Vaadin 25.2.0** (Flow — server-side Java UI, Aura theme)
 - **Spring AI 2.0.0** (modules 3 and 4 only)
 - **Spring Data JPA** + **H2** in-memory database, seeded from `data.sql` on startup
+- **Vaadin Browserless Testing** (`browserless-test-spring`, module 1 only) — drives real
+  Vaadin views and Grid interactions without a browser or servlet container
 
 ## Modules
 
@@ -125,14 +127,25 @@ the whole reactor at once:
   It has both the OpenAI and Ollama starters on the classpath; switch providers via `spring.ai.model.chat`
   in its `application.properties` (uncomment the OpenAI block, comment the Ollama one).
 
-## Tests (module 4)
+## Tests
+
+### 01-non-ai-filter
+
+Both views are covered by BrowserlessTests — no browser or servlet container needed, see
+[Stack](#stack) above:
+
+```bash
+./mvnw -pl 01-non-ai-filter test   # InMemoryCustomerListViewBrowserlessTest + LazyCustomerListViewBrowserlessTest
+```
+
+### 04-local-ai-filter
 
 ```bash
 ./mvnw -pl 04-local-ai-filter test   -Dtest=CustomerFilterSpecificationsTest   # fast unit test (no Ollama)
 ./mvnw -pl 04-local-ai-filter verify -Pit-local-ollama                        # AI test vs native Ollama (skips if unreachable)
 ```
 
-### Model benchmark
+#### Model benchmark
 
 `BenchmarkLocalModels.java` compares local Ollama models for accuracy and speed on the same 28
 natural-language queries as `CustomerSearchIT`. It is a dependency-free Java single-file program (JDK
