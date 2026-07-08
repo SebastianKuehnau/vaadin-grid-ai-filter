@@ -19,21 +19,22 @@ structured-output approach in `04-local-ai-filter`.
 ai/
 ├── AiConfiguration.java                 (@Configuration — Ollama/OpenAI ChatModel provider selection)
 ├── CustomerSearchAgent.java             (public interface — the view's only dependency, the testability seam)
-├── ToolCallingCustomerSearchAgent.java  (@Service — owns the ChatClient + system prompt)
-├── CustomerSearchTools.java             (per-call tool-provider POJO — @Tool searchCustomers)
-├── CustomerSearchResult.java            (per-call mutable holder the tool writes into)
-├── CurrentDateTimeTool.java             (stateless tool-provider POJO — @Tool currentLocalDateTime)
+├── ToolCallingCustomerSearchAgent.java  (@Service @Scope("prototype") — ChatClient, system prompt, both @Tool methods)
 └── filter/
     ├── CustomerSearchCriteria.java      (public record — the flat extracted filter values)
     └── CustomerSpecifications.java      (public final utility — flat AND -> Specification<Customer>)
 ```
 
-`CustomerSearchTools` and `CurrentDateTimeTool` are plain POJOs, not Spring beans — a fresh
-instance of each is constructed per `ToolCallingCustomerSearchAgent.requestCriteria(...)` call and
-passed to `.tools(...)`, so there is no shared state between concurrent searches and no Grid/UI
-reference anywhere in the AI layer. `CustomerSpecifications` is a flat AND-conjunction only (no
-OR/NOT tree) — the deliberate, demo-relevant contrast with `04-local-ai-filter`'s `FilterNode`
-tree.
+`ToolCallingCustomerSearchAgent` is `@Scope("prototype")`, not the default singleton — because
+`CustomerListView` (the only place a `CustomerSearchAgent` is injected) isn't a singleton either
+(Vaadin creates a fresh view instance per navigation), each view gets its own agent instance. That
+makes it safe for the two `@Tool` methods (`searchCustomers`, `currentLocalDateTime`) and the
+`criteria` field they extract into to live directly on the bean: different browser tabs/sessions
+never share an instance, and within one instance the view only ever has one search in flight at a
+time (it disables the filter field for the duration of a search). `requestCriteria(...)` resets
+`criteria` to `null` at the start of every call, since — unlike a fresh per-call object — the field
+now outlives a single call. `CustomerSpecifications` is a flat AND-conjunction only (no OR/NOT
+tree) — the deliberate, demo-relevant contrast with `04-local-ai-filter`'s `FilterNode` tree.
 
 `CustomerSearchAgent.resolveFilter(...)` never throws: on any failure (bad model response,
 unreachable model, ...) it falls back to an unrestricted specification, so the UI never breaks.
@@ -75,8 +76,8 @@ Switch to OpenAI by setting `app.ai.provider=openai` in `application.properties`
 
 - **`CustomerSpecificationsTest`** (`@DataJpaTest`, no LLM) — one test per predicate/field against
   the seeded H2 data, plus AND-combination and null-matches-all.
-- **`CustomerSearchToolsTest`** / **`CurrentDateTimeToolTest`** (plain JUnit, no Spring context) —
-  the extraction plumbing and the date tool, in isolation.
+- **`ToolCallingCustomerSearchAgentToolsTest`** (plain JUnit, no Spring context) — the extraction
+  plumbing and the date tool, in isolation.
 - **`CustomerSearchAgentIT extends LocalOllamaTests`** — natural-language queries against a native
   Ollama instance (`LocalOllamaTests`/`OllamaTestSupport` duplicated from `04-local-ai-filter`,
   this repo's established per-module pattern for Ollama IT infrastructure). Assertions are
