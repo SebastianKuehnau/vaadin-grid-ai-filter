@@ -104,28 +104,30 @@ public class CustomerListView extends VerticalLayout {
     private void onFilter(AbstractField.ComponentValueChangeEvent<TextField, String> event) {
         if (event.getValue() == null || event.getValue().isBlank())
             applyFilter(Specification.unrestricted());
-        else
-            runSearch(event.getValue());
+        else {
+            filterField.setEnabled(false);
+
+            // resolveFilter() blocks on the LLM, so run it off the UI thread and apply via ui.access().
+            CompletableFuture
+                    .supplyAsync(() -> searchAgent.resolveFilter(event.getValue()))
+                    .whenComplete(this::onComplete);
+        }
     }
 
-    private void runSearch(String query) {
-        filterField.setEnabled(false);
+    private void onComplete(Specification<Customer> specification, Throwable error) {
         var ui = getUI().orElseThrow();
 
-        // resolveFilter() blocks on the LLM, so run it off the UI thread and apply via ui.access().
-        CompletableFuture
-                .supplyAsync(() -> searchAgent.resolveFilter(query))
-                .whenComplete((specification, error) -> ui.access(() -> {
-                    if (error != null) {
-                        Throwable cause = error instanceof CompletionException ? error.getCause() : error;
-                        logger.error("Customer search failed", cause);
-                        Notification.show("Error - " + cause.getLocalizedMessage())
-                                .addThemeVariants(NotificationVariant.ERROR);
-                    } else {
-                        applyFilter(specification);
-                    }
-                    filterField.setEnabled(true);
-                }));
+        ui.access(() -> {
+            if (error != null) {
+                Throwable cause = error instanceof CompletionException ? error.getCause() : error;
+                logger.error("Customer search failed", cause);
+                Notification.show("Error - " + cause.getLocalizedMessage())
+                        .addThemeVariants(NotificationVariant.ERROR);
+            } else {
+                applyFilter(specification);
+            }
+            filterField.setEnabled(true);
+        });
     }
 
     /** Re-binds the grid to the given specification — the single point where filtering is applied. */
