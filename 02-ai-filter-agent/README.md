@@ -17,17 +17,17 @@ structured-output approach in `04-local-ai-filter`.
 
 ```
 ai/
-├── AiConfiguration.java                 (@Configuration — Ollama/OpenAI ChatModel provider selection)
-├── CustomerSearchAgent.java             (public interface — the view's only dependency, the testability seam)
-├── ToolCallingCustomerSearchAgent.java  (@Service @Scope("prototype") — ChatClient, system prompt, both @Tool methods)
+├── AiConfiguration.java                  (@Configuration — Ollama/OpenAI ChatModel provider selection)
+├── CustomerSearchAgent.java              (public interface — the view's only dependency, the testability seam)
+├── CustomerSearchToolCallingService.java (@Service @Scope("prototype") — ChatClient, system prompt, both @Tool methods)
 └── filter/
     ├── CustomerSearchCriteria.java      (public record — the flat extracted filter values)
     └── CustomerSpecifications.java      (public final utility — flat AND -> Specification<Customer>)
 ```
 
-`ToolCallingCustomerSearchAgent` is `@Scope("prototype")`, not the default singleton — because
+`CustomerSearchToolCallingService` is `@Scope("prototype")`, not the default singleton — because
 `CustomerListView` (the only place a `CustomerSearchAgent` is injected) isn't a singleton either
-(Vaadin creates a fresh view instance per navigation), each view gets its own agent instance. That
+(Vaadin creates a fresh view instance per navigation), each view gets its own service instance. That
 makes it safe for the two `@Tool` methods (`searchCustomers`, `currentLocalDateTime`) and the
 `criteria` field they extract into to live directly on the bean: different browser tabs/sessions
 never share an instance, and within one instance the view only ever has one search in flight at a
@@ -76,7 +76,7 @@ Switch to OpenAI by setting `app.ai.provider=openai` in `application.properties`
 
 - **`CustomerSpecificationsTest`** (`@DataJpaTest`, no LLM) — one test per predicate/field against
   the seeded H2 data, plus AND-combination and null-matches-all.
-- **`ToolCallingCustomerSearchAgentToolsTest`** (plain JUnit, no Spring context) — the extraction
+- **`CustomerSearchToolCallingServiceToolsTest`** (plain JUnit, no Spring context) — the extraction
   plumbing and the date tool, in isolation.
 - **`CustomerSearchAgentIT extends LocalOllamaTests`** — natural-language queries against a native
   Ollama instance (`LocalOllamaTests`/`OllamaTestSupport` duplicated from `04-local-ai-filter`,

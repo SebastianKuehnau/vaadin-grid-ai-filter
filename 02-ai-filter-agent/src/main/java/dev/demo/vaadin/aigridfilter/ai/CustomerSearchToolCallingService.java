@@ -26,19 +26,19 @@ import java.time.LocalDateTime;
  * <p>
  * {@code @Scope("prototype")}: {@code CustomerListView} (the only place a {@link CustomerSearchAgent}
  * is injected) is not a Spring singleton either — Vaadin creates a fresh view instance per
- * navigation. Prototype scope gives each such view its own agent instance, so {@link #criteria} can
- * live directly on the bean:
- * different browser tabs/sessions never share an instance, so there is no cross-session race, and
- * within one instance the view only ever has one search in flight at a time (it disables the
- * filter field for the duration of a search). The one thing this costs versus the old "fresh
- * tool-provider object per call" trick: {@link #criteria} must be reset explicitly at the top of
- * {@link #requestCriteria}, since it now outlives a single call.
+ * navigation. Prototype scope gives each such view its own instance of this service, so
+ * {@link #criteria} can live directly on the bean: different browser tabs/sessions never share an
+ * instance, so there is no cross-session race, and within one instance the view only ever has one
+ * search in flight at a time (it disables the filter field for the duration of a search). The one
+ * thing this costs versus the old "fresh tool-provider object per call" trick: {@link #criteria}
+ * must be reset explicitly at the top of {@link #requestCriteria}, since it now outlives a single
+ * call.
  */
 @Service
 @Scope("prototype")
-class ToolCallingCustomerSearchAgent implements CustomerSearchAgent {
+class CustomerSearchToolCallingService implements CustomerSearchAgent {
 
-    private static final Logger logger = LoggerFactory.getLogger(ToolCallingCustomerSearchAgent.class);
+    private static final Logger logger = LoggerFactory.getLogger(CustomerSearchToolCallingService.class);
 
     private static final String SYSTEM_PROMPT = """
             You are a helpful assistant that helps users find customers based on their
@@ -52,7 +52,7 @@ class ToolCallingCustomerSearchAgent implements CustomerSearchAgent {
 
     CustomerSearchCriteria criteria;
 
-    ToolCallingCustomerSearchAgent(ChatModel chatModel) {
+    CustomerSearchToolCallingService(ChatModel chatModel) {
         this.chatClient = ChatClient.builder(chatModel).build();
     }
 

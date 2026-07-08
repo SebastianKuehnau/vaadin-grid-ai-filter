@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Autowired
-    ToolCallingCustomerSearchAgent agent;
+    CustomerSearchToolCallingService agent;
 
     @Test
     @Tag("small-model-query")
