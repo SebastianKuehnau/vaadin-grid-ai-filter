@@ -71,7 +71,7 @@ Switch to OpenAI by setting `app.ai.provider=openai` in `application.properties`
 
 ```bash
 ./mvnw -pl 02-ai-filter-agent test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
-./mvnw -pl 02-ai-filter-agent verify -Pit-local-ollama     # CustomerSearchAgentIT vs native Ollama (skips if unreachable)
+./mvnw -pl 02-ai-filter-agent verify -Pit-local-ollama     # CustomerSearchAgentIT + CustomerListViewBrowserlessIT vs native Ollama (skip if unreachable)
 ```
 
 - **`CustomerSpecificationsTest`** (`@DataJpaTest`, no LLM) — one test per predicate/field against
@@ -89,6 +89,14 @@ Switch to OpenAI by setting `app.ai.provider=openai` in `application.properties`
   `MockVaadin.runUIQueue()` (to flush the queued `ui.access()` command) inside an Awaitility
   `pollInSameThread()` loop (so the flush runs on the thread holding the UI `ThreadLocal`) —
   needed because a plain synchronous assertion races the background search thread.
+- **`CustomerListViewBrowserlessIT`** — same Browserless setup, but against a real native Ollama
+  instance instead of a fake agent bean (skips gracefully if unreachable, like
+  `CustomerSearchAgentIT`), exercising the full `TextField` → tool-calling AI layer → `Grid`
+  pipeline end to end. Since the real model's result size isn't known upfront, the wait condition
+  is "the filter field is re-enabled" (it's disabled for the duration of a search) rather than a
+  fixed grid size. `04-local-ai-filter` has an identical test with the same 5 queries, so the two
+  modules' `-Pit-local-ollama` runs are directly comparable on speed (per-test elapsed time in
+  `target/failsafe-reports/`) and result quality between tool calling and structured output.
 
 ## Sources
 

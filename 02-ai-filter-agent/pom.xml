@@ -142,6 +142,7 @@
 						<configuration>
 							<includes>
 								<include>**/CustomerSearchAgentIT.java</include>
+								<include>**/CustomerListViewBrowserlessIT.java</include>
 							</includes>
 						</configuration>
 					</plugin>
