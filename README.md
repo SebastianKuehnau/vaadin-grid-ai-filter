@@ -22,7 +22,7 @@ its own port, so several can run at the same time.
 | Module | Port | What it shows |
 | --- | --- | --- |
 | `01-non-ai-filter` | 8081 | Two non-AI baseline views: an **in-memory data provider** filtered with plain Java (a `Stream` over all rows), and a **lazy-loading grid** with a per-column filter form whose state is turned into a JPA `Specification`, so filtering and paging happen as SQL queries in the database. |
-| `02-ai-filter-agent` | 8082 | A first take on **natural-language filtering using AI tool calling**. The LLM calls a `@Tool` method and passes the filter values; the query is built from those values. |
+| `02-ai-agent-filter` | 8082 | A first take on **natural-language filtering using AI tool calling**. The LLM calls a `@Tool` method and passes the filter values; the query is built from those values. |
 | `04-local-ai-filter` | 8084 | Filtering with a **local LLM**, where the AI generates the filter as **structured output**. A side challenge here is finding a suitable local model (via a benchmark) and testing the model's capabilities. |
 
 - **`01-non-ai-filter`** — The non-AI baseline, as two views. `InMemoryCustomerListView` (route `/`,
@@ -30,7 +30,7 @@ its own port, so several can run at the same time.
   `Stream`; the simplest possible approach, not lazy. `LazyCustomerListView` (route `/lazy`) has
   per-column filter fields in the grid header row, and a lazy data view builds a JPA `Specification`
   from them, so the work is pushed to the database instead of memory. No AI in either view.
-- **`02-ai-filter-agent`** — A single natural-language `TextField`. The LLM parses the request and calls a
+- **`02-ai-agent-filter`** — A single natural-language `TextField`. The LLM parses the request and calls a
   `@Tool`-annotated `searchCustomers(...)` method (one parameter per field); the tool builds the
   `Specification` and updates the grid. First step towards filtering data with natural language.
 - **`04-local-ai-filter`** — The same natural-language idea, but the model returns a single
@@ -105,7 +105,7 @@ Use the root Maven wrapper (`./mvnw`) from the repository root. Modules have no 
 
 ```bash
 ./mvnw -pl 01-non-ai-filter   spring-boot:run   # http://localhost:8081 (/ or /in-memory, and /lazy)
-./mvnw -pl 02-ai-filter-agent spring-boot:run   # http://localhost:8082
+./mvnw -pl 02-ai-agent-filter spring-boot:run   # http://localhost:8082
 ./mvnw -pl 04-local-ai-filter spring-boot:run   # http://localhost:8084
 ```
 
@@ -119,7 +119,7 @@ the whole reactor at once:
 ## Configuration
 
 - **`01-non-ai-filter`** needs no configuration — it does not call a model.
-- **`02-ai-filter-agent`** is configured for a **local Ollama** by default (same as `04-local-ai-filter`).
+- **`02-ai-agent-filter`** is configured for a **local Ollama** by default (same as `04-local-ai-filter`).
   Start Ollama and pull the model first:
   ```bash
   ollama pull llama3.1:8b
@@ -146,14 +146,14 @@ Both views are covered by BrowserlessTests — no browser or servlet container n
 ./mvnw -pl 01-non-ai-filter test   # InMemoryCustomerListViewBrowserlessTest + LazyCustomerListViewBrowserlessTest
 ```
 
-### 02-ai-filter-agent
+### 02-ai-agent-filter
 
 ```bash
-./mvnw -pl 02-ai-filter-agent test                        # unit tests + CustomerListViewBrowserlessTest (no LLM)
-./mvnw -pl 02-ai-filter-agent verify -Pit-local-ollama     # CustomerSearchAgentIT vs native Ollama (skips if unreachable)
+./mvnw -pl 02-ai-agent-filter test                        # unit tests + CustomerListViewBrowserlessTest (no LLM)
+./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama     # CustomerSearchAgentIT vs native Ollama (skips if unreachable)
 ```
 
-See `02-ai-filter-agent/README.md` for details, including a known model-capability limitation
+See `02-ai-agent-filter/README.md` for details, including a known model-capability limitation
 around relative-date queries.
 
 ### 04-local-ai-filter

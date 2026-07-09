@@ -24,7 +24,7 @@
 
 	<modules>
 		<module>01-non-ai-filter</module>
-		<module>02-ai-filter-agent</module>
+		<module>02-ai-agent-filter</module>
 		<module>04-local-ai-filter</module>
 	</modules>
 
