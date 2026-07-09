@@ -1,8 +1,6 @@
 /.devcontainer/devcontainer.env
 /.devcontainer/m2-cache/*
 
-/tasks/
-
 # Maven / Vaadin build output
 target/
 src/main/frontend/generated/
