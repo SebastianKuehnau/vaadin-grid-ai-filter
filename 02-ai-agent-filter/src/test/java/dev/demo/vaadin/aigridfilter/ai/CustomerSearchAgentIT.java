@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Integration tests of the AI layer (natural language -> {@link CustomerSearchCriteria}) against a
  * real Ollama. Extends {@link LocalOllamaTests}, which provides the connection to a native Ollama
  * instance (no Docker) and skips gracefully when it is unreachable. Run with
- * {@code -Pit-local-ollama} (see {@code 02-ai-filter-agent/pom.xml}), or directly with
+ * {@code -Pit-local-ollama} (see {@code 02-ai-agent-filter/pom.xml}), or directly with
  * {@code -Dit.test=CustomerSearchAgentIT}.
  * <p>
  * Assertions are tolerant: the LLM is non-deterministic, so values are checked case-insensitively

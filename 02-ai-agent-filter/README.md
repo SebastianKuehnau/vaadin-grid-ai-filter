@@ -1,4 +1,4 @@
-# 02-ai-filter-agent
+# 02-ai-agent-filter
 
 Natural-language filtering of a Vaadin `Grid` of `Customer` records via **AI tool calling**: the
 LLM parses the request and calls a `searchCustomers` tool, passing one argument per field; Java
@@ -54,7 +54,7 @@ live tool call — a good illustration of the trade-off between the two approach
 ## Running
 
 ```bash
-./mvnw -pl 02-ai-filter-agent spring-boot:run   # http://localhost:8082
+./mvnw -pl 02-ai-agent-filter spring-boot:run   # http://localhost:8082
 ```
 
 Configured for a local Ollama by default (see `AiConfiguration`); start Ollama and pull the model
@@ -70,8 +70,8 @@ Switch to OpenAI by setting `app.ai.provider=openai` in `application.properties`
 ## Tests
 
 ```bash
-./mvnw -pl 02-ai-filter-agent test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
-./mvnw -pl 02-ai-filter-agent verify -Pit-local-ollama     # CustomerSearchAgentIT + CustomerListViewBrowserlessIT vs native Ollama (skip if unreachable)
+./mvnw -pl 02-ai-agent-filter test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
+./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama     # CustomerSearchAgentIT + CustomerListViewBrowserlessIT vs native Ollama (skip if unreachable)
 ```
 
 - **`CustomerSpecificationsTest`** (`@DataJpaTest`, no LLM) — one test per predicate/field against
