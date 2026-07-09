@@ -20,8 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code -Dit.test=CustomerSearchAgentIT}.
  * <p>
  * Assertions are tolerant: the LLM is non-deterministic, so values are checked case-insensitively
- * and by substring rather than exact equality. Unlike {@code 04-local-ai-filter}'s
- * {@code CustomerSearchIT}, no tree-walking helpers are needed — {@link CustomerSearchCriteria} is
+ * and by substring rather than exact equality. Unlike {@code 03-ai-structured-filter}'s
+ * {@code CustomerSearchAgentIT}, no tree-walking helpers are needed — {@link CustomerSearchCriteria} is
  * flat, so each field is asserted directly.
  */
 @Timeout(value = 60, unit = TimeUnit.SECONDS)

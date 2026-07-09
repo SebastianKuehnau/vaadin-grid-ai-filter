@@ -9,10 +9,15 @@ Top priority for all code: **easy to understand, presentable, extensible** — c
 |---|---|
 | `01-non-ai-filter` | Classic filtering without AI (baseline): an in-memory `Stream` filter view and a lazy `Specification`-based filter view |
 | `02-ai-agent-filter` | AI filtering via tool calling |
-| `04-local-ai-filter` | AI filtering via structured output (`CustomerFilter` → JPA Specifications), against local Ollama models |
+| `03-ai-structured-filter` | AI filtering via structured output (`CustomerFilter` → JPA Specifications), against local Ollama models |
 
-Each module is a standalone Spring Boot app (`<ModuleName>Application`) with its own `data.sql`.
-For a module's architecture details, see `<module>/README.md` — do **not** duplicate them here.
+Each of the three modules above is a standalone Spring Boot app (`<ModuleName>Application`) with
+its own `data.sql`. For a module's architecture details, see `<module>/README.md` — do **not**
+duplicate them here.
+
+`04-ollama-benchmark` is **not** a Maven module (no `pom.xml`, not in the root `<modules>` list):
+it's a standalone, dependency-free script benchmarking local Ollama models against
+`03-ai-structured-filter`'s AI layer. See `04-ollama-benchmark/README.md`.
 
 ## Build & Run
 
@@ -33,10 +38,10 @@ A task is only finished when:
 2. For UI changes: the app has been started and the change verified via a Playwright screenshot
    (save screenshots to `~/screenshots/`).
 3. For changes to filter/AI logic: the relevant IT class passes —
-   `CustomerSearchIT` (test cases, provider-agnostic) extends the `LocalOllamaTests` infrastructure
-   base class, run via `-Pit-local-ollama` (against a native Ollama instance).
+   `CustomerSearchAgentIT` (test cases, provider-agnostic) extends the `LocalOllamaTests`
+   infrastructure base class, run via `-Pit-local-ollama` (against a native Ollama instance).
 4. For new filter capabilities: a corresponding test case has also been added to
-   `04-local-ai-filter/src/test/scripts/BenchmarkLocalModels.java`.
+   `04-ollama-benchmark/BenchmarkLocalModels.java`.
 
 Iterate on your own until all points are met before reporting the task as done.
 
@@ -45,7 +50,7 @@ Iterate on your own until all points are met before reporting the task as done.
 - Keep layers separated: view (Vaadin) / AI service / repository — no AI calls inside views.
 - UI texts and code comments in English.
 - Changes affecting multiple modules must be applied consistently in **all** affected modules
-  (01 → 02 → 04 increase in complexity; same domain, different filtering mechanism).
+  (01 → 02 → 03 increase in complexity; same domain, different filtering mechanism).
 - CSS belongs in theme files, not inline in Java components.
 - Commit after every completed, verified step (Conventional Commits, no push).
 

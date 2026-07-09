@@ -4,7 +4,7 @@ Natural-language filtering of a Vaadin `Grid` of `Customer` records via **AI too
 LLM parses the request and calls a `searchCustomers` tool, passing one argument per field; Java
 turns those arguments into a JPA `Specification`. First step in this tutorial towards filtering
 data with natural language — compare with the non-AI baselines in `01-non-ai-filter` and the
-structured-output approach in `04-local-ai-filter`.
+structured-output approach in `03-ai-structured-filter`.
 
 ## View
 
@@ -34,7 +34,7 @@ never share an instance, and within one instance the view only ever has one sear
 time (it disables the filter field for the duration of a search). `requestCriteria(...)` resets
 `criteria` to `null` at the start of every call, since — unlike a fresh per-call object — the field
 now outlives a single call. `CustomerSpecifications` is a flat AND-conjunction only (no OR/NOT
-tree) — the deliberate, demo-relevant contrast with `04-local-ai-filter`'s `FilterNode` tree.
+tree) — the deliberate, demo-relevant contrast with `03-ai-structured-filter`'s `FilterNode` tree.
 
 `CustomerSearchAgent.resolveFilter(...)` never throws: on any failure (bad model response,
 unreachable model, ...) it falls back to an unrestricted specification, so the UI never breaks.
@@ -47,7 +47,7 @@ two-hop chain is harder than a single tool call: `llama3.1:8b` (this module's co
 reliably fails it — it either passes a literal placeholder string instead of a computed date, or
 skips the tool call and hallucinates a stale one — while `qwen3:8b` handles it correctly. This is
 a genuine model-capability gap in the tool-calling approach, not a bug in the tool wiring, and is
-why `CustomerSearchAgentIT` (below) does not include a relative-date case. `04-local-ai-filter`
+why `CustomerSearchAgentIT` (below) does not include a relative-date case. `03-ai-structured-filter`
 avoids the issue entirely by putting "today" directly into its prompt text instead of requiring a
 live tool call — a good illustration of the trade-off between the two approaches.
 
@@ -79,7 +79,7 @@ Switch to OpenAI by setting `app.ai.provider=openai` in `application.properties`
 - **`CustomerSearchToolCallingServiceToolsTest`** (plain JUnit, no Spring context) — the extraction
   plumbing and the date tool, in isolation.
 - **`CustomerSearchAgentIT extends LocalOllamaTests`** — natural-language queries against a native
-  Ollama instance (`LocalOllamaTests`/`OllamaTestSupport` duplicated from `04-local-ai-filter`,
+  Ollama instance (`LocalOllamaTests`/`OllamaTestSupport` duplicated from `03-ai-structured-filter`,
   this repo's established per-module pattern for Ollama IT infrastructure). Assertions are
   tolerant of LLM non-determinism (case-insensitive, substring). Tagged `small-model-query`.
 - **`CustomerListViewBrowserlessTest`** — [Vaadin Browserless
@@ -94,7 +94,7 @@ Switch to OpenAI by setting `app.ai.provider=openai` in `application.properties`
   `CustomerSearchAgentIT`), exercising the full `TextField` → tool-calling AI layer → `Grid`
   pipeline end to end. Since the real model's result size isn't known upfront, the wait condition
   is "the filter field is re-enabled" (it's disabled for the duration of a search) rather than a
-  fixed grid size. `04-local-ai-filter` has an identical test with the same 5 queries, so the two
+  fixed grid size. `03-ai-structured-filter` has an identical test with the same 5 queries, so the two
   modules' `-Pit-local-ollama` runs are directly comparable on speed (per-test elapsed time in
   `target/failsafe-reports/`) and result quality between tool calling and structured output.
 
