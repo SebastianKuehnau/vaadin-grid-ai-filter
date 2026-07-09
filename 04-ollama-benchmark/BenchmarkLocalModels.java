@@ -21,20 +21,20 @@ import java.util.stream.Collectors;
 
 /**
  * Standalone Java benchmark comparing local Ollama models on the natural-language -&gt; CustomerFilter
- * task. Replicates the {@code CustomerSearchIT} test cases (including the nested AND/OR/NOT tree
- * cases) as raw Ollama HTTP calls (no Maven/JUnit, no Spring context) and reports accuracy,
+ * task. Replicates the {@code CustomerSearchAgentIT} test cases (including the nested AND/OR/NOT
+ * tree cases) as raw Ollama HTTP calls (no Maven/JUnit, no Spring context) and reports accuracy,
  * latency/throughput, and basic resource usage.
  *
  * <p>Run directly with Java's single-file source launcher (no external dependencies, JDK stdlib only):
  * <pre>
- *   cd 04-local-ai-filter/src/test/scripts
+ *   cd 04-ollama-benchmark
  *   java BenchmarkLocalModels.java [model1] [model2] ...
  * </pre>
  * Without model arguments, candidates are auto-discovered from {@code GET /api/tags} (models whose
  * capabilities include "tools"). Ollama base URL via {@code OLLAMA_BASE_URL} (default
  * {@code http://localhost:11434}). Reports ({@code benchmark-report-<timestamp>.md/.txt}) are written to
  * the current working directory. Not a CI gate — for model comparison during demos/development.
- * Replaces the previous {@code benchmark_models.py}.
+ * Benchmarks {@code 03-ai-structured-filter}'s AI layer; replaces the previous {@code benchmark_models.py}.
  */
 public class BenchmarkLocalModels {
 
@@ -112,12 +112,12 @@ public class BenchmarkLocalModels {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // System prompt: extracted from the real CustomerSearchService.java so the benchmark cannot drift
-    // from production behaviour, mirroring benchmark_models.py's approach.
+    // System prompt: extracted from the real CustomerSearchStructuredOutputService.java so the
+    // benchmark cannot drift from production behaviour, mirroring benchmark_models.py's approach.
     // ---------------------------------------------------------------------------------------------
 
     private static String buildSystemPrompt(LocalDate today) throws IOException {
-        Path source = locateCustomerSearchService();
+        Path source = locateCustomerSearchStructuredOutputService();
         String src = Files.readString(source, StandardCharsets.UTF_8);
         Matcher m = Pattern.compile("return\\s*\"\"\"(.*?)\"\"\"\\s*\\.formatted", Pattern.DOTALL).matcher(src);
         if (!m.find()) {
@@ -129,7 +129,7 @@ public class BenchmarkLocalModels {
         LocalDate thisWeekMonday = today.minusDays(today.getDayOfWeek().getValue() - 1L);
         LocalDate lastWeekMonday = thisWeekMonday.minusWeeks(1);
         LocalDate lastMonthStart = today.withDayOfMonth(1).minusMonths(1);
-        // Same argument order as CustomerSearchService.systemPrompt(...).formatted(...).
+        // Same argument order as CustomerSearchStructuredOutputService.systemPrompt(...).formatted(...).
         String prompt = template.formatted(today, today, yesterday, today, today, today, thisWeekMonday,
                 lastWeekMonday, today, lastMonthStart);
 
@@ -139,24 +139,23 @@ public class BenchmarkLocalModels {
                 + "\"field\":\"...\",\"operator\":\"...\",\"value\":\"...\" (CONDITION only)}}";
     }
 
-    private static Path locateCustomerSearchService() {
-        String relative = "dev/demo/vaadin/aigridfilter/ai/CustomerSearchService.java";
+    private static Path locateCustomerSearchStructuredOutputService() {
+        String relative = "dev/demo/vaadin/aigridfilter/ai/CustomerSearchStructuredOutputService.java";
         List<Path> candidates = List.of(
-                Path.of("../../main/java/" + relative),                                  // run from scripts/
-                Path.of("04-local-ai-filter/src/main/java/" + relative),                  // run from repo root
-                Path.of("src/main/java/" + relative)                                      // run from module root
+                Path.of("../03-ai-structured-filter/src/main/java/" + relative),          // run from 04-ollama-benchmark/
+                Path.of("03-ai-structured-filter/src/main/java/" + relative)               // run from repo root
         );
         for (Path candidate : candidates) {
             if (Files.isRegularFile(candidate)) {
                 return candidate;
             }
         }
-        throw new IllegalStateException("Could not locate CustomerSearchService.java from cwd="
+        throw new IllegalStateException("Could not locate CustomerSearchStructuredOutputService.java from cwd="
                 + Path.of("").toAbsolutePath() + "; tried " + candidates);
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Test cases: 1:1 port of CustomerSearchIT.java (24 cases, incl. the 4 German ones).
+    // Test cases: 1:1 port of CustomerSearchAgentIT.java (32 cases, incl. the 4 German ones).
     // ---------------------------------------------------------------------------------------------
 
     private static List<TestCase> testCases(LocalDate today) {
@@ -499,7 +498,7 @@ public class BenchmarkLocalModels {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Response parsing & tolerant matching (port of CustomerSearchIT.hasCondition/flatten)
+    // Response parsing & tolerant matching (port of CustomerSearchAgentIT.hasCondition/flatten)
     // ---------------------------------------------------------------------------------------------
 
     @SuppressWarnings("unchecked")
@@ -552,7 +551,7 @@ public class BenchmarkLocalModels {
         return result;
     }
 
-    /** Collects every CONDITION leaf anywhere in a FilterNode tree, mirroring CustomerSearchIT.flatten. */
+    /** Collects every CONDITION leaf anywhere in a FilterNode tree, mirroring CustomerSearchAgentIT.flatten. */
     @SuppressWarnings("unchecked")
     private static void flatten(Map<String, Object> node, List<Map<String, Object>> into) {
         if (node == null) {
@@ -736,7 +735,7 @@ public class BenchmarkLocalModels {
         sb.append("# Local Ollama Model Benchmark\n\n");
         sb.append("Generated: ").append(java.time.LocalDateTime.now()).append("\n\n");
         sb.append("Not a CI gate — for model comparison during demos/development. ")
-          .append(totalCases).append(" test cases per model, ported from `CustomerSearchIT`.\n\n");
+          .append(totalCases).append(" test cases per model, ported from `CustomerSearchAgentIT`.\n\n");
         sb.append("| Model | Accuracy | Median Latency | TTFT | Tokens/s | RAM (JVM) | CPU | Model Size |\n");
         sb.append("|---|---|---|---|---|---|---|---|\n");
         for (ModelResult r : results) {
