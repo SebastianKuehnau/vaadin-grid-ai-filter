@@ -15,10 +15,10 @@ import java.time.LocalDate;
 @StyleSheet(Aura.STYLESHEET)
 @SpringBootApplication
 @Push
-public class AiFilterAgentApplication implements AppShellConfigurator {
+public class AiAgentFilterApplication implements AppShellConfigurator {
 
 	public static void main(String[] args) {
-		SpringApplication.run(AiFilterAgentApplication.class, args);
+		SpringApplication.run(AiAgentFilterApplication.class, args);
 	}
 
 	/**

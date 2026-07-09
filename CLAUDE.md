@@ -8,7 +8,7 @@ Top priority for all code: **easy to understand, presentable, extensible** — c
 | Module | Approach |
 |---|---|
 | `01-non-ai-filter` | Classic filtering without AI (baseline): an in-memory `Stream` filter view and a lazy `Specification`-based filter view |
-| `02-ai-filter-agent` | AI filtering via tool calling |
+| `02-ai-agent-filter` | AI filtering via tool calling |
 | `04-local-ai-filter` | AI filtering via structured output (`CustomerFilter` → JPA Specifications), against local Ollama models |
 
 Each module is a standalone Spring Boot app (`<ModuleName>Application`) with its own `data.sql`.

@@ -2,7 +2,7 @@
 
 The non-AI baseline for this tutorial: two ways to filter a Vaadin `Grid` of `Customer` records
 without any LLM involved, so they can be compared against the AI-driven approaches in
-`02-ai-filter-agent` and `04-local-ai-filter`.
+`02-ai-agent-filter` and `04-local-ai-filter`.
 
 ## Views
 
