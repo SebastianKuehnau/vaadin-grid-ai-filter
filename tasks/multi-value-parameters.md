@@ -8,7 +8,7 @@ Erweitere Modul `02-ai-agent-filter` um die Fähigkeit, mehrere Werte für dense
   - **String-Felder:** `city`, `country`, `companyName`, `contactName`, `email`, `phone`, `postalCode`, `street`, `houseNumber`
   - **CreditRating:** Mehrere Kreditwürdigkeits-Werte (`GOOD`, `MEDIUM`, `POOR`)
   - **Datumsfelder:** `customerSince`, `lastOrderDate` — mit automatischer Jahresbereich-Interpretation
-  - **`annualRevenue`:** Mehrere Umsatz-Bereiche (`RevenueRange` mit `min`/`max`, siehe unten) — neuer Filterparameter, existiert bisher nicht in Modul 02
+  - **`annualRevenue`:** Mehrere Umsatz-Bereiche (`RevenueRange` mit `atLeast`/`atMost`, siehe unten) — neuer Filterparameter, existiert bisher nicht in Modul 02
 - Mehrwerte innerhalb eines Feldes werden mit OR verknüpft
 - Verschiedene Felder werden weiterhin mit AND verknüpft (bestehende flache Struktur bleibt erhalten)
 - Die UI und das Benutzerverhalten bleiben unverändert
@@ -24,10 +24,10 @@ Erweitere Modul `02-ai-agent-filter` um die Fähigkeit, mehrere Werte für dense
 Das LLM übergibt Datumsangaben im ISO-Format (z.B. `2021-01-01`). Java interpretiert jedes übergebene Datum automatisch als Jahresbereich — von 1. Januar bis 31. Dezember desselben Jahres. Bei Multi-Value werden diese Bereiche mit OR verknüpft.
 
 **`annualRevenue`-Semantik (neu, Bereichsliste):**
-`annualRevenue` (`BigDecimal`) ist ein stetiges Zahlenfeld, kein diskreter Wert wie `city` oder `creditRating`, und existiert bisher **gar nicht** als Filterparameter in Modul 02 (im Gegensatz zu den anderen Feldern, die bereits als Einzelwert funktionieren). Es wird als neue Liste von Bereichen `List<RevenueRange>` modelliert (`RevenueRange(BigDecimal min, BigDecimal max)`, beide nullable für offene Bereiche), analog zum Datums-Muster: ein einzelner Bereich entspricht dem heutigen Einzelwert-Verhalten, mehrere Bereiche werden mit OR verknüpft.
-- "Umsatz über 500.000" → `[{min: 500000, max: null}]`
-- "Umsatz zwischen 50.000 und 200.000" → `[{min: 50000, max: 200000}]`
-- "Umsatz über 500.000 oder unter 50.000" → `[{min: 500000, max: null}, {min: null, max: 50000}]`
+`annualRevenue` (`BigDecimal`) ist ein stetiges Zahlenfeld, kein diskreter Wert wie `city` oder `creditRating`, und existiert bisher **gar nicht** als Filterparameter in Modul 02 (im Gegensatz zu den anderen Feldern, die bereits als Einzelwert funktionieren). Es wird als neue Liste von Bereichen `List<RevenueRange>` modelliert (`RevenueRange(BigDecimal atLeast, BigDecimal atMost)`, beide nullable für offene Bereiche), analog zum Datums-Muster: ein einzelner Bereich entspricht dem heutigen Einzelwert-Verhalten, mehrere Bereiche werden mit OR verknüpft.
+- "Umsatz über 500.000" → `[{atLeast: 500000, atMost: null}]`
+- "Umsatz zwischen 50.000 und 200.000" → `[{atLeast: 50000, atMost: 200000}]`
+- "Umsatz über 500.000 oder unter 50.000" → `[{atLeast: 500000, atMost: null}, {atLeast: null, atMost: 50000}]`
 
 **Ausgeschlossen aus dem Scope:**
 - `active` (boolean) wird nicht unterstützt (aktuell kein Filter-Parameter)
@@ -51,12 +51,12 @@ Das LLM übergibt Datumsangaben im ISO-Format (z.B. `2021-01-01`). Java interpre
      - String → `List<String>` oder `Collection<String>`
      - `CreditRating` → `List<CreditRating>`
      - `LocalDate` → `List<LocalDate>` (mit Jahresbereich-Logik)
-     - `annualRevenue` (neu) → `List<RevenueRange>` (neuer Record mit nullable `min`/`max`)
+     - `annualRevenue` (neu) → `List<RevenueRange>` (neuer Record mit nullable `atLeast`/`atMost`)
    - Wie sollte die JPA Specification-Generierung aussehen?
      - OR-Verknüpfung für String-Listen (LIKE)
      - OR-Verknüpfung für CreditRating-Listen (BETWEEN für Scores)
      - OR-Verknüpfung für Datumsfeld-Listen (Jahresbereiche: `BETWEEN year-01-01 AND year-12-31`)
-     - OR-Verknüpfung für `RevenueRange`-Listen (je Bereich `>=min AND <=max`, offene Bereiche wenn `min`/`max` null)
+     - OR-Verknüpfung für `RevenueRange`-Listen (je Bereich `>=atLeast AND <=atMost`, offene Bereiche wenn `atLeast`/`atMost` null)
    - Wie muss die Tool-Beschreibung angepasst werden, damit das LLM weiß, dass es Arrays/Listen übergeben kann?
    - Wie wird die Jahresbereich-Logik implementiert (Detection: ist das Datum ein 01.01.? Oder immer als Jahresbereich behandeln?)
    - Welche Tests müssen ergänzt werden?
@@ -105,7 +105,7 @@ Das LLM übergibt Datumsangaben im ISO-Format (z.B. `2021-01-01`). Java interpre
   - Multi-Value String-Felder (z.B. mehrere Städte)
   - Multi-Value CreditRating
   - Multi-Value Datumsfelder mit Jahresbereich-Logik
-  - Multi-Value `annualRevenue` (geschlossener Bereich, offener Bereich min-only/max-only, mehrere OR-verknüpfte Bereiche, leere Liste)
+  - Multi-Value `annualRevenue` (geschlossener Bereich, offener Bereich atLeast-only/atMost-only, mehrere OR-verknüpfte Bereiche, leere Liste)
   - Kombination mehrerer Multi-Value-Felder
 - ✅ Mindestens 3 neue Test-Cases in `CustomerSearchAgentIT`:
   - Natural Language Query mit String Multi-Value

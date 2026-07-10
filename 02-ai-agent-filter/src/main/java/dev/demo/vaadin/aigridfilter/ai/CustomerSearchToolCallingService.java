@@ -2,6 +2,7 @@ package dev.demo.vaadin.aigridfilter.ai;
 
 import dev.demo.vaadin.aigridfilter.ai.filter.CustomerSearchCriteria;
 import dev.demo.vaadin.aigridfilter.ai.filter.CustomerSpecifications;
+import dev.demo.vaadin.aigridfilter.ai.filter.RevenueRange;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import org.slf4j.Logger;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * The AI layer: turns a natural-language query into a JPA {@link Specification} by letting the
@@ -43,9 +45,10 @@ class CustomerSearchToolCallingService implements CustomerSearchAgent {
     private static final String SYSTEM_PROMPT = """
             You are a helpful assistant that helps users find customers based on their
             company name, contact name, email, phone, customer since, last order date,
-            country, city, postal code, street, house number, and credit rating.
-            The credit rating is one of: creditworthy (GOOD), limited (MEDIUM), or
-            at risk / not creditworthy (POOR).
+            country, city, postal code, street, house number, annual revenue, and credit
+            rating. The credit rating is one of: creditworthy (GOOD), limited (MEDIUM), or
+            at risk / not creditworthy (POOR). A query can ask for multiple values of the
+            same field (e.g. two cities, or two credit ratings) - pass all of them.
             """;
 
     private final ChatClient chatClient;
@@ -93,45 +96,55 @@ class CustomerSearchToolCallingService implements CustomerSearchAgent {
     @Tool(description = """
             Search and filter the customer grid. Returns nothing; it updates the grid in place to show
             only the matching customers, replacing any previous filter (filters are not additive).
-            All parameters are optional - pass null to ignore one; passing all null shows every customer.
-            All given parameters are combined with AND.
+            All parameters are optional - pass null (or an empty list) to ignore one; passing all null
+            shows every customer. Every parameter is a list: pass one entry for a single value, or
+            several entries for multiple values, which are matched with OR (e.g. two cities means
+            "in this city OR that city"). Different parameters are still combined with AND.
             Text parameters match case-insensitively on any substring.
-            Date parameters (customerSince, lastOrderDate) match customers on or after the given date,
-            in ISO format yyyy-MM-dd. For relative dates such as "last month", call the current
-            date/time tool first to resolve the actual date.
+            Date parameters (customerSince, lastOrderDate) each match customers anywhere in the year
+            the given date falls in (e.g. '2020-01-01' matches all of 2020), in ISO format yyyy-MM-dd.
+            For relative dates such as "last month", call the current date/time tool first to resolve
+            the actual date.
             """)
     void searchCustomers(
-            @ToolParam(description = "part name of the company name to match, or null") String companyName,
-            @ToolParam(description = "part of the contact name in the company to match, or null") String contactName,
-            @ToolParam(description = "part of the email address to match, or null") String email,
+            @ToolParam(description = "company names, part of each to match, or null") List<String> companyName,
+            @ToolParam(description = "contact names, part of each to match, or null") List<String> contactName,
+            @ToolParam(description = "email addresses, part of each to match, or null") List<String> email,
             @ToolParam(description = """
-                    part of the phone number to match, or null. Numbers are stored in E.164 format, so
+                    phone numbers, part of each to match, or null. Numbers are stored in E.164 format, so
                     normalize the user input to E.164 before passing it, e.g. '016057123456' or
-                    '0160 57 123456' -> '+4916057123456' (assume Germany / +49 for national numbers).""") String phone,
+                    '0160 57 123456' -> '+4916057123456' (assume Germany / +49 for national numbers).""") List<String> phone,
             @ToolParam(description = """
-                    matches customers whose 'customer since' date is on or after this date, or null.
-                    Pass ISO yyyy-MM-dd; interpret ambiguous user input as day-first (German format),
-                    e.g. '03.05.05' -> '2005-05-03'.""") LocalDate customerSince,
+                    'customer since' years to match, or null. Each entry matches customers who became a
+                    customer anywhere in that entry's year. Pass ISO yyyy-MM-dd; interpret ambiguous user
+                    input as day-first (German format), e.g. '03.05.05' -> '2005-05-03'.""") List<LocalDate> customerSince,
             @ToolParam(description = """
-                    matches customers whose last order date is on or after this date, or null.
-                    Pass ISO yyyy-MM-dd; interpret ambiguous user input as day-first (German format),
-                    e.g. '03.05.05' -> '2005-05-03'.""") LocalDate lastOrderDate,
-            @ToolParam(description = "part of the country to match, or null") String country,
-            @ToolParam(description = "part of the city to match, or null") String city,
-            @ToolParam(description = "part of the postal code to match, or null") String postalCode,
-            @ToolParam(description = "part of the street to match, or null") String street,
-            @ToolParam(description = "part of the house number to match, or null") String houseNumber,
+                    last-order years to match, or null. Each entry matches customers whose last order
+                    falls anywhere in that entry's year. Pass ISO yyyy-MM-dd; interpret ambiguous user
+                    input as day-first (German format), e.g. '03.05.05' -> '2005-05-03'.""") List<LocalDate> lastOrderDate,
+            @ToolParam(description = "countries, part of each to match, or null") List<String> country,
+            @ToolParam(description = "cities, part of each to match, or null") List<String> city,
+            @ToolParam(description = "postal codes, part of each to match, or null") List<String> postalCode,
+            @ToolParam(description = "streets, part of each to match, or null") List<String> street,
+            @ToolParam(description = "house numbers, part of each to match, or null") List<String> houseNumber,
             @ToolParam(description = """
-                    the credit rating to match, or null. One of: GOOD (creditworthy),
-                    MEDIUM (limited creditworthiness), POOR (at risk / not creditworthy).""") CreditRating creditRating
+                    credit ratings to match, or null. Each one of: GOOD (creditworthy),
+                    MEDIUM (limited creditworthiness), POOR (at risk / not creditworthy).""") List<CreditRating> creditRating,
+            @ToolParam(description = """
+                    annual revenue ranges to match, or null. Each range has an optional "atLeast" and/or
+                    "atMost" (either may be omitted/null for an open-ended range): "over 500000" ->
+                    {atLeast: 500000}, "under 50000" -> {atMost: 50000}, "between 50000 and 200000" ->
+                    {atLeast: 50000, atMost: 200000}. Multiple ranges are matched with OR, e.g. "over
+                    500000 or under 50000" -> two ranges.""") List<RevenueRange> annualRevenue
     ) {
         logger.info("searchCustomers: companyName={}, contactName={}, email={}, phone={}, customerSince={}, " +
-                        "lastOrderDate={}, country={}, city={}, postalCode={}, street={}, houseNumber={}, creditRating={}",
+                        "lastOrderDate={}, country={}, city={}, postalCode={}, street={}, houseNumber={}, " +
+                        "creditRating={}, annualRevenue={}",
                 companyName, contactName, email, phone, customerSince,
-                lastOrderDate, country, city, postalCode, street, houseNumber, creditRating);
+                lastOrderDate, country, city, postalCode, street, houseNumber, creditRating, annualRevenue);
 
         this.criteria = new CustomerSearchCriteria(companyName, contactName, email, phone, customerSince,
-                lastOrderDate, country, city, postalCode, street, houseNumber, creditRating);
+                lastOrderDate, country, city, postalCode, street, houseNumber, creditRating, annualRevenue);
     }
 
     @Tool(description = "Current date and time")
