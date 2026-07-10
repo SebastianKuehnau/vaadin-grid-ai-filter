@@ -21,8 +21,9 @@ ai/
 ├── CustomerSearchAgent.java              (public interface — the view's only dependency, the testability seam)
 ├── CustomerSearchToolCallingService.java (@Service @Scope("prototype") — ChatClient, system prompt, both @Tool methods)
 └── filter/
-    ├── CustomerSearchCriteria.java      (public record — the flat extracted filter values)
-    └── CustomerSpecifications.java      (public final utility — flat AND -> Specification<Customer>)
+    ├── CustomerSearchCriteria.java      (public record — the flat extracted filter values, one List per field)
+    ├── CustomerSpecifications.java      (public final utility — OR-within-field, AND-across-fields -> Specification<Customer>)
+    └── RevenueRange.java                (public record — one annualRevenue bound, atLeast/atMost)
 ```
 
 `CustomerSearchToolCallingService` is `@Scope("prototype")`, not the default singleton — because
@@ -33,11 +34,32 @@ makes it safe for the two `@Tool` methods (`searchCustomers`, `currentLocalDateT
 never share an instance, and within one instance the view only ever has one search in flight at a
 time (it disables the filter field for the duration of a search). `requestCriteria(...)` resets
 `criteria` to `null` at the start of every call, since — unlike a fresh per-call object — the field
-now outlives a single call. `CustomerSpecifications` is a flat AND-conjunction only (no OR/NOT
-tree) — the deliberate, demo-relevant contrast with `03-ai-structured-filter`'s `FilterNode` tree.
+now outlives a single call. `CustomerSpecifications` combines fields with AND, same as
+`03-ai-structured-filter`'s tree at the top level, but stays flat (no OR/NOT across fields, no
+nesting) — the deliberate, demo-relevant contrast with that module's `FilterNode` tree.
 
 `CustomerSearchAgent.resolveFilter(...)` never throws: on any failure (bad model response,
 unreachable model, ...) it falls back to an unrestricted specification, so the UI never breaks.
+
+### Multi-value filtering
+
+Every `CustomerSearchCriteria` field is a `List` rather than a single value, so a query like
+"customers from Berlin or Hamburg" extracts two cities, matched with OR; different fields still
+combine with AND, e.g. "from Berlin or Hamburg with GOOD or MEDIUM credit rating" is `(city='Berlin'
+OR city='Hamburg') AND (creditRating='GOOD' OR creditRating='MEDIUM')`. A single-value query still
+works exactly as before — it's just a one-element list.
+
+`customerSince`/`lastOrderDate` values are each interpreted as the full year they fall in (Jan 1 -
+Dec 31), so "since 2020 or 2021" OR-combines two year ranges rather than two single days.
+
+`annualRevenue` is modeled differently from the other fields: it's a continuous `BigDecimal`, not a
+discrete value like `city` or `creditRating`, so "multi-value" means a list of `RevenueRange(atLeast,
+atMost)` bounds rather than a list of exact numbers. Either bound may be omitted for an open-ended
+range ("over 500000" -> `{atLeast: 500000}`), and multiple ranges are OR-combined ("over 500000 or
+under 50000" -> two ranges). The fields are named `atLeast`/`atMost` rather than `min`/`max`
+deliberately: with a small local model driving the tool call, `llama3.1:8b` consistently swapped
+`min`/`max` for "over X" queries during testing — a self-describing field name fixed it, since the
+model no longer needs the tool description prose to carry the "over" vs. "under" direction.
 
 ### Known limitation: relative dates need two chained tool calls
 
@@ -75,9 +97,10 @@ Switch to OpenAI by setting `app.ai.provider=openai` in `application.properties`
 ```
 
 - **`CustomerSpecificationsTest`** (`@DataJpaTest`, no LLM) — one test per predicate/field against
-  the seeded H2 data, plus AND-combination and null-matches-all.
+  the seeded H2 data (single- and multi-value/OR cases, including `annualRevenue`'s open- and
+  closed-ended ranges), plus AND-across-fields and null-matches-all.
 - **`CustomerSearchToolCallingServiceToolsTest`** (plain JUnit, no Spring context) — the extraction
-  plumbing and the date tool, in isolation.
+  plumbing (single- and multi-value arguments) and the date tool, in isolation.
 - **`CustomerSearchAgentIT extends LocalOllamaTests`** — natural-language queries against a native
   Ollama instance (`LocalOllamaTests`/`OllamaTestSupport` duplicated from `03-ai-structured-filter`,
   this repo's established per-module pattern for Ollama IT infrastructure). Assertions are
@@ -94,8 +117,9 @@ Switch to OpenAI by setting `app.ai.provider=openai` in `application.properties`
   `CustomerSearchAgentIT`), exercising the full `TextField` → tool-calling AI layer → `Grid`
   pipeline end to end. Since the real model's result size isn't known upfront, the wait condition
   is "the filter field is re-enabled" (it's disabled for the duration of a search) rather than a
-  fixed grid size. `03-ai-structured-filter` has an identical test with the same 5 queries, so the two
-  modules' `-Pit-local-ollama` runs are directly comparable on speed (per-test elapsed time in
+  fixed grid size. `03-ai-structured-filter` has an identical test with the same 5 single-value
+  queries (plus this module's 2 additional multi-value-only cases), so the two modules'
+  `-Pit-local-ollama` runs are directly comparable on speed (per-test elapsed time in
   `target/failsafe-reports/`) and result quality between tool calling and structured output.
 
 ## Sources

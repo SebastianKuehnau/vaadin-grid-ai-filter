@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -16,7 +17,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Deterministic, fast test of the filter translation ({@link CustomerSearchCriteria} -> JPA
  * {@code Specification}) against the seeded H2 database — no LLM, no Docker. One test per
- * predicate/field, plus the AND-combination and null-matches-all cases.
+ * predicate/field for the single-value case, plus multi-value (OR-within-field), the
+ * AND-across-fields combination, and the null-matches-all cases.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE) // keep configured H2 + data.sql
@@ -30,59 +32,83 @@ class CustomerSpecificationsTest {
     }
 
     private static CustomerSearchCriteria allNull() {
-        return new CustomerSearchCriteria(null, null, null, null, null, null, null, null, null, null, null, null);
+        return new CustomerSearchCriteria(
+                null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
-    private static CustomerSearchCriteria companyName(String value) {
-        return new CustomerSearchCriteria(value, null, null, null, null, null, null, null, null, null, null, null);
+    private static CustomerSearchCriteria companyName(String... values) {
+        return new CustomerSearchCriteria(
+                List.of(values), null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private static CustomerSearchCriteria contactName(String value) {
-        return new CustomerSearchCriteria(null, value, null, null, null, null, null, null, null, null, null, null);
+        return new CustomerSearchCriteria(
+                null, List.of(value), null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private static CustomerSearchCriteria email(String value) {
-        return new CustomerSearchCriteria(null, null, value, null, null, null, null, null, null, null, null, null);
+        return new CustomerSearchCriteria(
+                null, null, List.of(value), null, null, null, null, null, null, null, null, null, null);
     }
 
     private static CustomerSearchCriteria phone(String value) {
-        return new CustomerSearchCriteria(null, null, null, value, null, null, null, null, null, null, null, null);
+        return new CustomerSearchCriteria(
+                null, null, null, List.of(value), null, null, null, null, null, null, null, null, null);
     }
 
-    private static CustomerSearchCriteria customerSince(LocalDate value) {
-        return new CustomerSearchCriteria(null, null, null, null, value, null, null, null, null, null, null, null);
+    private static CustomerSearchCriteria customerSince(LocalDate... values) {
+        return new CustomerSearchCriteria(
+                null, null, null, null, List.of(values), null, null, null, null, null, null, null, null);
     }
 
     private static CustomerSearchCriteria lastOrderDate(LocalDate value) {
-        return new CustomerSearchCriteria(null, null, null, null, null, value, null, null, null, null, null, null);
+        return new CustomerSearchCriteria(
+                null, null, null, null, null, List.of(value), null, null, null, null, null, null, null);
     }
 
     private static CustomerSearchCriteria country(String value) {
-        return new CustomerSearchCriteria(null, null, null, null, null, null, value, null, null, null, null, null);
+        return new CustomerSearchCriteria(
+                null, null, null, null, null, null, List.of(value), null, null, null, null, null, null);
     }
 
-    private static CustomerSearchCriteria city(String value) {
-        return new CustomerSearchCriteria(null, null, null, null, null, null, null, value, null, null, null, null);
+    private static CustomerSearchCriteria city(String... values) {
+        return new CustomerSearchCriteria(
+                null, null, null, null, null, null, null, List.of(values), null, null, null, null, null);
     }
 
     private static CustomerSearchCriteria postalCode(String value) {
-        return new CustomerSearchCriteria(null, null, null, null, null, null, null, null, value, null, null, null);
+        return new CustomerSearchCriteria(
+                null, null, null, null, null, null, null, null, List.of(value), null, null, null, null);
     }
 
     private static CustomerSearchCriteria street(String value) {
-        return new CustomerSearchCriteria(null, null, null, null, null, null, null, null, null, value, null, null);
+        return new CustomerSearchCriteria(
+                null, null, null, null, null, null, null, null, null, List.of(value), null, null, null);
     }
 
     private static CustomerSearchCriteria houseNumber(String value) {
-        return new CustomerSearchCriteria(null, null, null, null, null, null, null, null, null, null, value, null);
+        return new CustomerSearchCriteria(
+                null, null, null, null, null, null, null, null, null, null, List.of(value), null, null);
     }
 
-    private static CustomerSearchCriteria creditRating(CreditRating value) {
-        return new CustomerSearchCriteria(null, null, null, null, null, null, null, null, null, null, null, value);
+    private static CustomerSearchCriteria creditRating(CreditRating... values) {
+        return new CustomerSearchCriteria(
+                null, null, null, null, null, null, null, null, null, null, null, List.of(values), null);
     }
 
-    private static CustomerSearchCriteria cityAndCreditRating(String city, CreditRating rating) {
-        return new CustomerSearchCriteria(null, null, null, null, null, null, null, city, null, null, null, rating);
+    private static CustomerSearchCriteria annualRevenue(RevenueRange... values) {
+        return new CustomerSearchCriteria(
+                null, null, null, null, null, null, null, null, null, null, null, null, List.of(values));
+    }
+
+    private static CustomerSearchCriteria cityAndCreditRating(String city, CreditRating... ratings) {
+        return new CustomerSearchCriteria(
+                null, null, null, null, null, null, null, List.of(city), null, null, null, List.of(ratings), null);
+    }
+
+    private static CustomerSearchCriteria citiesAndCreditRatings(List<String> cities, List<CreditRating> ratings) {
+        return new CustomerSearchCriteria(
+                null, null, null, null, null, null, null, cities, null, null, null, ratings, null);
     }
 
     @Test
@@ -90,6 +116,17 @@ class CustomerSpecificationsTest {
         var result = findAll(companyName("berlin"));
         assertThat(result).isNotEmpty();
         assertThat(result).allSatisfy(c -> assertThat(c.getCompanyName().toLowerCase()).contains("berlin"));
+    }
+
+    @Test
+    void companyNameMultiValueMatchesAnyWithOr() {
+        var result = findAll(companyName("berlin", "hamburg"));
+        assertThat(result).isNotEmpty();
+        assertThat(result).allSatisfy(c -> assertThat(c.getCompanyName().toLowerCase())
+                .containsAnyOf("berlin", "hamburg"));
+        // Sanity check: both terms individually contribute matches, so this is a real OR.
+        assertThat(result).anyMatch(c -> c.getCompanyName().toLowerCase().contains("berlin"));
+        assertThat(result).anyMatch(c -> c.getCompanyName().toLowerCase().contains("hamburg"));
     }
 
     @Test
@@ -114,19 +151,26 @@ class CustomerSpecificationsTest {
     }
 
     @Test
-    void customerSinceMatchesOnOrAfter() {
-        LocalDate cutoff = LocalDate.of(2020, 1, 1);
-        var result = findAll(customerSince(cutoff));
+    void customerSinceMatchesFullYear() {
+        var result = findAll(customerSince(LocalDate.of(2020, 6, 15)));
         assertThat(result).isNotEmpty();
-        assertThat(result).allSatisfy(c -> assertThat(c.getCustomerSince()).isAfterOrEqualTo(cutoff));
+        assertThat(result).allSatisfy(c -> assertThat(c.getCustomerSince().getYear()).isEqualTo(2020));
     }
 
     @Test
-    void lastOrderDateMatchesOnOrAfter() {
-        LocalDate cutoff = LocalDate.of(2026, 1, 1);
-        var result = findAll(lastOrderDate(cutoff));
+    void customerSinceMultiValueMatchesAnyYearWithOr() {
+        var result = findAll(customerSince(LocalDate.of(2004, 6, 15), LocalDate.of(2009, 6, 15)));
         assertThat(result).isNotEmpty();
-        assertThat(result).allSatisfy(c -> assertThat(c.getLastOrderDate()).isAfterOrEqualTo(cutoff));
+        assertThat(result).allSatisfy(c -> assertThat(c.getCustomerSince().getYear()).isIn(2004, 2009));
+        assertThat(result).anyMatch(c -> c.getCustomerSince().getYear() == 2004);
+        assertThat(result).anyMatch(c -> c.getCustomerSince().getYear() == 2009);
+    }
+
+    @Test
+    void lastOrderDateMatchesFullYear() {
+        var result = findAll(lastOrderDate(LocalDate.of(2026, 3, 1)));
+        assertThat(result).isNotEmpty();
+        assertThat(result).allSatisfy(c -> assertThat(c.getLastOrderDate().getYear()).isEqualTo(2026));
     }
 
     @Test
@@ -141,6 +185,16 @@ class CustomerSpecificationsTest {
         var result = findAll(city("berlin"));
         assertThat(result).isNotEmpty();
         assertThat(result).allSatisfy(c -> assertThat(c.getAddress().getCity().toLowerCase()).contains("berlin"));
+    }
+
+    @Test
+    void cityMultiValueMatchesAnyWithOr() {
+        var result = findAll(city("berlin", "hamburg"));
+        assertThat(result).isNotEmpty();
+        assertThat(result).allSatisfy(c -> assertThat(c.getAddress().getCity().toLowerCase())
+                .containsAnyOf("berlin", "hamburg"));
+        assertThat(result).anyMatch(c -> c.getAddress().getCity().equalsIgnoreCase("berlin"));
+        assertThat(result).anyMatch(c -> c.getAddress().getCity().equalsIgnoreCase("hamburg"));
     }
 
     @Test
@@ -174,6 +228,52 @@ class CustomerSpecificationsTest {
     }
 
     @Test
+    void creditRatingMultiValueMatchesAnyWithOr() {
+        var result = findAll(creditRating(CreditRating.GOOD, CreditRating.MEDIUM));
+        assertThat(result).isNotEmpty();
+        assertThat(result).allSatisfy(c -> assertThat(c.getCreditRating()).isIn(CreditRating.GOOD, CreditRating.MEDIUM));
+        assertThat(result).anyMatch(c -> c.getCreditRating() == CreditRating.GOOD);
+        assertThat(result).anyMatch(c -> c.getCreditRating() == CreditRating.MEDIUM);
+    }
+
+    @Test
+    void annualRevenueClosedRangeMatchesBetween() {
+        var result = findAll(annualRevenue(new RevenueRange(BigDecimal.valueOf(50_000), BigDecimal.valueOf(100_000))));
+        assertThat(result).isNotEmpty();
+        assertThat(result).allSatisfy(c -> assertThat(c.getAnnualRevenue())
+                .isBetween(BigDecimal.valueOf(50_000), BigDecimal.valueOf(100_000)));
+    }
+
+    @Test
+    void annualRevenueOpenMinOnlyMatchesAtLeast() {
+        var result = findAll(annualRevenue(new RevenueRange(BigDecimal.valueOf(200_000), null)));
+        assertThat(result).isNotEmpty();
+        assertThat(result).allSatisfy(c -> assertThat(c.getAnnualRevenue())
+                .isGreaterThanOrEqualTo(BigDecimal.valueOf(200_000)));
+    }
+
+    @Test
+    void annualRevenueOpenMaxOnlyMatchesAtMost() {
+        var result = findAll(annualRevenue(new RevenueRange(null, BigDecimal.valueOf(5_000))));
+        assertThat(result).isNotEmpty();
+        assertThat(result).allSatisfy(c -> assertThat(c.getAnnualRevenue())
+                .isLessThanOrEqualTo(BigDecimal.valueOf(5_000)));
+    }
+
+    @Test
+    void annualRevenueMultiValueMatchesAnyRangeWithOr() {
+        var result = findAll(annualRevenue(
+                new RevenueRange(BigDecimal.valueOf(200_000), null),
+                new RevenueRange(null, BigDecimal.valueOf(5_000))));
+        assertThat(result).isNotEmpty();
+        assertThat(result).allSatisfy(c -> assertThat(
+                c.getAnnualRevenue().compareTo(BigDecimal.valueOf(200_000)) >= 0
+                        || c.getAnnualRevenue().compareTo(BigDecimal.valueOf(5_000)) <= 0).isTrue());
+        assertThat(result).anyMatch(c -> c.getAnnualRevenue().compareTo(BigDecimal.valueOf(200_000)) >= 0);
+        assertThat(result).anyMatch(c -> c.getAnnualRevenue().compareTo(BigDecimal.valueOf(5_000)) <= 0);
+    }
+
+    @Test
     void allGivenFieldsCombineWithAnd() {
         var result = findAll(cityAndCreditRating("berlin", CreditRating.MEDIUM));
         assertThat(result).isNotEmpty();
@@ -184,6 +284,20 @@ class CustomerSpecificationsTest {
         // Sanity check: some Berlin customers are NOT MEDIUM -> proves this is a real AND, not a
         // no-op filter that happens to match everything in Berlin.
         assertThat(findAll(city("berlin"))).anyMatch(c -> c.getCreditRating() != CreditRating.MEDIUM);
+    }
+
+    @Test
+    void multiValueFieldsCombineWithAndAcrossFields() {
+        var result = findAll(citiesAndCreditRatings(
+                List.of("Berlin", "Hamburg"), List.of(CreditRating.GOOD, CreditRating.MEDIUM)));
+        assertThat(result).isNotEmpty();
+        assertThat(result).allSatisfy(c -> {
+            assertThat(c.getAddress().getCity()).isIn("Berlin", "Hamburg");
+            assertThat(c.getCreditRating()).isIn(CreditRating.GOOD, CreditRating.MEDIUM);
+        });
+        // Sanity check: some Berlin/Hamburg customers are POOR -> proves the AND is real.
+        assertThat(findAll(city("berlin", "hamburg")))
+                .anyMatch(c -> c.getCreditRating() == CreditRating.POOR);
     }
 
     @Test

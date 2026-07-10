@@ -5,6 +5,8 @@ import com.vaadin.browserless.ViewPackages;
 import com.vaadin.browserless.internal.MockVaadin;
 import com.vaadin.flow.component.grid.GridTester;
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
+import dev.demo.vaadin.aigridfilter.ai.filter.CustomerSearchCriteria;
+import dev.demo.vaadin.aigridfilter.ai.filter.CustomerSpecifications;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
 import org.junit.jupiter.api.Test;
@@ -15,6 +17,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
 import java.time.Duration;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -30,17 +33,32 @@ import static org.awaitility.Awaitility.await;
 @ViewPackages(classes = CustomerListView.class)
 class CustomerListViewBrowserlessTest extends SpringBrowserlessTest {
 
+    private static final String MULTI_VALUE_QUERY = "multi-value query";
+
     @Autowired
     private CustomerRepository customerRepository;
 
     @TestConfiguration
     static class FakeSearchAgentConfig {
 
+        /**
+         * Ignores the actual query text and returns a fixed result, except for
+         * {@link #MULTI_VALUE_QUERY}, which goes through the real {@link CustomerSpecifications}
+         * with a two-value {@code companyName} list, so the OR-within-field translation is
+         * exercised end to end through the UI, not just at the unit-test level.
+         */
         @Bean
         @Primary
         CustomerSearchAgent fakeSearchAgent() {
-            return query -> (root, criteriaQuery, criteriaBuilder) ->
-                    criteriaBuilder.equal(root.get("companyName"), "Berlin Data Works");
+            return query -> {
+                if (MULTI_VALUE_QUERY.equals(query)) {
+                    return CustomerSpecifications.from(new CustomerSearchCriteria(
+                            List.of("Berlin Data Works", "Hamburg Retail Group"),
+                            null, null, null, null, null, null, null, null, null, null, null, null));
+                }
+                return (root, criteriaQuery, criteriaBuilder) ->
+                        criteriaBuilder.equal(root.get("companyName"), "Berlin Data Works");
+            };
         }
     }
 
@@ -58,6 +76,20 @@ class CustomerListViewBrowserlessTest extends SpringBrowserlessTest {
             assertThat(grid.size()).isEqualTo(1);
         });
         assertThat(grid.getRow(0).getCompanyName()).isEqualTo("Berlin Data Works");
+    }
+
+    @Test
+    void multiValueQueryNarrowsGridToOrMatchedRows() {
+        CustomerListView view = navigate(CustomerListView.class);
+        test(view.getFilterField()).setValue(MULTI_VALUE_QUERY);
+
+        GridTester<?, Customer> grid = test(view.getGrid());
+        await().pollInSameThread().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+            MockVaadin.runUIQueue();
+            assertThat(grid.size()).isEqualTo(2);
+        });
+        assertThat(List.of(grid.getRow(0).getCompanyName(), grid.getRow(1).getCompanyName()))
+                .containsExactlyInAnyOrder("Berlin Data Works", "Hamburg Retail Group");
     }
 
     @Test

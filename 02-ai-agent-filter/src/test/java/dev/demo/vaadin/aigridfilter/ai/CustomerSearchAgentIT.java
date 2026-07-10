@@ -7,7 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import java.time.LocalDate;
+import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,7 +23,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Assertions are tolerant: the LLM is non-deterministic, so values are checked case-insensitively
  * and by substring rather than exact equality. Unlike {@code 03-ai-structured-filter}'s
  * {@code CustomerSearchAgentIT}, no tree-walking helpers are needed — {@link CustomerSearchCriteria} is
- * flat, so each field is asserted directly.
+ * flat, so each field is asserted directly; every field is now a list, so single-value queries are
+ * asserted with {@code anySatisfy}/{@code contains}, and multi-value queries assert on all expected
+ * entries.
  */
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
 class CustomerSearchAgentIT extends LocalOllamaTests {
@@ -34,29 +37,29 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     @Tag("small-model-query")
     void singleCity() {
         CustomerSearchCriteria criteria = agent.requestCriteria("show me all customers in Berlin");
-        assertThat(criteria.city()).containsIgnoringCase("berlin");
+        assertThat(criteria.city()).anySatisfy(city -> assertThat(city).containsIgnoringCase("berlin"));
     }
 
     @Test
     @Tag("small-model-query")
     void creditworthyCustomers() {
         CustomerSearchCriteria criteria = agent.requestCriteria("show me all creditworthy customers");
-        assertThat(criteria.creditRating()).isEqualTo(CreditRating.GOOD);
+        assertThat(criteria.creditRating()).containsExactly(CreditRating.GOOD);
     }
 
     @Test
     @Tag("small-model-query")
     void atRiskCustomers() {
         CustomerSearchCriteria criteria = agent.requestCriteria("show me all customers that are at risk");
-        assertThat(criteria.creditRating()).isEqualTo(CreditRating.POOR);
+        assertThat(criteria.creditRating()).containsExactly(CreditRating.POOR);
     }
 
     @Test
     @Tag("small-model-query")
     void creditworthyInCity() {
         CustomerSearchCriteria criteria = agent.requestCriteria("creditworthy customers in Hamburg");
-        assertThat(criteria.city()).containsIgnoringCase("hamburg");
-        assertThat(criteria.creditRating()).isEqualTo(CreditRating.GOOD);
+        assertThat(criteria.city()).anySatisfy(city -> assertThat(city).containsIgnoringCase("hamburg"));
+        assertThat(criteria.creditRating()).containsExactly(CreditRating.GOOD);
     }
 
     @Test
@@ -64,21 +67,21 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     void contactNameContains() {
         CustomerSearchCriteria criteria = agent.requestCriteria(
                 "show me all customers with \"meyer\" in the contact name");
-        assertThat(criteria.contactName()).containsIgnoringCase("meyer");
+        assertThat(criteria.contactName()).anySatisfy(name -> assertThat(name).containsIgnoringCase("meyer"));
     }
 
     @Test
     @Tag("small-model-query")
     void companyNameContains() {
         CustomerSearchCriteria criteria = agent.requestCriteria("customers whose company name contains data");
-        assertThat(criteria.companyName()).containsIgnoringCase("data");
+        assertThat(criteria.companyName()).anySatisfy(name -> assertThat(name).containsIgnoringCase("data"));
     }
 
     @Test
     @Tag("small-model-query")
     void customerSinceYear() {
         CustomerSearchCriteria criteria = agent.requestCriteria("customers since 2020");
-        assertThat(criteria.customerSince()).isEqualTo(LocalDate.of(2020, 1, 1));
+        assertThat(criteria.customerSince()).anySatisfy(date -> assertThat(date.getYear()).isEqualTo(2020));
     }
 
     // No relative-date case ("yesterday", "last week") here: it requires the model to chain two
@@ -95,16 +98,56 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     void germanPhoneNumberNormalizedToE164() {
         CustomerSearchCriteria criteria = agent.requestCriteria(
                 "show me the customer with phone number 030 10023757");
-        assertThat(criteria.phone()).contains("3010023757");
+        assertThat(criteria.phone()).anySatisfy(phone -> assertThat(phone).contains("3010023757"));
+    }
+
+    @Test
+    @Tag("small-model-query")
+    void multiValueCities() {
+        CustomerSearchCriteria criteria = agent.requestCriteria("show me customers from Berlin or Hamburg");
+        assertThat(criteria.city()).anySatisfy(city -> assertThat(city).containsIgnoringCase("berlin"));
+        assertThat(criteria.city()).anySatisfy(city -> assertThat(city).containsIgnoringCase("hamburg"));
+    }
+
+    @Test
+    @Tag("small-model-query")
+    void multiValueCreditRating() {
+        CustomerSearchCriteria criteria = agent.requestCriteria(
+                "show me customers with GOOD or MEDIUM credit rating");
+        assertThat(criteria.creditRating()).contains(CreditRating.GOOD, CreditRating.MEDIUM);
+    }
+
+    @Test
+    @Tag("small-model-query")
+    void multiValueCustomerSinceYears() {
+        CustomerSearchCriteria criteria = agent.requestCriteria("customers since 2020 or 2021");
+        assertThat(criteria.customerSince()).anySatisfy(date -> assertThat(date.getYear()).isEqualTo(2020));
+        assertThat(criteria.customerSince()).anySatisfy(date -> assertThat(date.getYear()).isEqualTo(2021));
+    }
+
+    @Test
+    @Tag("small-model-query")
+    void annualRevenueOverThreshold() {
+        CustomerSearchCriteria criteria = agent.requestCriteria(
+                "show me customers with annual revenue over 200000");
+        assertThat(criteria.annualRevenue()).anySatisfy(range -> assertThat(range.atLeast())
+                .isNotNull()
+                .isGreaterThanOrEqualTo(BigDecimal.valueOf(150_000)));
     }
 
     @Test
     @Tag("small-model-query")
     void showAllCustomers_noCriteria() {
+        // Every field is a list, and a small model may emit an empty list rather than omitting a
+        // parameter entirely - CustomerSpecifications treats both as "no filter" (see its class
+        // Javadoc), so this asserts on that same "null or empty" contract rather than requiring the
+        // model to have produced literal nulls.
         CustomerSearchCriteria criteria = agent.requestCriteria("show all customers");
         assertThat(criteria).satisfiesAnyOf(
                 c -> assertThat(c).isNull(),
-                c -> assertThat(c).usingRecursiveComparison().isEqualTo(
-                        new CustomerSearchCriteria(null, null, null, null, null, null, null, null, null, null, null, null)));
+                c -> assertThat(Arrays.asList(c.companyName(), c.contactName(), c.email(), c.phone(),
+                        c.customerSince(), c.lastOrderDate(), c.country(), c.city(), c.postalCode(),
+                        c.street(), c.houseNumber(), c.creditRating(), c.annualRevenue()))
+                        .allSatisfy(field -> assertThat(field).isNullOrEmpty()));
     }
 }
