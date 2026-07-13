@@ -114,23 +114,32 @@ Ollama block.
 ```
 
 - **`CustomerFilterSpecificationsTest`** (`@DataJpaTest`, no LLM) — deterministic test of the tree
-  translation against the seeded H2 data: AND/OR/NOT nesting, cross-field OR, credit rating bands,
-  empty-filter-matches-all.
-- **`CustomerSearchAgentIT extends LocalOllamaTests`** — 32 natural-language queries (including 4
+  translation against the seeded H2 data. The single-field and multi-value-OR cases use the same
+  field values as `02-ai-agent-filter`'s `CustomerSpecificationsTest`, so DB-level results are
+  directly comparable; the tree-only cases (AND/OR/NOT nesting, cross-field OR, negation) have no
+  counterpart there and are tagged `negation`, `cross-field-or`, `nested-tree`.
+- **`CustomerSearchAgentIT extends LocalOllamaTests`** — 38 natural-language queries (including 4
   in German) against a native Ollama instance (`LocalOllamaTests`/`OllamaTestSupport` duplicated
   from `02-ai-agent-filter`, this repo's established per-module pattern for Ollama IT
   infrastructure). Assertions are tolerant of LLM non-determinism: they check that an expected
   condition is present *somewhere* in the filter tree, ignoring exact tree shape. Tagged
   `small-model-query`, `medium-model-query`, `large-model-query` by the nesting complexity
-  required. The same 32 queries are used by `04-ollama-benchmark/BenchmarkLocalModels.java` to
-  compare local models.
+  required, and additionally `negation`, `operator-precision`, `relative-date`, `cross-field-or`,
+  `nested-tree` for the cases with no counterpart in `02-ai-agent-filter` (see that module's
+  README). All other cases use the exact same wording/values as `02-ai-agent-filter`'s
+  `CustomerSearchAgentIT`. Note: `04-ollama-benchmark/BenchmarkLocalModels.java`'s published
+  results table still reflects the original 32-query set; its query list has not been updated to
+  match this class's current 38 (out of scope for this change — see that module's README before
+  relying on the "same queries" claim there).
 - **`CustomerListViewBrowserlessTest`** — [Vaadin Browserless
   testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake, deterministic
   `CustomerSearchAgent` bean, so it never calls a real model. Since the view applies results
   asynchronously (`CompletableFuture` + `ui.access(...)`), assertions after a non-blank query use
   `MockVaadin.runUIQueue()` (to flush the queued `ui.access()` command) inside an Awaitility
   `pollInSameThread()` loop (so the flush runs on the thread holding the UI `ThreadLocal`) —
-  needed because a plain synchronous assertion races the background search thread.
+  needed because a plain synchronous assertion races the background search thread. Includes the
+  same multi-value OR-within-field case as `02-ai-agent-filter`'s equivalent test, expressed via
+  `CustomerFilter`'s tree instead of a flat criteria list.
 - **`CustomerListViewBrowserlessIT`** — same Browserless setup, but against a real native Ollama
   instance instead of a fake agent bean (skips gracefully if unreachable, like
   `CustomerSearchAgentIT`), exercising the full `TextField` → structured-output AI layer → `Grid`

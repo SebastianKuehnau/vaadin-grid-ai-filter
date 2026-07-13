@@ -101,10 +101,16 @@ Switch to OpenAI by setting `app.ai.provider=openai` in `application.properties`
   closed-ended ranges), plus AND-across-fields and null-matches-all.
 - **`CustomerSearchToolCallingServiceToolsTest`** (plain JUnit, no Spring context) — the extraction
   plumbing (single- and multi-value arguments) and the date tool, in isolation.
-- **`CustomerSearchAgentIT extends LocalOllamaTests`** — natural-language queries against a native
-  Ollama instance (`LocalOllamaTests`/`OllamaTestSupport` duplicated from `03-ai-structured-filter`,
-  this repo's established per-module pattern for Ollama IT infrastructure). Assertions are
-  tolerant of LLM non-determinism (case-insensitive, substring). Tagged `small-model-query`.
+- **`CustomerSearchAgentIT extends LocalOllamaTests`** — 18 natural-language queries against a
+  native Ollama instance (`LocalOllamaTests`/`OllamaTestSupport` duplicated from
+  `03-ai-structured-filter`, this repo's established per-module pattern for Ollama IT
+  infrastructure). Assertions are tolerant of LLM non-determinism (case-insensitive, substring).
+  Tagged `small-model-query`. Every case here uses the exact same wording/values as one of
+  `03-ai-structured-filter`'s `CustomerSearchAgentIT` cases, so the two modules' results and
+  timings are directly comparable; that module has additional cases (tagged `negation`,
+  `operator-precision`, `relative-date`, `cross-field-or`, `nested-tree`) with no counterpart
+  here, because this module's flat `CustomerSearchCriteria` can't express NOT,
+  STARTS_WITH/ENDS_WITH, arbitrary date bounds, or OR/nesting across different fields.
 - **`CustomerListViewBrowserlessTest`** — [Vaadin Browserless
   testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake, deterministic
   `CustomerSearchAgent` bean, so it never calls a real model. Since the view applies results
