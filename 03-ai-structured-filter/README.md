@@ -136,7 +136,7 @@ Ollama block.
   `CustomerSearchAgentIT`), exercising the full `TextField` → structured-output AI layer → `Grid`
   pipeline end to end. Since the real model's result size isn't known upfront, the wait condition
   is "the filter field is re-enabled" (it's disabled for the duration of a search) rather than a
-  fixed grid size. `02-ai-agent-filter` has an identical test with the same 5 queries, so the two
+  fixed grid size. `02-ai-agent-filter` has an identical test with the same 8 queries, so the two
   modules' `-Pit-local-ollama` runs are directly comparable on speed (per-test elapsed time in
   `target/failsafe-reports/`) and result quality between tool calling and structured output.
 

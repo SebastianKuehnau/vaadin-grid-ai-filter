@@ -143,6 +143,21 @@ class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
         }
     }
 
+    @Test
+    @Timeout(value = 120, unit = TimeUnit.SECONDS)
+    void citiesWithGoodRatingAndRevenueAboveThreshold() {
+        GridTester<?, Customer> grid = search(
+                "show all customer from Berlin and Cologne with a positive creditrating and a revenue over 100000");
+
+        assertThat(grid.size()).isGreaterThan(0);
+        for (int i = 0; i < grid.size(); i++) {
+            Customer row = grid.getRow(i);
+            assertThat(row.getAddress().getCity()).containsAnyOf("Berlin", "Cologne");
+            assertThat(row.getCreditRating()).isIn(CreditRating.GOOD, CreditRating.MEDIUM);
+            assertThat(row.getAnnualRevenue()).isGreaterThanOrEqualTo(BigDecimal.valueOf(75_000));
+        }
+    }
+
     /**
      * Types the query into the filter field and waits for the async search to finish — the field
      * is disabled for the duration of a search ({@code CustomerListView.onFilter}) and re-enabled
