@@ -62,9 +62,10 @@ Example — `(city=Berlin OR city=Hamburg) AND (annualRevenue>=500000 OR creditR
 Nesting is a bigger ask of the model than a flat list — it must correctly place AND/OR/NOT rather
 than emit one flat list. Smaller local models are more likely to flatten a nested query
 incorrectly (e.g. drop a condition, or misplace it in the wrong branch), especially for
-cross-field OR and NOT-negated groups. `CustomerSearchAgentIT` tags its test cases by the nesting
-complexity they require (`small-model-query`, `medium-model-query`, `large-model-query`) so the
-difference shows up per model in the `04-ollama-benchmark` results.
+cross-field OR and NOT-negated groups. `CustomerSearchAgentIT` tags its harder test cases by the
+nesting complexity they require (`medium-model-query`, `large-model-query`; untagged cases are
+the single-condition baseline) so the difference shows up per model in the `04-ollama-benchmark`
+results.
 
 ### Ollama integration test architecture
 
@@ -122,9 +123,9 @@ Ollama block.
   in German) against a native Ollama instance (`LocalOllamaTests`/`OllamaTestSupport` duplicated
   from `02-ai-agent-filter`, this repo's established per-module pattern for Ollama IT
   infrastructure). Assertions are tolerant of LLM non-determinism: they check that an expected
-  condition is present *somewhere* in the filter tree, ignoring exact tree shape. Tagged
-  `small-model-query`, `medium-model-query`, `large-model-query` by the nesting complexity
-  required, and additionally `negation`, `operator-precision`, `relative-date`, `cross-field-or`,
+  condition is present *somewhere* in the filter tree, ignoring exact tree shape. Harder cases
+  are tagged `medium-model-query`/`large-model-query` by the nesting complexity required, and
+  additionally `negation`, `operator-precision`, `relative-date`, `cross-field-or`,
   `nested-tree` for the cases with no counterpart in `02-ai-agent-filter` (see that module's
   README). All other cases use the exact same wording/values as `02-ai-agent-filter`'s
   `CustomerSearchAgentIT`. Note: `04-ollama-benchmark/BenchmarkLocalModels.java`'s published

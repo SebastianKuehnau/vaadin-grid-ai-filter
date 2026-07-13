@@ -105,7 +105,7 @@ Switch to OpenAI by setting `app.ai.provider=openai` in `application.properties`
   native Ollama instance (`LocalOllamaTests`/`OllamaTestSupport` duplicated from
   `03-ai-structured-filter`, this repo's established per-module pattern for Ollama IT
   infrastructure). Assertions are tolerant of LLM non-determinism (case-insensitive, substring).
-  Tagged `small-model-query`. Every case here uses the exact same wording/values as one of
+  Every case here uses the exact same wording/values as one of
   `03-ai-structured-filter`'s `CustomerSearchAgentIT` cases, so the two modules' results and
   timings are directly comparable; that module has additional cases (tagged `negation`,
   `operator-precision`, `relative-date`, `cross-field-or`, `nested-tree`) with no counterpart

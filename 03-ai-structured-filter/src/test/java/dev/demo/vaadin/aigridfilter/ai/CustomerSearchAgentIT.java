@@ -31,9 +31,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * present <em>somewhere</em> in the filter tree (field + value substring), ignoring operator, extras, and
  * where exactly it sits in the AND/OR/NOT structure.
  * <p>
- * Tests are tagged by the model capability they require to build the correct tree shape — see
- * {@code small-model-query}, {@code medium-model-query}, {@code large-model-query} — since deeper
- * nesting and cross-field OR are harder for smaller local models to produce reliably.
+ * Cases that need deeper tree nesting or cross-field OR — harder for smaller local models to
+ * produce reliably — are tagged {@code medium-model-query} or {@code large-model-query};
+ * untagged cases are the baseline, single-condition queries any configured model is expected
+ * to handle.
  * <p>
  * A second, orthogonal set of tags marks the cases that only this module can express, because
  * {@code 02-ai-agent-filter}'s flat {@code CustomerSearchCriteria} model has no equivalent
@@ -52,14 +53,12 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     CustomerSearchStructuredOutputService service;
 
     @Test
-    @Tag("small-model-query")
     void singleCity() {
         CustomerFilter filter = service.requestFilter("show me all customers in Berlin");
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
     }
 
     @Test
-    @Tag("small-model-query")
     @Tag("negation")
     void singleFalseCity() {
         CustomerFilter filter = service.requestFilter("show me all customers except from Berlin");
@@ -67,7 +66,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void multiValueCities() {
         // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT.multiValueCities, for direct comparability.
         CustomerFilter filter = service.requestFilter("show me customers from Berlin or Hamburg");
@@ -76,7 +74,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void citiesAndRevenue_keepsEveryCondition() {
         CustomerFilter filter = service.requestFilter(
                 "show me all customers in Berlin or Hamburg with a minimal revenue of 100000");
@@ -86,7 +83,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     @Tag("operator-precision")
     void contactNameStartsWith() {
         CustomerFilter filter = service.requestFilter(
@@ -95,7 +91,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void contactNameContains() {
         CustomerFilter filter = service.requestFilter(
                 "show me all customers with \"meyer\" in the contact name");
@@ -103,7 +98,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     @Tag("operator-precision")
     void contactNameEndsWith() {
         CustomerFilter filter = service.requestFilter(
@@ -112,7 +106,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     @Tag("operator-precision")
     void contactNameAndCity() {
         CustomerFilter filter = service.requestFilter(
@@ -122,7 +115,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void phoneNumberContains() {
         CustomerFilter filter = service.requestFilter(
                 "show me the customer with the phone number 5020000001 or similar");
@@ -130,7 +122,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void germanPhoneNumberNormalizedToE164() {
         // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
         CustomerFilter filter = service.requestFilter(
@@ -139,7 +130,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     @Tag("relative-date")
     void orderedInTheLastWeek() {
         CustomerFilter filter = service.requestFilter(
@@ -148,7 +138,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     @Tag("relative-date")
     void orderedYesterday() {
         CustomerFilter filter = service.requestFilter("show me all customers who made an order yesterday");
@@ -157,7 +146,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     @Tag("relative-date")
     void customerSinceThisYear() {
         CustomerFilter filter = service.requestFilter("customers who became customers this year");
@@ -165,14 +153,12 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void customerSinceYear() {
         CustomerFilter filter = service.requestFilter("customers since 2020");
         assertThat(hasCondition(filter, "customerSince", Operator.GREATER_OR_EQUAL.toString(), "2020")).isTrue();
     }
 
     @Test
-    @Tag("small-model-query")
     void multiValueCustomerSinceYears() {
         // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
         CustomerFilter filter = service.requestFilter("customers since 2020 or 2021");
@@ -181,7 +167,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     @Tag("relative-date")
     void lastOrderBeforeDate() {
         // "before 2024-01-01" can be expressed as < 2024-01-01 or <= 2023-12-31; either is correct.
@@ -191,7 +176,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void annualRevenueOverThreshold() {
         // Same wording/threshold as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
         CustomerFilter filter = service.requestFilter("show me customers with annual revenue over 200000");
@@ -199,7 +183,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     @Tag("negation")
     void notInCityWithRevenueRange_keepsEveryCondition() {
         CustomerFilter filter = service.requestFilter(
@@ -211,7 +194,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void country() {
         CustomerFilter filter = service.requestFilter("customers in Germany");
         assertThat(hasCondition(filter, "country",
@@ -219,7 +201,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     @Tag("operator-precision")
     void emailEndsWith() {
         CustomerFilter filter = service.requestFilter("customers whose email ends with .com");
@@ -227,7 +208,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     @Tag("negation")
     void emailNotContains() {
         CustomerFilter filter = service.requestFilter("customers whose email does not contain gmail");
@@ -236,7 +216,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     @Tag("operator-precision")
     void companyNameStartsWith() {
         CustomerFilter filter = service.requestFilter("customers whose company name starts with A");
@@ -244,7 +223,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void companyNameContains() {
         // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
         CustomerFilter filter = service.requestFilter("customers whose company name contains data");
@@ -252,7 +230,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void creditworthyCustomers() {
         // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
         CustomerFilter filter = service.requestFilter("show me all creditworthy customers");
@@ -261,7 +238,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void atRiskCustomers() {
         // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
         CustomerFilter filter = service.requestFilter("show me all customers that are at risk");
@@ -270,7 +246,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void multiValueCreditRating() {
         // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
         CustomerFilter filter = service.requestFilter("show me customers with GOOD or MEDIUM credit rating");
@@ -281,7 +256,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void creditworthyInCity() {
         // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT.creditworthyInCity, for direct comparability.
         CustomerFilter filter = service.requestFilter("creditworthy customers in Hamburg");
@@ -291,7 +265,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     @Tag("operator-precision")
     void creditRatingTwoValues_staySeparateCriteria() {
         // "good and at-risk" must become two OR'd conditions on creditRating, not one AND'd range.
@@ -305,21 +278,18 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void showAllCustomers_noCriteria() {
         CustomerFilter filter = service.requestFilter("show all customers");
         assertThat(flatten(filter)).isEmpty();
     }
 
     @Test
-    @Tag("small-model-query")
     void resetTheFilter_German() {
         CustomerFilter filter = service.requestFilter("setze den Filter zurück");
         assertThat(flatten(filter)).isEmpty();
     }
 
     @Test
-    @Tag("small-model-query")
     void citiesAndCreditRating_German() {
         CustomerFilter filter = service.requestFilter("zeige mir Kunden aus Berlin oder Hamburg mit einer positiven Kreditwürdigkeit");
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
@@ -329,7 +299,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     @Tag("negation")
     void notInCityWithRevenueRange_keepsEveryCondition_German() {
         CustomerFilter filter = service.requestFilter(
@@ -341,7 +310,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void contactNameAndCity_German() {
         CustomerFilter filter = service.requestFilter(
                 "Zeigen mir Kunden deren Kontaktname Julia ist und die in Berlin sind.");

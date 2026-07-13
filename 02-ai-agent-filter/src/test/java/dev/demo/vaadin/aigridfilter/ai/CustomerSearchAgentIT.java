@@ -2,7 +2,6 @@ package dev.demo.vaadin.aigridfilter.ai;
 
 import dev.demo.vaadin.aigridfilter.ai.filter.CustomerSearchCriteria;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,28 +40,24 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     CustomerSearchToolCallingService agent;
 
     @Test
-    @Tag("small-model-query")
     void singleCity() {
         CustomerSearchCriteria criteria = agent.requestCriteria("show me all customers in Berlin");
         assertThat(criteria.city()).anySatisfy(city -> assertThat(city).containsIgnoringCase("berlin"));
     }
 
     @Test
-    @Tag("small-model-query")
     void creditworthyCustomers() {
         CustomerSearchCriteria criteria = agent.requestCriteria("show me all creditworthy customers");
         assertThat(criteria.creditRating()).containsExactly(CreditRating.GOOD);
     }
 
     @Test
-    @Tag("small-model-query")
     void atRiskCustomers() {
         CustomerSearchCriteria criteria = agent.requestCriteria("show me all customers that are at risk");
         assertThat(criteria.creditRating()).containsExactly(CreditRating.POOR);
     }
 
     @Test
-    @Tag("small-model-query")
     void creditworthyInCity() {
         CustomerSearchCriteria criteria = agent.requestCriteria("creditworthy customers in Hamburg");
         assertThat(criteria.city()).anySatisfy(city -> assertThat(city).containsIgnoringCase("hamburg"));
@@ -70,7 +65,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void contactNameContains() {
         CustomerSearchCriteria criteria = agent.requestCriteria(
                 "show me all customers with \"meyer\" in the contact name");
@@ -78,14 +72,12 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void companyNameContains() {
         CustomerSearchCriteria criteria = agent.requestCriteria("customers whose company name contains data");
         assertThat(criteria.companyName()).anySatisfy(name -> assertThat(name).containsIgnoringCase("data"));
     }
 
     @Test
-    @Tag("small-model-query")
     void customerSinceYear() {
         CustomerSearchCriteria criteria = agent.requestCriteria("customers since 2020");
         assertThat(criteria.customerSince()).anySatisfy(date -> assertThat(date.getYear()).isEqualTo(2020));
@@ -101,7 +93,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     // requiring a live tool call.
 
     @Test
-    @Tag("small-model-query")
     void germanPhoneNumberNormalizedToE164() {
         CustomerSearchCriteria criteria = agent.requestCriteria(
                 "show me the customer with phone number 030 10023757");
@@ -109,7 +100,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void multiValueCities() {
         CustomerSearchCriteria criteria = agent.requestCriteria("show me customers from Berlin or Hamburg");
         assertThat(criteria.city()).anySatisfy(city -> assertThat(city).containsIgnoringCase("berlin"));
@@ -117,7 +107,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void multiValueCreditRating() {
         CustomerSearchCriteria criteria = agent.requestCriteria(
                 "show me customers with GOOD or MEDIUM credit rating");
@@ -125,7 +114,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void multiValueCustomerSinceYears() {
         CustomerSearchCriteria criteria = agent.requestCriteria("customers since 2020 or 2021");
         assertThat(criteria.customerSince()).anySatisfy(date -> assertThat(date.getYear()).isEqualTo(2020));
@@ -133,7 +121,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void annualRevenueOverThreshold() {
         CustomerSearchCriteria criteria = agent.requestCriteria(
                 "show me customers with annual revenue over 200000");
@@ -143,7 +130,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void citiesAndRevenue_keepsEveryCondition() {
         // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT, for direct comparability.
         CustomerSearchCriteria criteria = agent.requestCriteria(
@@ -156,7 +142,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void country() {
         // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT, for direct comparability.
         CustomerSearchCriteria criteria = agent.requestCriteria("customers in Germany");
@@ -164,7 +149,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void resetTheFilter_German() {
         // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT, for direct comparability.
         CustomerSearchCriteria criteria = agent.requestCriteria("setze den Filter zurück");
@@ -177,7 +161,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void citiesAndCreditRating_German() {
         // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT, for direct comparability.
         CustomerSearchCriteria criteria = agent.requestCriteria(
@@ -188,7 +171,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void contactNameAndCity_German() {
         // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT, for direct comparability.
         CustomerSearchCriteria criteria = agent.requestCriteria(
@@ -198,7 +180,6 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
     }
 
     @Test
-    @Tag("small-model-query")
     void showAllCustomers_noCriteria() {
         // Every field is a list, and a small model may emit an empty list rather than omitting a
         // parameter entirely - CustomerSpecifications treats both as "no filter" (see its class
