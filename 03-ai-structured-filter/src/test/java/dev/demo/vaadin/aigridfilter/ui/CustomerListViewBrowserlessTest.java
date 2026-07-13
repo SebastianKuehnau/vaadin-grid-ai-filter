@@ -5,6 +5,11 @@ import com.vaadin.browserless.ViewPackages;
 import com.vaadin.browserless.internal.MockVaadin;
 import com.vaadin.flow.component.grid.GridTester;
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
+import dev.demo.vaadin.aigridfilter.ai.filter.CustomerFilter;
+import dev.demo.vaadin.aigridfilter.ai.filter.CustomerFilterSpecifications;
+import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Condition;
+import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Or;
+import dev.demo.vaadin.aigridfilter.ai.filter.Operator;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
 import org.junit.jupiter.api.Test;
@@ -15,6 +20,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
 import java.time.Duration;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -30,17 +36,34 @@ import static org.awaitility.Awaitility.await;
 @ViewPackages(classes = CustomerListView.class)
 class CustomerListViewBrowserlessTest extends SpringBrowserlessTest {
 
+    private static final String MULTI_VALUE_QUERY = "multi-value query";
+
     @Autowired
     private CustomerRepository customerRepository;
 
     @TestConfiguration
     static class FakeSearchAgentConfig {
 
+        /**
+         * Ignores the actual query text and returns a fixed result, except for
+         * {@link #MULTI_VALUE_QUERY}, which goes through the real {@link CustomerFilterSpecifications}
+         * with an {@code OR} of two {@code companyName} conditions, so the OR-within-field translation
+         * is exercised end to end through the UI, not just at the unit-test level. Same fixture as
+         * {@code 02-ai-agent-filter}'s equivalent test, expressed via {@link CustomerFilter}'s tree
+         * instead of a flat criteria list.
+         */
         @Bean
         @Primary
         CustomerSearchAgent fakeSearchAgent() {
-            return query -> (root, criteriaQuery, criteriaBuilder) ->
-                    criteriaBuilder.equal(root.get("companyName"), "Berlin Data Works");
+            return query -> {
+                if (MULTI_VALUE_QUERY.equals(query)) {
+                    return CustomerFilterSpecifications.from(new CustomerFilter(new Or(List.of(
+                            new Condition("companyName", Operator.EQUALS, "Berlin Data Works"),
+                            new Condition("companyName", Operator.EQUALS, "Hamburg Retail Group")))));
+                }
+                return (root, criteriaQuery, criteriaBuilder) ->
+                        criteriaBuilder.equal(root.get("companyName"), "Berlin Data Works");
+            };
         }
     }
 
@@ -58,6 +81,20 @@ class CustomerListViewBrowserlessTest extends SpringBrowserlessTest {
             assertThat(grid.size()).isEqualTo(1);
         });
         assertThat(grid.getRow(0).getCompanyName()).isEqualTo("Berlin Data Works");
+    }
+
+    @Test
+    void multiValueQueryNarrowsGridToOrMatchedRows() {
+        CustomerListView view = navigate(CustomerListView.class);
+        test(view.getFilterField()).setValue(MULTI_VALUE_QUERY);
+
+        GridTester<?, Customer> grid = test(view.getGrid());
+        await().pollInSameThread().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+            MockVaadin.runUIQueue();
+            assertThat(grid.size()).isEqualTo(2);
+        });
+        assertThat(List.of(grid.getRow(0).getCompanyName(), grid.getRow(1).getCompanyName()))
+                .containsExactlyInAnyOrder("Berlin Data Works", "Hamburg Retail Group");
     }
 
     @Test
