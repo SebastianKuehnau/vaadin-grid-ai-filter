@@ -62,10 +62,9 @@ Example — `(city=Berlin OR city=Hamburg) AND (annualRevenue>=500000 OR creditR
 Nesting is a bigger ask of the model than a flat list — it must correctly place AND/OR/NOT rather
 than emit one flat list. Smaller local models are more likely to flatten a nested query
 incorrectly (e.g. drop a condition, or misplace it in the wrong branch), especially for
-cross-field OR and NOT-negated groups. `CustomerSearchAgentIT` tags its harder test cases by the
-nesting complexity they require (`medium-model-query`, `large-model-query`; untagged cases are
-the single-condition baseline) so the difference shows up per model in the `04-ollama-benchmark`
-results.
+cross-field OR and NOT-negated groups. `CustomerSearchAgentNestedIT`'s nesting/cross-field cases
+are tagged by the complexity they require (`medium-model-query`, `large-model-query`) so the
+difference shows up per model in the `04-ollama-benchmark` results.
 
 ### Ollama integration test architecture
 
@@ -111,27 +110,34 @@ Ollama block.
 
 ```bash
 ./mvnw -pl 03-ai-structured-filter test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
-./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama     # CustomerSearchAgentIT + CustomerListViewBrowserlessIT vs native Ollama (skip if unreachable)
+./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama     # CustomerSearchAgentIT(+Nested) + CustomerListViewBrowserlessIT vs native Ollama (skip if unreachable)
 ```
 
 - **`CustomerFilterSpecificationsTest`** (`@DataJpaTest`, no LLM) — deterministic test of the tree
   translation against the seeded H2 data. The single-field and multi-value-OR cases use the same
   field values as `02-ai-agent-filter`'s `CustomerSpecificationsTest`, so DB-level results are
-  directly comparable; the tree-only cases (AND/OR/NOT nesting, cross-field OR, negation) have no
-  counterpart there and are tagged `negation`, `cross-field-or`, `nested-tree`.
-- **`CustomerSearchAgentIT extends LocalOllamaTests`** — 38 natural-language queries (including 4
-  in German) against a native Ollama instance (`LocalOllamaTests`/`OllamaTestSupport` duplicated
-  from `02-ai-agent-filter`, this repo's established per-module pattern for Ollama IT
-  infrastructure). Assertions are tolerant of LLM non-determinism: they check that an expected
-  condition is present *somewhere* in the filter tree, ignoring exact tree shape. Harder cases
-  are tagged `medium-model-query`/`large-model-query` by the nesting complexity required, and
-  additionally `negation`, `operator-precision`, `relative-date`, `cross-field-or`,
-  `nested-tree` for the cases with no counterpart in `02-ai-agent-filter` (see that module's
-  README). All other cases use the exact same wording/values as `02-ai-agent-filter`'s
-  `CustomerSearchAgentIT`. Note: `04-ollama-benchmark/BenchmarkLocalModels.java`'s published
-  results table still reflects the original 32-query set; its query list has not been updated to
-  match this class's current 38 (out of scope for this change — see that module's README before
-  relying on the "same queries" claim there).
+  directly comparable.
+- **`CustomerFilterSpecificationsNestedTest`** (`@DataJpaTest`, no LLM) — the tree-only cases
+  split out of the class above (AND/OR/NOT nesting, cross-field OR, negation) that have no
+  counterpart in `02-ai-agent-filter`'s flat model, so there's nothing there to compare them
+  against.
+- **`CustomerSearchAgentIT extends LocalOllamaTests`** — 19 natural-language queries against a
+  native Ollama instance (`LocalOllamaTests`/`OllamaTestSupport` duplicated from
+  `02-ai-agent-filter`, this repo's established per-module pattern for Ollama IT infrastructure).
+  Assertions are tolerant of LLM non-determinism: they check that an expected condition is
+  present *somewhere* in the filter tree, ignoring exact tree shape. Every case here uses the
+  exact same wording/values as one of `02-ai-agent-filter`'s `CustomerSearchAgentIT` cases, so
+  the two modules' results and timings are directly comparable by running this class alone
+  (`-Dit.test=CustomerSearchAgentIT`).
+- **`CustomerSearchAgentNestedIT extends LocalOllamaTests`** — the 19 cases split out of the class
+  above that need a capability `02-ai-agent-filter`'s flat model cannot express at all: negation
+  (`NOT`/`NOT_*`), STARTS_WITH/ENDS_WITH/EQUALS operator precision, arbitrary date bounds,
+  cross-field OR, and deeper nesting. The nesting/cross-field cases are additionally tagged
+  `medium-model-query`/`large-model-query` by the complexity required, harder for smaller local
+  models to produce reliably. Note: `04-ollama-benchmark/BenchmarkLocalModels.java`'s published
+  results table still reflects the original 32-query set that predates this split into two
+  classes (38 cases total now) — see that module's README before relying on a "same queries"
+  claim there.
 - **`CustomerListViewBrowserlessTest`** — [Vaadin Browserless
   testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake, deterministic
   `CustomerSearchAgent` bean, so it never calls a real model. Since the view applies results

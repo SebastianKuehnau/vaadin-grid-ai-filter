@@ -2,12 +2,10 @@ package dev.demo.vaadin.aigridfilter.ai.filter;
 
 import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.And;
 import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Condition;
-import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Not;
 import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Or;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -29,7 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code 02-ai-agent-filter}'s {@code CustomerSpecificationsTest}, so the two modules' DB-level
  * results are directly comparable. Cases that need a capability {@code 02}'s flat
  * {@code CustomerSearchCriteria} model cannot express at all (negation, cross-field OR, arbitrary
- * nesting) have no counterpart there and are marked with a descriptive {@code @Tag}.
+ * nesting) have no counterpart there and live separately in
+ * {@link CustomerFilterSpecificationsNestedTest}.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE) // keep configured H2 + data.sql
@@ -322,14 +321,6 @@ class CustomerFilterSpecificationsTest {
     }
 
     @Test
-    @Tag("negation")
-    void notEqualsExcludesCity() {
-        var result = findAll(city(Operator.NOT_EQUALS, "Berlin"));
-        assertThat(result).isNotEmpty();
-        assertThat(result).noneMatch(c -> "Berlin".equalsIgnoreCase(c.getAddress().getCity()));
-    }
-
-    @Test
     void nullRootMatchesAll() {
         var result = repository.findAll(CustomerFilterSpecifications.from(new CustomerFilter(null)));
         assertThat(result).hasSize((int) repository.count());
@@ -347,52 +338,4 @@ class CustomerFilterSpecificationsTest {
         assertThat(result).hasSize((int) repository.count());
     }
 
-    @Test
-    @Tag("cross-field-or")
-    void crossFieldOr() {
-        // "city = Berlin OR revenue >= 100000" — impossible with the old flat structure.
-        var result = findAll(new Or(List.of(
-                city(Operator.EQUALS, "Berlin"),
-                revenue(Operator.GREATER_OR_EQUAL, "100000"))));
-
-        assertThat(result).isNotEmpty();
-        assertThat(result).allSatisfy(c ->
-                assertThat("Berlin".equals(c.getAddress().getCity())
-                        || c.getAnnualRevenue().compareTo(new BigDecimal("100000")) >= 0).isTrue());
-        // Both alternatives actually contribute matches that the other alone wouldn't.
-        assertThat(result).anyMatch(c -> "Berlin".equals(c.getAddress().getCity())
-                && c.getAnnualRevenue().compareTo(new BigDecimal("100000")) < 0);
-        assertThat(result).anyMatch(c -> !"Berlin".equals(c.getAddress().getCity())
-                && c.getAnnualRevenue().compareTo(new BigDecimal("100000")) >= 0);
-    }
-
-    @Test
-    @Tag("nested-tree")
-    void nestedOrsCombinedWithAnd() {
-        // (city=Berlin OR city=Hamburg) AND (revenue>=500000 OR creditRating=GOOD)
-        var result = findAll(new And(List.of(
-                new Or(List.of(city(Operator.CONTAINS, "Berlin"), city(Operator.CONTAINS, "Hamburg"))),
-                new Or(List.of(revenue(Operator.GREATER_OR_EQUAL, "500000"), creditRating("GOOD"))))));
-
-        assertThat(result).isNotEmpty();
-        assertThat(result).allSatisfy(c -> {
-            assertThat(c.getAddress().getCity()).isIn("Berlin", "Hamburg");
-            assertThat(c.getAnnualRevenue().compareTo(new BigDecimal("500000")) >= 0
-                    || c.getCreditRating() == CreditRating.GOOD).isTrue();
-        });
-    }
-
-    @Test
-    @Tag("negation")
-    void notNegatesGroup() {
-        // NOT (city=Berlin AND revenue < 100000)
-        var negated = new Not(new And(List.of(
-                city(Operator.EQUALS, "Berlin"),
-                revenue(Operator.LESS_OR_EQUAL, "100000"))));
-        var result = findAll(negated);
-
-        assertThat(result).isNotEmpty();
-        assertThat(result).noneMatch(c -> "Berlin".equals(c.getAddress().getCity())
-                && c.getAnnualRevenue().compareTo(new BigDecimal("100000")) <= 0);
-    }
 }

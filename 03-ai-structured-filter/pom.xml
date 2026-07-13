@@ -131,8 +131,8 @@
 
 	<profiles>
 		<profile>
-			<!-- Runs CustomerSearchAgentIT (extends LocalOllamaTests) against a native Ollama instance
-			     (OLLAMA_BASE_URL). -->
+			<!-- Runs CustomerSearchAgentIT/CustomerSearchAgentNestedIT (both extend LocalOllamaTests)
+			     against a native Ollama instance (OLLAMA_BASE_URL). -->
 			<id>it-local-ollama</id>
 			<build>
 				<plugins>
@@ -142,6 +142,7 @@
 						<configuration>
 							<includes>
 								<include>**/CustomerSearchAgentIT.java</include>
+								<include>**/CustomerSearchAgentNestedIT.java</include>
 								<include>**/CustomerListViewBrowserlessIT.java</include>
 							</includes>
 						</configuration>
