@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.concurrent.TimeUnit;
@@ -117,6 +118,28 @@ class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
         assertThat(grid.size()).isGreaterThan(0);
         for (int i = 0; i < grid.size(); i++) {
             assertThat(grid.getRow(i).getCompanyName()).containsIgnoringCase("data");
+        }
+    }
+
+    @Test
+    @Timeout(value = 120, unit = TimeUnit.SECONDS)
+    void multiValueCities() {
+        GridTester<?, Customer> grid = search("show me customers from Berlin or Hamburg");
+
+        assertThat(grid.size()).isGreaterThan(0);
+        for (int i = 0; i < grid.size(); i++) {
+            assertThat(grid.getRow(i).getAddress().getCity()).containsAnyOf("Berlin", "Hamburg");
+        }
+    }
+
+    @Test
+    @Timeout(value = 120, unit = TimeUnit.SECONDS)
+    void annualRevenueOverThreshold() {
+        GridTester<?, Customer> grid = search("show me customers with annual revenue over 200000");
+
+        assertThat(grid.size()).isGreaterThan(0).isLessThan(Math.toIntExact(customerRepository.count()));
+        for (int i = 0; i < grid.size(); i++) {
+            assertThat(grid.getRow(i).getAnnualRevenue()).isGreaterThanOrEqualTo(BigDecimal.valueOf(150_000));
         }
     }
 
