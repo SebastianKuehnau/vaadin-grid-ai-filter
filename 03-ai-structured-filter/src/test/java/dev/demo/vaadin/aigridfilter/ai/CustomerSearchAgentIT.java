@@ -34,6 +34,16 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Tests are tagged by the model capability they require to build the correct tree shape — see
  * {@code small-model-query}, {@code medium-model-query}, {@code large-model-query} — since deeper
  * nesting and cross-field OR are harder for smaller local models to produce reliably.
+ * <p>
+ * A second, orthogonal set of tags marks the cases that only this module can express, because
+ * {@code 02-ai-agent-filter}'s flat {@code CustomerSearchCriteria} model has no equivalent
+ * capability: {@code negation} (NOT / NOT_* operators), {@code operator-precision}
+ * (STARTS_WITH/ENDS_WITH/EQUALS distinctions its CONTAINS-only text matching can't make),
+ * {@code relative-date} (arbitrary date bounds vs. its year-equality-only dates), and
+ * {@code cross-field-or}/{@code nested-tree} (its AND-across-fields/OR-within-field shape can't
+ * nest or OR across different fields). All untagged cases use the exact same wording/values as
+ * {@code 02-ai-agent-filter}'s {@code CustomerSearchAgentIT}, so the two modules' results and
+ * timings are directly comparable.
  */
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
 class CustomerSearchAgentIT extends LocalOllamaTests {
@@ -50,6 +60,7 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("small-model-query")
+    @Tag("negation")
     void singleFalseCity() {
         CustomerFilter filter = service.requestFilter("show me all customers except from Berlin");
         assertThat(hasCondition(filter, "city", Operator.NOT_EQUALS.toString(), "berlin")).isTrue();
@@ -57,8 +68,9 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("small-model-query")
-    void multipleCities() {
-        CustomerFilter filter = service.requestFilter("customers in Berlin or Hamburg");
+    void multiValueCities() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT.multiValueCities, for direct comparability.
+        CustomerFilter filter = service.requestFilter("show me customers from Berlin or Hamburg");
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "hamburg")).isTrue();
     }
@@ -75,6 +87,7 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("small-model-query")
+    @Tag("operator-precision")
     void contactNameStartsWith() {
         CustomerFilter filter = service.requestFilter(
                 "show me all customers with an \"m\" as the first character in the contact name");
@@ -91,6 +104,7 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("small-model-query")
+    @Tag("operator-precision")
     void contactNameEndsWith() {
         CustomerFilter filter = service.requestFilter(
                 "show me all customers their contact name ends with \"schmidt\"");
@@ -99,6 +113,7 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("small-model-query")
+    @Tag("operator-precision")
     void contactNameAndCity() {
         CustomerFilter filter = service.requestFilter(
                 "customers whose contact name is Sofia and who are from Berlin");
@@ -116,6 +131,16 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("small-model-query")
+    void germanPhoneNumberNormalizedToE164() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerFilter filter = service.requestFilter(
+                "show me the customer with phone number 030 10023757");
+        assertThat(hasCondition(filter, "phone", new String[0], "3010023757")).isTrue();
+    }
+
+    @Test
+    @Tag("small-model-query")
+    @Tag("relative-date")
     void orderedInTheLastWeek() {
         CustomerFilter filter = service.requestFilter(
                 "Show me all customers who placed an order in the last week");
@@ -124,6 +149,7 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("small-model-query")
+    @Tag("relative-date")
     void orderedYesterday() {
         CustomerFilter filter = service.requestFilter("show me all customers who made an order yesterday");
         String yesterday = LocalDate.now().minusDays(1).toString();
@@ -132,6 +158,7 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("small-model-query")
+    @Tag("relative-date")
     void customerSinceThisYear() {
         CustomerFilter filter = service.requestFilter("customers who became customers this year");
         assertThat(hasCondition(filter, "customerSince", Operator.GREATER_OR_EQUAL.toString(), "")).isTrue();
@@ -146,6 +173,16 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("small-model-query")
+    void multiValueCustomerSinceYears() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerFilter filter = service.requestFilter("customers since 2020 or 2021");
+        assertThat(hasCondition(filter, "customerSince", Operator.GREATER_OR_EQUAL.toString(), "2020")).isTrue();
+        assertThat(hasCondition(filter, "customerSince", Operator.GREATER_OR_EQUAL.toString(), "2021")).isTrue();
+    }
+
+    @Test
+    @Tag("small-model-query")
+    @Tag("relative-date")
     void lastOrderBeforeDate() {
         // "before 2024-01-01" can be expressed as < 2024-01-01 or <= 2023-12-31; either is correct.
         CustomerFilter filter = service.requestFilter("customers whose last order was before 2024-01-01");
@@ -155,13 +192,15 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("small-model-query")
-    void revenueOverAMillion() {
-        CustomerFilter filter = service.requestFilter("companies with annual revenue over 1 million");
-        assertThat(hasCondition(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "1000000")).isTrue();
+    void annualRevenueOverThreshold() {
+        // Same wording/threshold as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerFilter filter = service.requestFilter("show me customers with annual revenue over 200000");
+        assertThat(hasCondition(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "200000")).isTrue();
     }
 
     @Test
     @Tag("small-model-query")
+    @Tag("negation")
     void notInCityWithRevenueRange_keepsEveryCondition() {
         CustomerFilter filter = service.requestFilter(
                 "companies not in Munich with revenue between 100000 and 500000");
@@ -181,6 +220,7 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("small-model-query")
+    @Tag("operator-precision")
     void emailEndsWith() {
         CustomerFilter filter = service.requestFilter("customers whose email ends with .com");
         assertThat(hasCondition(filter, "email", Operator.ENDS_WITH.toString(), ".com")).isTrue();
@@ -188,6 +228,7 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("small-model-query")
+    @Tag("negation")
     void emailNotContains() {
         CustomerFilter filter = service.requestFilter("customers whose email does not contain gmail");
         assertThat(hasCondition(filter, "email",
@@ -196,6 +237,7 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("small-model-query")
+    @Tag("operator-precision")
     void companyNameStartsWith() {
         CustomerFilter filter = service.requestFilter("customers whose company name starts with A");
         assertThat(hasCondition(filter, "companyName", Operator.STARTS_WITH.toString(), "a")).isTrue();
@@ -203,15 +245,54 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("small-model-query")
-    void creditworthyInCity() {
-        CustomerFilter filter = service.requestFilter("creditworthy customers in Berlin");
-        assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
+    void companyNameContains() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerFilter filter = service.requestFilter("customers whose company name contains data");
+        assertThat(hasCondition(filter, "companyName", Operator.CONTAINS.toString(), "data")).isTrue();
+    }
+
+    @Test
+    @Tag("small-model-query")
+    void creditworthyCustomers() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerFilter filter = service.requestFilter("show me all creditworthy customers");
         assertThat(hasCondition(filter, "creditRating",
                 new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "good", "creditworthy")).isTrue();
     }
 
     @Test
     @Tag("small-model-query")
+    void atRiskCustomers() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerFilter filter = service.requestFilter("show me all customers that are at risk");
+        assertThat(hasCondition(filter, "creditRating",
+                new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "poor", "risk")).isTrue();
+    }
+
+    @Test
+    @Tag("small-model-query")
+    void multiValueCreditRating() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerFilter filter = service.requestFilter("show me customers with GOOD or MEDIUM credit rating");
+        assertThat(hasCondition(filter, "creditRating",
+                new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "good", "creditworthy")).isTrue();
+        assertThat(hasCondition(filter, "creditRating",
+                new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "medium", "moderate")).isTrue();
+    }
+
+    @Test
+    @Tag("small-model-query")
+    void creditworthyInCity() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT.creditworthyInCity, for direct comparability.
+        CustomerFilter filter = service.requestFilter("creditworthy customers in Hamburg");
+        assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "hamburg")).isTrue();
+        assertThat(hasCondition(filter, "creditRating",
+                new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "good", "creditworthy")).isTrue();
+    }
+
+    @Test
+    @Tag("small-model-query")
+    @Tag("operator-precision")
     void creditRatingTwoValues_staySeparateCriteria() {
         // "good and at-risk" must become two OR'd conditions on creditRating, not one AND'd range.
         CustomerFilter filter = service.requestFilter(
@@ -249,6 +330,7 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("small-model-query")
+    @Tag("negation")
     void notInCityWithRevenueRange_keepsEveryCondition_German() {
         CustomerFilter filter = service.requestFilter(
                 "Alle Kunden ausser aus Hamburg mit einem Umsatz von 500000 bis 1000000");
@@ -269,6 +351,7 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("medium-model-query")
+    @Tag("nested-tree")
     void citiesWithRevenueRange_nestedCombination() {
         // "(city=Berlin OR city=Hamburg) AND (revenue>=100000 AND revenue<=500000)"
         CustomerFilter filter = service.requestFilter(
@@ -281,6 +364,7 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("medium-model-query")
+    @Tag("nested-tree")
     void nestedOrOfOrs() {
         // (city=Berlin OR city=Hamburg) AND (revenue>=500000 OR creditRating=GOOD)
         CustomerFilter filter = service.requestFilter(
@@ -294,6 +378,7 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("large-model-query")
+    @Tag("cross-field-or")
     void crossFieldOr_cityOrRevenue() {
         CustomerFilter filter = service.requestFilter(
                 "customers in Berlin or with revenue above 1 million");
@@ -303,6 +388,7 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("large-model-query")
+    @Tag("cross-field-or")
     void crossFieldOr_cityOrCreditRating() {
         CustomerFilter filter = service.requestFilter("Hamburg or good credit rating");
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "hamburg")).isTrue();
@@ -312,6 +398,7 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
 
     @Test
     @Tag("large-model-query")
+    @Tag("negation")
     void negatedGroup() {
         // NOT (city=Berlin AND revenue < 100000)
         CustomerFilter filter = service.requestFilter(

@@ -26,6 +26,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * flat, so each field is asserted directly; every field is now a list, so single-value queries are
  * asserted with {@code anySatisfy}/{@code contains}, and multi-value queries assert on all expected
  * entries.
+ * <p>
+ * Every case here uses the exact same wording/values as one of {@code 03-ai-structured-filter}'s
+ * {@code CustomerSearchAgentIT} cases, so the two modules' results and timings are directly
+ * comparable. That module has additional cases with no counterpart here (tagged {@code negation},
+ * {@code operator-precision}, {@code relative-date}, {@code cross-field-or}, {@code nested-tree}),
+ * because this module's flat {@link CustomerSearchCriteria} can't express NOT, STARTS_WITH/ENDS_WITH,
+ * arbitrary date bounds, or OR/nesting across different fields — see that class's Javadoc.
  */
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
 class CustomerSearchAgentIT extends LocalOllamaTests {
@@ -133,6 +140,61 @@ class CustomerSearchAgentIT extends LocalOllamaTests {
         assertThat(criteria.annualRevenue()).anySatisfy(range -> assertThat(range.atLeast())
                 .isNotNull()
                 .isGreaterThanOrEqualTo(BigDecimal.valueOf(150_000)));
+    }
+
+    @Test
+    @Tag("small-model-query")
+    void citiesAndRevenue_keepsEveryCondition() {
+        // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerSearchCriteria criteria = agent.requestCriteria(
+                "show me all customers in Berlin or Hamburg with a minimal revenue of 100000");
+        assertThat(criteria.city()).anySatisfy(city -> assertThat(city).containsIgnoringCase("berlin"));
+        assertThat(criteria.city()).anySatisfy(city -> assertThat(city).containsIgnoringCase("hamburg"));
+        assertThat(criteria.annualRevenue()).anySatisfy(range -> assertThat(range.atLeast())
+                .isNotNull()
+                .isGreaterThanOrEqualTo(BigDecimal.valueOf(75_000)));
+    }
+
+    @Test
+    @Tag("small-model-query")
+    void country() {
+        // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerSearchCriteria criteria = agent.requestCriteria("customers in Germany");
+        assertThat(criteria.country()).anySatisfy(country -> assertThat(country).containsIgnoringCase("germany"));
+    }
+
+    @Test
+    @Tag("small-model-query")
+    void resetTheFilter_German() {
+        // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerSearchCriteria criteria = agent.requestCriteria("setze den Filter zurück");
+        assertThat(criteria).satisfiesAnyOf(
+                c -> assertThat(c).isNull(),
+                c -> assertThat(Arrays.asList(c.companyName(), c.contactName(), c.email(), c.phone(),
+                        c.customerSince(), c.lastOrderDate(), c.country(), c.city(), c.postalCode(),
+                        c.street(), c.houseNumber(), c.creditRating(), c.annualRevenue()))
+                        .allSatisfy(field -> assertThat(field).isNullOrEmpty()));
+    }
+
+    @Test
+    @Tag("small-model-query")
+    void citiesAndCreditRating_German() {
+        // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerSearchCriteria criteria = agent.requestCriteria(
+                "zeige mir Kunden aus Berlin oder Hamburg mit einer positiven Kreditwürdigkeit");
+        assertThat(criteria.city()).anySatisfy(city -> assertThat(city).containsIgnoringCase("berlin"));
+        assertThat(criteria.city()).anySatisfy(city -> assertThat(city).containsIgnoringCase("hamburg"));
+        assertThat(criteria.creditRating()).contains(CreditRating.GOOD);
+    }
+
+    @Test
+    @Tag("small-model-query")
+    void contactNameAndCity_German() {
+        // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerSearchCriteria criteria = agent.requestCriteria(
+                "Zeigen mir Kunden deren Kontaktname Julia ist und die in Berlin sind.");
+        assertThat(criteria.contactName()).anySatisfy(name -> assertThat(name).containsIgnoringCase("julia"));
+        assertThat(criteria.city()).anySatisfy(city -> assertThat(city).containsIgnoringCase("berlin"));
     }
 
     @Test
