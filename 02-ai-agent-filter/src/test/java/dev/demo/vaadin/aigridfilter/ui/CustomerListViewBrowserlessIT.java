@@ -18,6 +18,7 @@ import org.springframework.test.context.DynamicPropertySource;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -106,7 +107,7 @@ class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
 
         assertThat(grid.size()).isGreaterThan(0).isLessThan(Math.toIntExact(customerRepository.count()));
         for (int i = 0; i < grid.size(); i++) {
-            assertThat(grid.getRow(i).getCustomerSince().getYear()).isEqualTo(2020);
+            assertThat(grid.getRow(i).getCustomerSince()).isAfterOrEqualTo(LocalDate.of(2020, 1, 1));
         }
     }
 
@@ -140,6 +141,21 @@ class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
         assertThat(grid.size()).isGreaterThan(0).isLessThan(Math.toIntExact(customerRepository.count()));
         for (int i = 0; i < grid.size(); i++) {
             assertThat(grid.getRow(i).getAnnualRevenue()).isGreaterThanOrEqualTo(BigDecimal.valueOf(150_000));
+        }
+    }
+
+    @Test
+    @Timeout(value = 120, unit = TimeUnit.SECONDS)
+    void citiesWithGoodRatingAndRevenueAboveThreshold() {
+        GridTester<?, Customer> grid = search(
+                "show all customer from Berlin and Cologne with a positive creditrating and a revenue over 100000");
+
+        assertThat(grid.size()).isGreaterThan(0);
+        for (int i = 0; i < grid.size(); i++) {
+            Customer row = grid.getRow(i);
+            assertThat(row.getAddress().getCity()).containsAnyOf("Berlin", "Cologne");
+            assertThat(row.getCreditRating()).isIn(CreditRating.GOOD, CreditRating.MEDIUM);
+            assertThat(row.getAnnualRevenue()).isGreaterThanOrEqualTo(BigDecimal.valueOf(75_000));
         }
     }
 

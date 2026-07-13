@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.concurrent.TimeUnit;
@@ -37,7 +38,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * turns off for its own UI-less use case), so the Ollama wiring below is duplicated rather than
  * inherited. Skips gracefully when no native Ollama is reachable, same as {@code CustomerSearchAgentIT}.
  * <p>
- * Uses the <em>same 5 queries</em> as {@code 02-ai-agent-filter}'s
+ * Uses the <em>same 8 queries</em> as {@code 02-ai-agent-filter}'s
  * {@code CustomerListViewBrowserlessIT}, so the two modules' {@code -Pit-local-ollama} runs are
  * directly comparable on speed and result quality between tool calling and structured output.
  */
@@ -117,6 +118,43 @@ class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
         assertThat(grid.size()).isGreaterThan(0);
         for (int i = 0; i < grid.size(); i++) {
             assertThat(grid.getRow(i).getCompanyName()).containsIgnoringCase("data");
+        }
+    }
+
+    @Test
+    @Timeout(value = 120, unit = TimeUnit.SECONDS)
+    void multiValueCities() {
+        GridTester<?, Customer> grid = search("show me customers from Berlin or Hamburg");
+
+        assertThat(grid.size()).isGreaterThan(0);
+        for (int i = 0; i < grid.size(); i++) {
+            assertThat(grid.getRow(i).getAddress().getCity()).containsAnyOf("Berlin", "Hamburg");
+        }
+    }
+
+    @Test
+    @Timeout(value = 120, unit = TimeUnit.SECONDS)
+    void annualRevenueOverThreshold() {
+        GridTester<?, Customer> grid = search("show me customers with annual revenue over 200000");
+
+        assertThat(grid.size()).isGreaterThan(0).isLessThan(Math.toIntExact(customerRepository.count()));
+        for (int i = 0; i < grid.size(); i++) {
+            assertThat(grid.getRow(i).getAnnualRevenue()).isGreaterThanOrEqualTo(BigDecimal.valueOf(150_000));
+        }
+    }
+
+    @Test
+    @Timeout(value = 120, unit = TimeUnit.SECONDS)
+    void citiesWithGoodRatingAndRevenueAboveThreshold() {
+        GridTester<?, Customer> grid = search(
+                "show all customer from Berlin and Cologne with a positive creditrating and a revenue over 100000");
+
+        assertThat(grid.size()).isGreaterThan(0);
+        for (int i = 0; i < grid.size(); i++) {
+            Customer row = grid.getRow(i);
+            assertThat(row.getAddress().getCity()).containsAnyOf("Berlin", "Cologne");
+            assertThat(row.getCreditRating()).isIn(CreditRating.GOOD, CreditRating.MEDIUM);
+            assertThat(row.getAnnualRevenue()).isGreaterThanOrEqualTo(BigDecimal.valueOf(75_000));
         }
     }
 

@@ -117,8 +117,8 @@ Switch to OpenAI by setting `app.ai.provider=openai` in `application.properties`
   `CustomerSearchAgentIT`), exercising the full `TextField` → tool-calling AI layer → `Grid`
   pipeline end to end. Since the real model's result size isn't known upfront, the wait condition
   is "the filter field is re-enabled" (it's disabled for the duration of a search) rather than a
-  fixed grid size. `03-ai-structured-filter` has an identical test with the same 5 single-value
-  queries (plus this module's 2 additional multi-value-only cases), so the two modules'
+  fixed grid size. `03-ai-structured-filter` has an identical test with the same 8 queries, so the
+  two modules'
   `-Pit-local-ollama` runs are directly comparable on speed (per-test elapsed time in
   `target/failsafe-reports/`) and result quality between tool calling and structured output.
 
