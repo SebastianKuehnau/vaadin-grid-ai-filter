@@ -106,9 +106,6 @@
 						<exclude>**/Test*.java</exclude>
 						<exclude>**/LocalOllamaTests.java</exclude>
 					</excludes>
-					<!-- Keeps this module's test scope directly comparable to 03-ai-structured-filter's
-					     (see the excludedTestGroups property in the parent pom for what/why). -->
-					<excludedGroups>${excludedTestGroups}</excludedGroups>
 				</configuration>
 			</plugin>
 			<plugin>
@@ -127,7 +124,6 @@
 					<includes>
 						<include>none</include>
 					</includes>
-					<excludedGroups>${excludedTestGroups}</excludedGroups>
 				</configuration>
 			</plugin>
 		</plugins>
@@ -148,7 +144,6 @@
 								<include>**/CustomerSearchAgentIT.java</include>
 								<include>**/CustomerListViewBrowserlessIT.java</include>
 							</includes>
-							<excludedGroups>${excludedTestGroups}</excludedGroups>
 						</configuration>
 					</plugin>
 				</plugins>

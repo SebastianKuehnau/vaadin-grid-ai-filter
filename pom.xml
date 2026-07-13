@@ -20,15 +20,6 @@
 		<java.version>25</java.version>
 		<spring-ai.version>2.0.0</spring-ai.version>
 		<vaadin.version>25.2.0</vaadin.version>
-
-		<!-- JUnit 5 tags for capabilities that only 03-ai-structured-filter's tree-based
-		     CustomerFilter has and 02-ai-agent-filter's flat CustomerSearchCriteria cannot express
-		     (negation, STARTS_WITH/ENDS_WITH precision, relative dates, cross-field OR, arbitrary
-		     nesting). Excluded by default in both modules' surefire/failsafe configuration so a
-		     plain test/verify run exercises the same, directly comparable test scope in both
-		     modules. Override on the command line to change scope, e.g. -DexcludedTestGroups=
-		     to run everything, or -DexcludedTestGroups=nested-tree to exclude just one capability. -->
-		<excludedTestGroups>negation,operator-precision,relative-date,cross-field-or,nested-tree</excludedTestGroups>
 	</properties>
 
 	<modules>
