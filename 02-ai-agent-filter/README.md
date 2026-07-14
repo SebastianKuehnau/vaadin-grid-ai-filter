@@ -120,7 +120,12 @@ Spring AI — see `application-ollama.properties` for the one best-effort except
 ```bash
 ./mvnw -pl 02-ai-agent-filter test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
 ./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama     # CustomerSearchAgentIT + CustomerListViewBrowserlessIT vs native Ollama (skip if unreachable)
+AI_TEST_PROFILE=cloud ./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama   # same suite, against the cloud (or mlx) profile instead
 ```
+
+`-Pit-local-ollama` targets the `ollama` profile by default; `AI_TEST_PROFILE=mlx|cloud` points the
+exact same test classes at the app's other Spring profiles instead (respecting
+`MLX_BASE_URL`/`OPENAI_API_KEY`, same as the app itself) — see `OllamaTestSupport`.
 
 - **`CustomerSpecificationsTest`** (`@DataJpaTest`, no LLM) — one test per predicate/field against
   the seeded H2 data (single- and multi-value/OR cases, including `annualRevenue`'s open- and

@@ -13,8 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.ActiveProfilesResolver;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -25,45 +25,46 @@ import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Browserless UI integration test against a real, native Ollama instance — no fake
- * {@code CustomerSearchAgent} bean. Verifies the full pipeline end to end: typing a
- * natural-language query, the real tool-calling AI layer resolving it, and the grid showing the
- * right rows. Complements {@link CustomerListViewBrowserlessTest} (fast, fake agent, no LLM) and
- * {@code CustomerSearchAgentIT} (real Ollama, but bypasses the UI).
+ * Browserless UI integration test against a real AI backend — no fake {@code CustomerSearchAgent}
+ * bean. Verifies the full pipeline end to end: typing a natural-language query, the real
+ * tool-calling AI layer resolving it, and the grid showing the right rows. Complements
+ * {@link CustomerListViewBrowserlessTest} (fast, fake agent, no LLM) and {@code CustomerSearchAgentIT}
+ * (real backend, but bypasses the UI).
  * <p>
  * Deliberately extends {@link SpringBrowserlessTest} rather than {@code LocalOllamaTests}: the two
  * can't be combined by inheritance (browserless testing needs the default {@code MOCK} web
  * environment and Vaadin's Spring Boot autoconfiguration, both of which {@code LocalOllamaTests}
- * turns off for its own UI-less use case), so the Ollama wiring below is duplicated rather than
- * inherited. Skips gracefully when no native Ollama is reachable, same as {@code CustomerSearchAgentIT}.
+ * turns off for its own UI-less use case), so the backend wiring below is duplicated rather than
+ * inherited. Targets whichever of the app's {@code ollama}(default)/{@code mlx}/{@code cloud}
+ * Spring profiles {@code AI_TEST_PROFILE} selects — see {@link OllamaTestSupport} — and skips
+ * gracefully when that backend isn't reachable, same as {@code CustomerSearchAgentIT}.
  * <p>
  * No relative-date case (e.g. "customers who ordered yesterday"): {@code llama3.1:8b} (this
  * module's configured default) reliably fails the two-hop tool-call chain that requires — see the
  * module README's "Known limitation" section, and {@code CustomerSearchAgentIT} which excludes it
  * for the same reason.
  */
-@SpringBootTest(properties = {
-        "spring.ai.model.chat=ollama",
-        "spring.ai.ollama.chat.model=llama3.1:8b",
-        "spring.ai.ollama.chat.think=false",
-        "spring.ai.ollama.chat.num-ctx=4096",
-        "spring.ai.ollama.init.pull-model-strategy=never"
-})
+@SpringBootTest
 @ViewPackages(classes = CustomerListView.class)
+@ActiveProfiles(resolver = CustomerListViewBrowserlessIT.AiTestProfileResolver.class)
 class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
 
     @Autowired
     private CustomerRepository customerRepository;
 
-    @DynamicPropertySource
-    static void ollamaProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.ai.ollama.base-url", OllamaTestSupport::localBaseUrl);
+    @BeforeAll
+    static void requireReachableBackend() {
+        assumeTrue(OllamaTestSupport.reachable(), "AI backend (profile '" + OllamaTestSupport.profile()
+                + "') not reachable at " + OllamaTestSupport.baseUrl() + " — skipping");
     }
 
-    @BeforeAll
-    static void requireReachableOllama() {
-        String baseUrl = OllamaTestSupport.localBaseUrl();
-        assumeTrue(OllamaTestSupport.reachable(baseUrl), "native Ollama not reachable at " + baseUrl + " — skipping");
+    static class AiTestProfileResolver implements ActiveProfilesResolver {
+
+        @Override
+        public String[] resolve(Class<?> testClass) {
+            return new String[] { OllamaTestSupport.profile() };
+        }
+
     }
 
     @Test
