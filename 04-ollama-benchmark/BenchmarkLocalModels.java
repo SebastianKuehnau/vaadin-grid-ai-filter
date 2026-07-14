@@ -714,6 +714,25 @@ public class BenchmarkLocalModels {
         return n % 2 == 1 ? sorted.get(n / 2) : (sorted.get(n / 2 - 1) + sorted.get(n / 2)) / 2.0;
     }
 
+    /** Shared cell values for one model's row, reused by printTable/renderMarkdown/renderText. */
+    private record RowCells(String model, String accuracy, String medianLat, String ttft, String tokS,
+                             String ram, String cpu, String modelSize) {
+    }
+
+    private static RowCells buildRow(ModelResult r, int totalCases) {
+        long passed = r.cases().stream().filter(CaseResult::passed).count();
+        double medianMs = median(r.cases().stream().map(CaseResult::durationMs).collect(Collectors.toList()));
+        return new RowCells(
+                r.model(),
+                passed + "/" + totalCases,
+                "%.0f ms".formatted(medianMs),
+                r.ttftMs() != null ? r.ttftMs() + " ms" : "n/a",
+                "%.1f".formatted(tokensPerSecond(r)),
+                formatBytes(r.heapUsedAfterBytes() - r.heapUsedBeforeBytes()),
+                "%.0f%%".formatted(r.avgCpuLoadPercent()),
+                r.modelSizeBytes() != null ? formatBytes(r.modelSizeBytes()) : "n/a");
+    }
+
     private static void printTable(List<ModelResult> results, int totalCases) {
         System.out.println();
         System.out.printf("%-22s%-12s%-14s%-10s%-10s%-10s%-8s%-12s%n",
@@ -724,17 +743,10 @@ public class BenchmarkLocalModels {
                 System.out.printf("%-22sERROR: %s%n", r.model(), r.fatalError());
                 continue;
             }
-            long passed = r.cases().stream().filter(CaseResult::passed).count();
-            double medianMs = median(r.cases().stream().map(CaseResult::durationMs).collect(Collectors.toList()));
-            System.out.printf("%-22s%-12s%-14s%-10s%-10.1f%-10s%-8s%-12s%n",
-                    r.model(),
-                    passed + "/" + totalCases,
-                    "%.0f ms".formatted(medianMs),
-                    r.ttftMs() != null ? r.ttftMs() + " ms" : "n/a",
-                    tokensPerSecond(r),
-                    formatBytes(r.heapUsedAfterBytes() - r.heapUsedBeforeBytes()),
-                    "%.0f%%".formatted(r.avgCpuLoadPercent()),
-                    r.modelSizeBytes() != null ? formatBytes(r.modelSizeBytes()) : "n/a");
+            RowCells row = buildRow(r, totalCases);
+            System.out.printf("%-22s%-12s%-14s%-10s%-10s%-10s%-8s%-12s%n",
+                    row.model(), row.accuracy(), row.medianLat(), row.ttft(), row.tokS(), row.ram(), row.cpu(),
+                    row.modelSize());
         }
     }
 
@@ -778,16 +790,15 @@ public class BenchmarkLocalModels {
                   .append(" | | | | | | |\n");
                 continue;
             }
-            long passed = r.cases().stream().filter(CaseResult::passed).count();
-            double medianMs = median(r.cases().stream().map(CaseResult::durationMs).collect(Collectors.toList()));
-            sb.append("| ").append(r.model())
-              .append(" | ").append(passed).append("/").append(totalCases)
-              .append(" | ").append("%.0f ms".formatted(medianMs))
-              .append(" | ").append(r.ttftMs() != null ? r.ttftMs() + " ms" : "n/a")
-              .append(" | ").append("%.1f".formatted(tokensPerSecond(r)))
-              .append(" | ").append(formatBytes(r.heapUsedAfterBytes() - r.heapUsedBeforeBytes()))
-              .append(" | ").append("%.0f%%".formatted(r.avgCpuLoadPercent()))
-              .append(" | ").append(r.modelSizeBytes() != null ? formatBytes(r.modelSizeBytes()) : "n/a")
+            RowCells row = buildRow(r, totalCases);
+            sb.append("| ").append(row.model())
+              .append(" | ").append(row.accuracy())
+              .append(" | ").append(row.medianLat())
+              .append(" | ").append(row.ttft())
+              .append(" | ").append(row.tokS())
+              .append(" | ").append(row.ram())
+              .append(" | ").append(row.cpu())
+              .append(" | ").append(row.modelSize())
               .append(" |\n");
         }
         sb.append("\nGPU: ").append(results.isEmpty() ? "n/a" : results.get(0).gpuInfo())
@@ -819,17 +830,10 @@ public class BenchmarkLocalModels {
                 sb.append(String.format("%-22sERROR: %s%n", r.model(), r.fatalError()));
                 continue;
             }
-            long passed = r.cases().stream().filter(CaseResult::passed).count();
-            double medianMs = median(r.cases().stream().map(CaseResult::durationMs).collect(Collectors.toList()));
-            sb.append(String.format("%-22s%-12s%-14s%-10s%-10.1f%-10s%-8s%-12s%n",
-                    r.model(),
-                    passed + "/" + totalCases,
-                    "%.0f ms".formatted(medianMs),
-                    r.ttftMs() != null ? r.ttftMs() + " ms" : "n/a",
-                    tokensPerSecond(r),
-                    formatBytes(r.heapUsedAfterBytes() - r.heapUsedBeforeBytes()),
-                    "%.0f%%".formatted(r.avgCpuLoadPercent()),
-                    r.modelSizeBytes() != null ? formatBytes(r.modelSizeBytes()) : "n/a"));
+            RowCells row = buildRow(r, totalCases);
+            sb.append(String.format("%-22s%-12s%-14s%-10s%-10s%-10s%-8s%-12s%n",
+                    row.model(), row.accuracy(), row.medianLat(), row.ttft(), row.tokS(), row.ram(), row.cpu(),
+                    row.modelSize()));
         }
         return sb.toString();
     }
