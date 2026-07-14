@@ -517,6 +517,127 @@ public class BenchmarkLocalModels {
         }
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // MLX server API client — talks to a local mlx_lm.server (https://github.com/ml-explore/mlx-lm,
+    // Apple Silicon only) via its OpenAI-compatible /v1 surface. Unlike Ollama, mlx_lm.server serves
+    // exactly one model per process (whatever it was started with via --model), so there is no
+    // per-request model switching and no on-disk-size/VRAM endpoint to query.
+    // ---------------------------------------------------------------------------------------------
+
+    static final class MlxClient implements ApiClient {
+        private final String baseUrl;
+
+        MlxClient(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
+        @Override
+        public String backendName() {
+            return "mlx";
+        }
+
+        @Override
+        public List<String> discoverModels() throws IOException, InterruptedException {
+            Object parsed = get(baseUrl + "/v1/models");
+            if (!(parsed instanceof Map<?, ?> map) || !(map.get("data") instanceof List<?> data)) {
+                return List.of();
+            }
+            List<String> result = new ArrayList<>();
+            for (Object o : data) {
+                if (o instanceof Map<?, ?> m && m.get("id") instanceof String id) {
+                    result.add(id);
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public ChatResult chat(String model, String systemPrompt, String query)
+                throws IOException, InterruptedException {
+            String payload = """
+                    {"model":%s,"messages":[{"role":"system","content":%s},{"role":"user","content":%s}],
+                    "temperature":0,"max_tokens":512,"stream":false}
+                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(query));
+            HttpRequest request = HttpRequest.newBuilder(
+                            URI.create(baseUrl.replaceAll("/$", "") + "/v1/chat/completions"))
+                    .timeout(Duration.ofSeconds(300))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                    .build();
+            long t0 = System.nanoTime();
+            HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
+            long wallClockNs = System.nanoTime() - t0;
+            if (response.statusCode() != 200) {
+                throw new IOException("HTTP " + response.statusCode() + ": " + response.body());
+            }
+            Object parsed = Json.parse(response.body());
+            if (!(parsed instanceof Map<?, ?> map)) {
+                throw new IOException("Unexpected /v1/chat/completions response shape: " + response.body());
+            }
+            String content = "";
+            if (map.get("choices") instanceof List<?> choices && !choices.isEmpty()
+                    && choices.get(0) instanceof Map<?, ?> choice && choice.get("message") instanceof Map<?, ?> msg
+                    && msg.get("content") instanceof String c) {
+                content = c;
+            }
+            long tokenCount = 0;
+            if (map.get("usage") instanceof Map<?, ?> usage) {
+                tokenCount = asLong(usage.get("completion_tokens"));
+            }
+            // No native generation-only duration in the OpenAI-compatible response, unlike Ollama's
+            // eval_duration — tok/s for this backend is therefore based on wall-clock request time
+            // and includes network + prompt-evaluation overhead (see README for this caveat).
+            return new ChatResult(content, tokenCount, wallClockNs);
+        }
+
+        @Override
+        public Long timeToFirstTokenMs(String model, String systemPrompt, String query) {
+            String payload = """
+                    {"model":%s,"messages":[{"role":"system","content":%s},{"role":"user","content":%s}],
+                    "temperature":0,"max_tokens":512,"stream":true}
+                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(query));
+            try {
+                HttpRequest request = HttpRequest.newBuilder(
+                                URI.create(baseUrl.replaceAll("/$", "") + "/v1/chat/completions"))
+                        .timeout(Duration.ofSeconds(300))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                        .build();
+                long t0 = System.nanoTime();
+                HttpResponse<java.io.InputStream> response = HTTP.send(request, HttpResponse.BodyHandlers.ofInputStream());
+                try (var reader = new java.io.BufferedReader(new java.io.InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (line.isBlank()) continue;
+                        // SSE frames: "data: {json}", terminated by a literal "data: [DONE]" line.
+                        String data = line.startsWith("data:") ? line.substring(5).stripLeading() : line;
+                        if (data.equals("[DONE]")) break;
+                        Object chunk = Json.parse(data);
+                        if (chunk instanceof Map<?, ?> m && m.get("choices") instanceof List<?> choices
+                                && !choices.isEmpty() && choices.get(0) instanceof Map<?, ?> choice
+                                && choice.get("delta") instanceof Map<?, ?> delta
+                                && delta.get("content") instanceof String c && !c.isEmpty()) {
+                            return (System.nanoTime() - t0) / 1_000_000;
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+                // TTFT is a best-effort metric; a failure here doesn't fail the case.
+            }
+            return null;
+        }
+
+        @Override
+        public Long modelSizeBytes(String model) {
+            return null; // no equivalent endpoint in the OpenAI-compatible API
+        }
+
+        @Override
+        public Long modelVramBytes(String model) {
+            return null; // no equivalent endpoint in the OpenAI-compatible API
+        }
+    }
+
     private static String gpuInfo() {
         try {
             Process p = new ProcessBuilder("nvidia-smi",
