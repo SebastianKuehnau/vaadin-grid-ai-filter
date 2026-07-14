@@ -13,8 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.ActiveProfilesResolver;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -35,9 +33,11 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * two can't be combined by inheritance (browserless testing needs the default {@code MOCK} web
  * environment and Vaadin's Spring Boot autoconfiguration, both of which {@code LocalOllamaTests}
  * turns off for its own UI-less use case), so the backend wiring below is duplicated rather than
- * inherited. Targets whichever of the app's {@code ollama}(default)/{@code mlx}/{@code cloud}
- * Spring profiles {@code AI_TEST_PROFILE} selects — see {@link OllamaTestSupport} — and skips
- * gracefully when that backend isn't reachable, same as {@code CustomerSearchAgentIT}.
+ * inherited. Which of the app's {@code ollama}(default)/{@code mlx}/{@code cloud} Spring profiles
+ * {@code AI_TEST_PROFILE} selects comes from {@code src/test/resources/application.properties}'s
+ * {@code spring.profiles.active=${AI_TEST_PROFILE:ollama}} — see {@link OllamaTestSupport} for the
+ * reachability probe — and skips gracefully when that backend isn't reachable, same as
+ * {@code CustomerSearchAgentIT}.
  * <p>
  * Uses the <em>same 5 queries</em> as {@code 02-ai-agent-filter}'s
  * {@code CustomerListViewBrowserlessIT}, so the two modules' {@code -Pit-local-ollama} runs are
@@ -45,7 +45,6 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  */
 @SpringBootTest
 @ViewPackages(classes = CustomerListView.class)
-@ActiveProfiles(resolver = CustomerListViewBrowserlessIT.AiTestProfileResolver.class)
 class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
 
     @Autowired
@@ -55,15 +54,6 @@ class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
     static void requireReachableBackend() {
         assumeTrue(OllamaTestSupport.reachable(), "AI backend (profile '" + OllamaTestSupport.profile()
                 + "') not reachable at " + OllamaTestSupport.baseUrl() + " — skipping");
-    }
-
-    static class AiTestProfileResolver implements ActiveProfilesResolver {
-
-        @Override
-        public String[] resolve(Class<?> testClass) {
-            return new String[] { OllamaTestSupport.profile() };
-        }
-
     }
 
     @Test
