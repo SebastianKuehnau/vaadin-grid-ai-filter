@@ -20,21 +20,24 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * Standalone Java benchmark comparing local Ollama models on the natural-language -&gt; CustomerFilter
- * task. Replicates the {@code CustomerSearchAgentIT} test cases (including the nested AND/OR/NOT
- * tree cases) as raw Ollama HTTP calls (no Maven/JUnit, no Spring context) and reports accuracy,
- * latency/throughput, and basic resource usage.
+ * Standalone Java benchmark comparing local models — Ollama (default) or an OpenAI-compatible MLX
+ * server ({@code mlx_lm.server}) — on the natural-language -&gt; CustomerFilter task. Replicates the
+ * {@code CustomerSearchAgentIT} test cases (including the nested AND/OR/NOT tree cases) as raw HTTP
+ * calls (no Maven/JUnit, no Spring context) and reports accuracy, latency/throughput, and basic
+ * resource usage.
  *
  * <p>Run directly with Java's single-file source launcher (no external dependencies, JDK stdlib only):
  * <pre>
  *   cd 04-ollama-benchmark
- *   java BenchmarkLocalModels.java [model1] [model2] ...
+ *   java BenchmarkLocalModels.java [options] [model1] [model2] ...
  * </pre>
- * Without model arguments, candidates are auto-discovered from {@code GET /api/tags} (models whose
- * capabilities include "tools"). Ollama base URL via {@code OLLAMA_BASE_URL} (default
- * {@code http://localhost:11434}). Reports ({@code benchmark-report-<timestamp>.md/.txt}) are written to
- * the current working directory. Not a CI gate — for model comparison during demos/development.
- * Benchmarks {@code 03-ai-structured-filter}'s AI layer; replaces the previous {@code benchmark_models.py}.
+ * Without model arguments, candidates are auto-discovered — from Ollama's {@code GET /api/tags}
+ * (models whose capabilities include "tools") by default, or from {@code mlx_lm.server}'s
+ * {@code GET /v1/models} with {@code --backend=mlx}. Base URL via {@code OLLAMA_BASE_URL}/
+ * {@code MLX_BASE_URL} env vars or {@code --base-url=<url>}; run with {@code --help} for the full
+ * flag list. Reports ({@code benchmark-report-<timestamp>.md/.txt}) are written to the current
+ * working directory. Not a CI gate — for model comparison during demos/development. Benchmarks
+ * {@code 03-ai-structured-filter}'s AI layer; replaces the previous {@code benchmark_models.py}.
  */
 public class BenchmarkLocalModels {
 
@@ -91,24 +94,31 @@ public class BenchmarkLocalModels {
         Long modelVramBytes(String model);
     }
 
-    private static final String DEFAULT_BASE_URL = "http://localhost:11434";
+    private static final String OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434";
+    private static final String MLX_DEFAULT_BASE_URL = "http://localhost:8090";
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
+    record CliArgs(String backend, String baseUrlOverride, List<String> modelNames) {
+    }
+
     public static void main(String[] args) throws Exception {
-        String baseUrl = baseUrl();
-        ApiClient client = new OllamaClient(baseUrl);
+        CliArgs cli = parseArgs(args);
+        String baseUrl = resolveBaseUrl(cli);
+        ApiClient client = cli.backend().equals("mlx") ? new MlxClient(baseUrl) : new OllamaClient(baseUrl);
+
         LocalDate today = LocalDate.now();
         String systemPrompt = buildSystemPrompt(today);
         List<TestCase> cases = testCases(today);
 
-        List<String> models = args.length > 0 ? List.of(args) : client.discoverModels();
+        List<String> models = resolveModels(client, cli.modelNames());
         if (models.isEmpty()) {
             System.err.println("No candidate models found/given. Pass model names explicitly, e.g.:");
             System.err.println("  java BenchmarkLocalModels.java llama3.2:1b qwen3.5:4b-mlx");
+            System.err.println("  java BenchmarkLocalModels.java --backend=mlx");
             System.exit(1);
         }
 
-        System.out.println("Ollama base URL: " + baseUrl);
+        System.out.println(backendLabel(client.backendName()) + " base URL: " + baseUrl);
         System.out.println("Models: " + String.join(", ", models));
         System.out.println("Test cases: " + cases.size());
         System.out.println();
@@ -128,15 +138,115 @@ public class BenchmarkLocalModels {
                 + java.time.LocalTime.now().format(DateTimeFormatter.ofPattern("HHmmss"));
         Path mdPath = Path.of("benchmark-report-" + timestamp + ".md");
         Path txtPath = Path.of("benchmark-report-" + timestamp + ".txt");
-        Files.writeString(mdPath, renderMarkdown(results, cases.size()), StandardCharsets.UTF_8);
-        Files.writeString(txtPath, renderText(results, cases.size()), StandardCharsets.UTF_8);
+        Files.writeString(mdPath, renderMarkdown(results, cases.size(), client.backendName(), baseUrl),
+                StandardCharsets.UTF_8);
+        Files.writeString(txtPath, renderText(results, cases.size(), client.backendName(), baseUrl),
+                StandardCharsets.UTF_8);
         System.out.println();
         System.out.println("Reports written: " + mdPath.toAbsolutePath() + ", " + txtPath.toAbsolutePath());
     }
 
-    private static String baseUrl() {
-        String env = System.getenv("OLLAMA_BASE_URL");
-        return (env == null || env.isBlank()) ? DEFAULT_BASE_URL : env;
+    private static String backendLabel(String backendName) {
+        return backendName.equals("mlx") ? "MLX server" : "Ollama";
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // CLI argument parsing
+    // ---------------------------------------------------------------------------------------------
+
+    private static CliArgs parseArgs(String[] args) {
+        String backend = "ollama";
+        String baseUrlOverride = null;
+        List<String> models = new ArrayList<>();
+        for (String arg : args) {
+            if (arg.equals("--help") || arg.equals("-h")) {
+                printUsage();
+                System.exit(0);
+            } else if (arg.startsWith("--backend=")) {
+                backend = arg.substring("--backend=".length());
+            } else if (arg.startsWith("--base-url=")) {
+                baseUrlOverride = arg.substring("--base-url=".length());
+            } else if (arg.startsWith("--")) {
+                System.err.println("Unknown flag: " + arg);
+                System.err.println("Run with --help for usage.");
+                System.exit(1);
+            } else {
+                models.add(arg);
+            }
+        }
+        if (!backend.equals("ollama") && !backend.equals("mlx")) {
+            System.err.println("Unknown --backend value: " + backend + " (expected 'ollama' or 'mlx')");
+            System.exit(1);
+        }
+        return new CliArgs(backend, baseUrlOverride, models);
+    }
+
+    private static void printUsage() {
+        System.out.println("""
+                Usage: java BenchmarkLocalModels.java [options] [model1] [model2] ...
+
+                Options:
+                  --backend=ollama|mlx   Backend to benchmark against (default: ollama)
+                  --base-url=<url>       Override the backend's base URL
+                  --help, -h             Show this help and exit
+
+                Backend defaults:
+                  ollama: http://localhost:11434 (override via OLLAMA_BASE_URL env var)
+                  mlx:    http://localhost:8090  (override via MLX_BASE_URL env var)
+                          mlx_lm.server serves one model per process — see README for setup.
+
+                Examples:
+                  java BenchmarkLocalModels.java
+                  java BenchmarkLocalModels.java llama3.1:8b qwen3:8b
+                  java BenchmarkLocalModels.java --backend=mlx
+                  java BenchmarkLocalModels.java --backend=mlx --base-url=http://localhost:9000""");
+    }
+
+    private static String resolveBaseUrl(CliArgs cli) {
+        if (cli.baseUrlOverride() != null && !cli.baseUrlOverride().isBlank()) {
+            return cli.baseUrlOverride();
+        }
+        boolean mlx = cli.backend().equals("mlx");
+        String env = System.getenv(mlx ? "MLX_BASE_URL" : "OLLAMA_BASE_URL");
+        String defaultUrl = mlx ? MLX_DEFAULT_BASE_URL : OLLAMA_DEFAULT_BASE_URL;
+        return (env == null || env.isBlank()) ? defaultUrl : env;
+    }
+
+    /**
+     * Resolves which models to benchmark. Ollama can enumerate/switch between many pulled models, so
+     * requested names are trusted as-is (unchanged behavior) and, like before, a discovery failure with
+     * no requested names propagates uncaught. {@code mlx_lm.server} serves exactly one loaded model per
+     * process, so requested names are validated against what's actually loaded — mismatches are skipped
+     * with a warning instead of silently mislabeling results. If that validation call itself fails (e.g.
+     * unreachable server), fall back to trusting the requested names as-is, so the failure surfaces once,
+     * gracefully, per model in {@link #benchmarkModel} instead of crashing discovery outright.
+     */
+    private static List<String> resolveModels(ApiClient client, List<String> requested)
+            throws IOException, InterruptedException {
+        if (requested.isEmpty()) {
+            return client.discoverModels();
+        }
+        if (!(client instanceof MlxClient)) {
+            return requested;
+        }
+        List<String> available;
+        try {
+            available = client.discoverModels();
+        } catch (Exception e) {
+            System.err.println("WARN: could not verify requested model(s) against mlx_lm.server ("
+                    + e.getMessage() + "); proceeding without validation.");
+            return requested;
+        }
+        List<String> valid = new ArrayList<>();
+        for (String name : requested) {
+            if (available.contains(name)) {
+                valid.add(name);
+            } else {
+                System.err.println("WARN: requested model '" + name + "' is not the model loaded in "
+                        + "mlx_lm.server (loaded: " + available + "); skipping.");
+            }
+        }
+        return valid;
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -897,10 +1007,13 @@ public class BenchmarkLocalModels {
         return "%.1f GB".formatted(mb / 1024.0);
     }
 
-    private static String renderMarkdown(List<ModelResult> results, int totalCases) {
+    private static String renderMarkdown(List<ModelResult> results, int totalCases, String backendName,
+            String baseUrl) {
         StringBuilder sb = new StringBuilder();
-        sb.append("# Local Ollama Model Benchmark\n\n");
+        sb.append("# Local Model Benchmark\n\n");
         sb.append("Generated: ").append(java.time.LocalDateTime.now()).append("\n\n");
+        sb.append("Backend: ").append(backendLabel(backendName)).append(", Base URL: ").append(baseUrl)
+          .append("\n\n");
         sb.append("Not a CI gate — for model comparison during demos/development. ")
           .append(totalCases).append(" test cases per model, ported from `CustomerSearchAgentIT`.\n\n");
         sb.append("| Model | Accuracy | Median Latency | TTFT | Tokens/s | RAM (JVM) | CPU | Model Size |\n");
@@ -923,7 +1036,7 @@ public class BenchmarkLocalModels {
               .append(" |\n");
         }
         sb.append("\nGPU: ").append(results.isEmpty() ? "n/a" : results.get(0).gpuInfo())
-          .append(" (nvidia-smi; \"n/a\" on hosts without an NVIDIA GPU, e.g. this Ollama host)\n");
+          .append(" (nvidia-smi; \"n/a\" on hosts without an NVIDIA GPU, e.g. Apple Silicon)\n");
 
         for (ModelResult r : results) {
             List<CaseResult> failures = r.cases().stream().filter(c -> !c.passed()).collect(Collectors.toList());
@@ -941,8 +1054,11 @@ public class BenchmarkLocalModels {
         return sb.toString();
     }
 
-    private static String renderText(List<ModelResult> results, int totalCases) {
+    private static String renderText(List<ModelResult> results, int totalCases, String backendName,
+            String baseUrl) {
         StringBuilder sb = new StringBuilder();
+        sb.append("Backend: ").append(backendLabel(backendName)).append(", Base URL: ").append(baseUrl)
+          .append("\n\n");
         sb.append(String.format("%-22s%-12s%-14s%-10s%-10s%-10s%-8s%-12s%n",
                 "Model", "Accuracy", "Median Lat.", "TTFT", "tok/s", "RAM", "CPU", "Model Size"));
         sb.append("-".repeat(98)).append("\n");
