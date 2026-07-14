@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 
 import java.time.LocalDate;
 import java.util.concurrent.TimeUnit;
@@ -30,8 +31,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code medium-model-query}/{@code large-model-query} by the nesting complexity required, since
  * that's harder for smaller local models to produce reliably.
  */
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
+        "spring.autoconfigure.exclude=com.vaadin.flow.spring.SpringBootAutoConfiguration"
+})
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
-class CustomerSearchAgentNestedIT extends LocalOllamaTests {
+class CustomerSearchAgentNestedIT {
 
     @Autowired
     CustomerSearchStructuredOutputService service;

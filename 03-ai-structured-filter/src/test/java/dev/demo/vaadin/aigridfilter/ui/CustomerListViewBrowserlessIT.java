@@ -4,11 +4,9 @@ import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.browserless.ViewPackages;
 import com.vaadin.browserless.internal.MockVaadin;
 import com.vaadin.flow.component.grid.GridTester;
-import dev.demo.vaadin.aigridfilter.ai.OllamaTestSupport;
-import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
+import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +18,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Browserless UI integration test against a real AI backend — no fake {@code CustomerSearchAgent}
@@ -49,12 +46,6 @@ class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
 
     @Autowired
     private CustomerRepository customerRepository;
-
-    @BeforeAll
-    static void requireReachableBackend() {
-        assumeTrue(OllamaTestSupport.reachable(), "AI backend (profile '" + OllamaTestSupport.profile()
-                + "') not reachable at " + OllamaTestSupport.baseUrl() + " — skipping");
-    }
 
     @Test
     @Timeout(value = 120, unit = TimeUnit.SECONDS)

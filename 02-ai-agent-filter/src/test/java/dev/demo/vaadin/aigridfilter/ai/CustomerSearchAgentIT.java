@@ -5,6 +5,7 @@ import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
@@ -33,8 +34,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * because this module's flat {@link CustomerSearchCriteria} can't express NOT, STARTS_WITH/ENDS_WITH,
  * arbitrary date bounds, or OR/nesting across different fields — see that class's Javadoc.
  */
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
+        "spring.autoconfigure.exclude=com.vaadin.flow.spring.SpringBootAutoConfiguration"
+})
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
-class CustomerSearchAgentIT extends LocalOllamaTests {
+class CustomerSearchAgentIT {
 
     @Autowired
     CustomerSearchToolCallingService agent;

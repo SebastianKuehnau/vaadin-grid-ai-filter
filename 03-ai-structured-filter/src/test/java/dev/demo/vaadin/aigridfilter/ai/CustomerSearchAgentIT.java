@@ -7,10 +7,10 @@ import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Condition;
 import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Not;
 import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Or;
 import dev.demo.vaadin.aigridfilter.ai.filter.Operator;
-import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,8 +36,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * bounds, cross-field OR, deeper nesting) have no counterpart there and live separately in
  * {@link CustomerSearchAgentNestedIT}.
  */
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
+        "spring.autoconfigure.exclude=com.vaadin.flow.spring.SpringBootAutoConfiguration"
+})
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
-class CustomerSearchAgentIT extends LocalOllamaTests {
+class CustomerSearchAgentIT {
 
     @Autowired
     CustomerSearchStructuredOutputService service;
