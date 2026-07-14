@@ -64,16 +64,44 @@ public class BenchmarkLocalModels {
                         String gpuInfo, Long ttftMs, String fatalError) {
     }
 
+    /**
+     * Normalized chat outcome shared by every {@link ApiClient} implementation. {@code tokenCount}/
+     * {@code tokenDurationNs} carry Ollama's native {@code eval_count}/{@code eval_duration} (generation-only
+     * timing) or, for OpenAI-compatible backends without an equivalent field, the response's token usage and
+     * measured wall-clock request duration.
+     */
+    record ChatResult(String content, long tokenCount, long tokenDurationNs) {
+    }
+
+    /** Backend abstraction so the benchmarking/reporting code doesn't care which API it's talking to. */
+    interface ApiClient {
+        String backendName();
+
+        List<String> discoverModels() throws IOException, InterruptedException;
+
+        ChatResult chat(String model, String systemPrompt, String query) throws IOException, InterruptedException;
+
+        /** Best-effort: null if the measurement fails or streaming isn't available. */
+        Long timeToFirstTokenMs(String model, String systemPrompt, String query);
+
+        /** Best-effort: null if unknown or not exposed by this backend. */
+        Long modelSizeBytes(String model);
+
+        /** Best-effort: null if unknown or not exposed by this backend. */
+        Long modelVramBytes(String model);
+    }
+
     private static final String DEFAULT_BASE_URL = "http://localhost:11434";
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
     public static void main(String[] args) throws Exception {
         String baseUrl = baseUrl();
+        ApiClient client = new OllamaClient(baseUrl);
         LocalDate today = LocalDate.now();
         String systemPrompt = buildSystemPrompt(today);
         List<TestCase> cases = testCases(today);
 
-        List<String> models = args.length > 0 ? List.of(args) : discoverModels(baseUrl);
+        List<String> models = args.length > 0 ? List.of(args) : client.discoverModels();
         if (models.isEmpty()) {
             System.err.println("No candidate models found/given. Pass model names explicitly, e.g.:");
             System.err.println("  java BenchmarkLocalModels.java llama3.2:1b qwen3.5:4b-mlx");
@@ -88,7 +116,7 @@ public class BenchmarkLocalModels {
         List<ModelResult> results = new ArrayList<>();
         for (String model : models) {
             System.out.println("=== " + model + " ===");
-            ModelResult result = benchmarkModel(baseUrl, model, systemPrompt, cases);
+            ModelResult result = benchmarkModel(client, model, systemPrompt, cases);
             results.add(result);
             printSummaryLine(result, cases.size());
         }
@@ -280,35 +308,13 @@ public class BenchmarkLocalModels {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Model discovery
-    // ---------------------------------------------------------------------------------------------
-
-    @SuppressWarnings("unchecked")
-    private static List<String> discoverModels(String baseUrl) throws IOException, InterruptedException {
-        Object tags = get(baseUrl + "/api/tags");
-        if (!(tags instanceof Map<?, ?> map) || !(map.get("models") instanceof List<?> models)) {
-            return List.of();
-        }
-        List<String> result = new ArrayList<>();
-        for (Object o : models) {
-            if (!(o instanceof Map<?, ?> model)) continue;
-            Object caps = model.get("capabilities");
-            String name = String.valueOf(model.get("name"));
-            if (caps instanceof List<?> capList && capList.stream().anyMatch(c -> "tools".equals(c))) {
-                result.add(name);
-            }
-        }
-        return result;
-    }
-
-    // ---------------------------------------------------------------------------------------------
     // Benchmarking a single model
     // ---------------------------------------------------------------------------------------------
 
-    private static ModelResult benchmarkModel(String baseUrl, String model, String systemPrompt,
+    private static ModelResult benchmarkModel(ApiClient client, String model, String systemPrompt,
             List<TestCase> cases) throws Exception {
         try {
-            chat(baseUrl, model, systemPrompt, "warm up"); // load model, excluded from timings
+            client.chat(model, systemPrompt, "warm up"); // load model, excluded from timings
         } catch (Exception e) {
             return new ModelResult(model, List.of(), null, null, 0, 0, 0, "n/a", null, e.getMessage());
         }
@@ -324,17 +330,15 @@ public class BenchmarkLocalModels {
             long t0 = System.nanoTime();
             try {
                 if (ttft == null) {
-                    ttft = timeToFirstTokenMs(baseUrl, model, systemPrompt, tc.query());
+                    ttft = client.timeToFirstTokenMs(model, systemPrompt, tc.query());
                 }
-                Map<String, Object> resp = chat(baseUrl, model, systemPrompt, tc.query());
+                ChatResult chatResult = client.chat(model, systemPrompt, tc.query());
                 long durationMs = (System.nanoTime() - t0) / 1_000_000;
-                String content = extractContent(resp);
+                String content = chatResult.content();
                 List<Map<String, Object>> criteria = parseCriteria(content);
                 boolean passed = caseCorrect(criteria, tc.expected());
-                long evalCount = asLong(resp.get("eval_count"));
-                long evalDuration = asLong(resp.get("eval_duration"));
-                caseResults.add(new CaseResult(tc.name(), tc.query(), passed, durationMs, evalCount,
-                        evalDuration, null, content));
+                caseResults.add(new CaseResult(tc.name(), tc.query(), passed, durationMs, chatResult.tokenCount(),
+                        chatResult.tokenDurationNs(), null, content));
             } catch (Exception e) {
                 long durationMs = (System.nanoTime() - t0) / 1_000_000;
                 caseResults.add(new CaseResult(tc.name(), tc.query(), false, durationMs, 0, 0,
@@ -348,8 +352,8 @@ public class BenchmarkLocalModels {
         double avgCpu = cpuSamples.isEmpty() ? 0
                 : cpuSamples.stream().mapToDouble(Double::doubleValue).average().orElse(0) * 100;
 
-        Long modelSize = modelSizeBytes(baseUrl, model);
-        Long vram = modelVramBytes(baseUrl, model);
+        Long modelSize = client.modelSizeBytes(model);
+        Long vram = client.modelVramBytes(model);
         String gpuInfo = gpuInfo();
 
         return new ModelResult(model, caseResults, modelSize, vram, avgCpu, heapBefore, heapAfter, gpuInfo,
@@ -384,94 +388,133 @@ public class BenchmarkLocalModels {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Ollama HTTP calls
+    // Ollama API client (native /api/chat, /api/tags, /api/ps endpoints — chosen over Ollama's
+    // OpenAI-compatible surface for the extra eval_count/eval_duration/VRAM metrics it exposes).
     // ---------------------------------------------------------------------------------------------
 
-    private static Map<String, Object> chat(String baseUrl, String model, String systemPrompt, String query)
-            throws IOException, InterruptedException {
-        String payload = """
-                {"model":%s,"messages":[{"role":"system","content":%s},{"role":"user","content":%s}],
-                "think":false,"stream":false,"format":"json",
-                "options":{"temperature":0,"num_ctx":4096,"num_predict":512}}
-                """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(query));
-        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl.stripTrailing().replaceAll("/$", "")
-                        + "/api/chat"))
-                .timeout(Duration.ofSeconds(300))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
-                .build();
-        HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() != 200) {
-            throw new IOException("HTTP " + response.statusCode() + ": " + response.body());
-        }
-        Object parsed = Json.parse(response.body());
-        if (!(parsed instanceof Map<?, ?> map)) {
-            throw new IOException("Unexpected /api/chat response shape: " + response.body());
-        }
-        @SuppressWarnings("unchecked")
-        Map<String, Object> result = (Map<String, Object>) map;
-        return result;
-    }
+    static final class OllamaClient implements ApiClient {
+        private final String baseUrl;
 
-    private static Long timeToFirstTokenMs(String baseUrl, String model, String systemPrompt, String query) {
-        String payload = """
-                {"model":%s,"messages":[{"role":"system","content":%s},{"role":"user","content":%s}],
-                "think":false,"stream":true,"format":"json",
-                "options":{"temperature":0,"num_ctx":4096,"num_predict":512}}
-                """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(query));
-        try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl.replaceAll("/$", "") + "/api/chat"))
+        OllamaClient(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
+        @Override
+        public String backendName() {
+            return "ollama";
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public List<String> discoverModels() throws IOException, InterruptedException {
+            Object tags = get(baseUrl + "/api/tags");
+            if (!(tags instanceof Map<?, ?> map) || !(map.get("models") instanceof List<?> models)) {
+                return List.of();
+            }
+            List<String> result = new ArrayList<>();
+            for (Object o : models) {
+                if (!(o instanceof Map<?, ?> model)) continue;
+                Object caps = model.get("capabilities");
+                String name = String.valueOf(model.get("name"));
+                if (caps instanceof List<?> capList && capList.stream().anyMatch(c -> "tools".equals(c))) {
+                    result.add(name);
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public ChatResult chat(String model, String systemPrompt, String query)
+                throws IOException, InterruptedException {
+            String payload = """
+                    {"model":%s,"messages":[{"role":"system","content":%s},{"role":"user","content":%s}],
+                    "think":false,"stream":false,"format":"json",
+                    "options":{"temperature":0,"num_ctx":4096,"num_predict":512}}
+                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(query));
+            HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl.stripTrailing().replaceAll("/$", "")
+                            + "/api/chat"))
                     .timeout(Duration.ofSeconds(300))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
                     .build();
-            long t0 = System.nanoTime();
-            HttpResponse<java.io.InputStream> response = HTTP.send(request, HttpResponse.BodyHandlers.ofInputStream());
-            try (var reader = new java.io.BufferedReader(new java.io.InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (line.isBlank()) continue;
-                    Object chunk = Json.parse(line);
-                    if (chunk instanceof Map<?, ?> m && m.get("message") instanceof Map<?, ?> msg
-                            && msg.get("content") instanceof String c && !c.isEmpty()) {
-                        return (System.nanoTime() - t0) / 1_000_000;
-                    }
-                }
+            HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                throw new IOException("HTTP " + response.statusCode() + ": " + response.body());
             }
-        } catch (Exception ignored) {
-            // TTFT is a best-effort metric; a failure here doesn't fail the case.
+            Object parsed = Json.parse(response.body());
+            if (!(parsed instanceof Map<?, ?> map)) {
+                throw new IOException("Unexpected /api/chat response shape: " + response.body());
+            }
+            String content = "";
+            if (map.get("message") instanceof Map<?, ?> m && m.get("content") instanceof String s) {
+                content = s;
+            }
+            return new ChatResult(content, asLong(map.get("eval_count")), asLong(map.get("eval_duration")));
         }
-        return null;
-    }
 
-    private static Long modelSizeBytes(String baseUrl, String model) {
-        try {
-            Object tags = get(baseUrl + "/api/tags");
-            if (tags instanceof Map<?, ?> map && map.get("models") instanceof List<?> models) {
-                for (Object o : models) {
-                    if (o instanceof Map<?, ?> m && model.equals(m.get("name"))) {
-                        return asLong(m.get("size"));
+        @Override
+        public Long timeToFirstTokenMs(String model, String systemPrompt, String query) {
+            String payload = """
+                    {"model":%s,"messages":[{"role":"system","content":%s},{"role":"user","content":%s}],
+                    "think":false,"stream":true,"format":"json",
+                    "options":{"temperature":0,"num_ctx":4096,"num_predict":512}}
+                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(query));
+            try {
+                HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl.replaceAll("/$", "") + "/api/chat"))
+                        .timeout(Duration.ofSeconds(300))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                        .build();
+                long t0 = System.nanoTime();
+                HttpResponse<java.io.InputStream> response = HTTP.send(request, HttpResponse.BodyHandlers.ofInputStream());
+                try (var reader = new java.io.BufferedReader(new java.io.InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (line.isBlank()) continue;
+                        Object chunk = Json.parse(line);
+                        if (chunk instanceof Map<?, ?> m && m.get("message") instanceof Map<?, ?> msg
+                                && msg.get("content") instanceof String c && !c.isEmpty()) {
+                            return (System.nanoTime() - t0) / 1_000_000;
+                        }
                     }
                 }
+            } catch (Exception ignored) {
+                // TTFT is a best-effort metric; a failure here doesn't fail the case.
             }
-        } catch (Exception ignored) {
+            return null;
         }
-        return null;
-    }
 
-    private static Long modelVramBytes(String baseUrl, String model) {
-        try {
-            Object ps = get(baseUrl + "/api/ps");
-            if (ps instanceof Map<?, ?> map && map.get("models") instanceof List<?> models) {
-                for (Object o : models) {
-                    if (o instanceof Map<?, ?> m && model.equals(m.get("name"))) {
-                        return asLong(m.get("size_vram"));
+        @Override
+        public Long modelSizeBytes(String model) {
+            try {
+                Object tags = get(baseUrl + "/api/tags");
+                if (tags instanceof Map<?, ?> map && map.get("models") instanceof List<?> models) {
+                    for (Object o : models) {
+                        if (o instanceof Map<?, ?> m && model.equals(m.get("name"))) {
+                            return asLong(m.get("size"));
+                        }
                     }
                 }
+            } catch (Exception ignored) {
             }
-        } catch (Exception ignored) {
+            return null;
         }
-        return null;
+
+        @Override
+        public Long modelVramBytes(String model) {
+            try {
+                Object ps = get(baseUrl + "/api/ps");
+                if (ps instanceof Map<?, ?> map && map.get("models") instanceof List<?> models) {
+                    for (Object o : models) {
+                        if (o instanceof Map<?, ?> m && model.equals(m.get("name"))) {
+                            return asLong(m.get("size_vram"));
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+            return null;
+        }
     }
 
     private static String gpuInfo() {
@@ -500,15 +543,6 @@ public class BenchmarkLocalModels {
     // ---------------------------------------------------------------------------------------------
     // Response parsing & tolerant matching (port of CustomerSearchAgentIT.hasCondition/flatten)
     // ---------------------------------------------------------------------------------------------
-
-    @SuppressWarnings("unchecked")
-    private static String extractContent(Map<String, Object> chatResponse) {
-        Object message = chatResponse.get("message");
-        if (message instanceof Map<?, ?> m && m.get("content") instanceof String s) {
-            return s;
-        }
-        return "";
-    }
 
     /**
      * Best-effort: returns every CONDITION leaf anywhere in the model's {@code root} filter tree, [] if
