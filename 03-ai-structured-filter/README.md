@@ -139,12 +139,13 @@ Spring AI — see `application-ollama.properties` for the one best-effort except
 ```bash
 ./mvnw -pl 03-ai-structured-filter test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
 ./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama     # CustomerSearchAgentIT(+Nested) + CustomerListViewBrowserlessIT vs native Ollama (skip if unreachable)
-AI_TEST_PROFILE=cloud ./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama   # same suite, against the cloud (or mlx) profile instead
+./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=cloud   # same suite, against the cloud (or mlx) profile instead
 ```
 
-`-Pit-local-ollama` targets the `ollama` profile by default; `AI_TEST_PROFILE=mlx|cloud` points the
-exact same test classes at the app's other Spring profiles instead (respecting
-`MLX_BASE_URL`/`OPENAI_API_KEY`, same as the app itself) — see `OllamaTestSupport`.
+`-Pit-local-ollama` targets the `ollama` profile by default; `-DAI_TEST_PROFILE=mlx|cloud` (or the
+`AI_TEST_PROFILE` environment variable, if you prefer) points the exact same test classes at the
+app's other Spring profiles instead (respecting `MLX_BASE_URL`/`OPENAI_API_KEY`, same as the app
+itself) — see `OllamaTestSupport`.
 
 - **`CustomerFilterSpecificationsTest`** (`@DataJpaTest`, no LLM) — deterministic test of the tree
   translation against the seeded H2 data. The single-field and multi-value-OR cases use the same

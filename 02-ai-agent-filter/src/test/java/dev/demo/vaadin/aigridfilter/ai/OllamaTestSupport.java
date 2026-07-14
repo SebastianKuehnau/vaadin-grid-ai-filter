@@ -9,10 +9,12 @@ import java.net.URI;
  * from that other package too).
  * <p>
  * Which of the app's {@code ollama}/{@code mlx}/{@code cloud} Spring profiles these tests target
- * is driven by the {@code AI_TEST_PROFILE} environment variable (default {@code ollama}) — the
- * exact same profile names used by {@code -Dspring-boot.run.profiles=...} when running the app
- * itself. All three speak the OpenAI-compatible {@code /v1/models} endpoint, so a single
- * reachability check works across all of them.
+ * is driven by {@code AI_TEST_PROFILE} (default {@code ollama}) — the exact same profile names
+ * used by {@code -Dspring-boot.run.profiles=...} when running the app itself. Settable either as
+ * a JVM system property ({@code -DAI_TEST_PROFILE=cloud}, forwarded into the forked test JVM by
+ * Surefire/Failsafe like any other {@code -D} flag, no {@code export} needed) or, as a fallback,
+ * an environment variable. All three speak the OpenAI-compatible {@code /v1/models} endpoint, so
+ * a single reachability check works across all of them.
  * <p>
  * Note: the {@code @SpringBootTest(properties = ...)} array itself cannot be extracted here since
  * annotation attributes require compile-time constant literals, not a reference to a field.
@@ -23,6 +25,10 @@ public final class OllamaTestSupport {
     }
 
     public static String profile() {
+        String property = System.getProperty("AI_TEST_PROFILE");
+        if (property != null && !property.isBlank()) {
+            return property;
+        }
         String env = System.getenv("AI_TEST_PROFILE");
         return (env == null || env.isBlank()) ? "ollama" : env;
     }
