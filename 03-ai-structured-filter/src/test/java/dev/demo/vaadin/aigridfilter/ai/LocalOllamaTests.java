@@ -2,8 +2,6 @@ package dev.demo.vaadin.aigridfilter.ai;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -19,19 +17,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * Run with {@code -Pit-local-ollama}, or a single suite with {@code -Dit.test=CustomerSearchAgentIT}.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
-        "spring.ai.model.chat=ollama",
-        "spring.ai.ollama.chat.model=llama3.1:8b",
-        "spring.ai.ollama.chat.think=false",
-        "spring.ai.ollama.chat.num-ctx=4096",
-        "spring.ai.ollama.init.pull-model-strategy=never",
+        "spring.profiles.active=ollama",
         "spring.autoconfigure.exclude=com.vaadin.flow.spring.SpringBootAutoConfiguration"
 })
 class LocalOllamaTests {
-
-    @DynamicPropertySource
-    static void ollamaProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.ai.ollama.base-url", OllamaTestSupport::localBaseUrl);
-    }
 
     @BeforeAll
     static void requireReachableOllama() {
