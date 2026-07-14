@@ -17,7 +17,6 @@ structured-output approach in `03-ai-structured-filter`.
 
 ```
 ai/
-├── AiConfiguration.java                  (@Configuration — Ollama/OpenAI ChatModel provider selection)
 ├── CustomerSearchAgent.java              (public interface — the view's only dependency, the testability seam)
 ├── CustomerSearchToolCallingService.java (@Service @Scope("prototype") — ChatClient, system prompt, both @Tool methods)
 └── filter/
@@ -79,15 +78,42 @@ live tool call — a good illustration of the trade-off between the two approach
 ./mvnw -pl 02-ai-agent-filter spring-boot:run   # http://localhost:8082
 ```
 
-Configured for a local Ollama by default (see `AiConfiguration`); start Ollama and pull the model
-first:
+### Switching LLM backends
+
+The AI layer only ever talks to a single `ChatModel` bean produced by
+`spring-ai-starter-model-openai` — all three backends speak the OpenAI-compatible chat completions
+API, so switching between them is purely a matter of which Spring profile is active
+(`application-<profile>.properties`), never a code change:
 
 ```bash
-ollama pull llama3.1:8b
+./mvnw -pl 02-ai-agent-filter spring-boot:run                                    # ollama (default, no profile needed)
+./mvnw -pl 02-ai-agent-filter spring-boot:run -Dspring-boot.run.profiles=mlx     # mlx_lm.server, Apple Silicon only
+./mvnw -pl 02-ai-agent-filter spring-boot:run -Dspring-boot.run.profiles=cloud   # real OpenAI API
 ```
 
-Switch to OpenAI by setting `app.ai.provider=openai` in `application.properties` (needs the
-`OPENAI_API_KEY` environment variable).
+- **`ollama`** (default) — a local Ollama instance via its OpenAI-compatible endpoint. Start
+  Ollama and pull the model first:
+  ```bash
+  ollama pull llama3.1:8b
+  ```
+- **`mlx`** — a local [`mlx_lm.server`](https://github.com/ml-explore/mlx-lm) instance (Apple
+  Silicon only, doesn't run in a Linux container). Start it manually on the host first, e.g.:
+  ```bash
+  mlx_lm.server --model mlx-community/Meta-Llama-3.1-8B-Instruct-4bit --port 8090
+  ```
+  Adjust `spring.ai.openai.chat.model` in `application-mlx.properties` to whatever model you
+  actually loaded. If the app itself runs inside a container that needs to reach a host-side
+  `mlx_lm.server`, point `MLX_BASE_URL` at `http://host.docker.internal:8090` instead of
+  `localhost`, following the same pattern as `OLLAMA_BASE_URL`.
+- **`cloud`** — the real OpenAI API. Requires the `OPENAI_API_KEY` environment variable (never
+  hardcoded/committed); without it the app still starts (a dummy fallback key avoids a boot-time
+  crash) but real requests fail with 401, caught by the same fallback-to-unrestricted-specification
+  path as any other model failure.
+
+Trade-off: going through the OpenAI-compatible surface for all three backends means Ollama-native
+tuning (`chat.think`, `chat.num-ctx`, `init.pull-model-strategy`) is no longer configurable via
+Spring AI — see `application-ollama.properties` for the one best-effort exception attempted
+(`chat.extra-body.options.num_ctx`).
 
 ## Tests
 
