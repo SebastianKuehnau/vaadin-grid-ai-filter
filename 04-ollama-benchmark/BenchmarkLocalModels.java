@@ -144,7 +144,8 @@ public class BenchmarkLocalModels {
                 + java.time.LocalTime.now().format(DateTimeFormatter.ofPattern("HHmmss"));
         Path mdPath = Path.of("benchmark-report-" + timestamp + ".md");
         Path txtPath = Path.of("benchmark-report-" + timestamp + ".txt");
-        Files.writeString(mdPath, renderMarkdown(results, cases.size(), client.backendName(), baseUrl),
+        Files.writeString(mdPath,
+                renderMarkdown(results, cases.size(), client.backendName(), baseUrl, cli.thinkDisabled()),
                 StandardCharsets.UTF_8);
         Files.writeString(txtPath, renderText(results, cases.size(), client.backendName(), baseUrl),
                 StandardCharsets.UTF_8);
@@ -1046,12 +1047,15 @@ public class BenchmarkLocalModels {
     }
 
     private static String renderMarkdown(List<ModelResult> results, int totalCases, String backendName,
-            String baseUrl) {
+            String baseUrl, boolean thinkDisabled) {
         StringBuilder sb = new StringBuilder();
         sb.append("# Local Model Benchmark\n\n");
         sb.append("Generated: ").append(java.time.LocalDateTime.now()).append("\n\n");
         sb.append("Backend: ").append(backendLabel(backendName)).append(", Base URL: ").append(baseUrl)
           .append("\n\n");
+        if (thinkDisabled) {
+            sb.append("Thinking: disabled (--think=off; /no_think appended to MLX queries)\n\n");
+        }
         sb.append("Not a CI gate — for model comparison during demos/development. ")
           .append(totalCases).append(" test cases per model, ported from `CustomerSearchAgentIT`.\n\n");
         sb.append("| Model | Accuracy | Median Latency | TTFT | Tokens/s | RAM (JVM) | CPU | Model Size |\n");
@@ -1089,7 +1093,29 @@ public class BenchmarkLocalModels {
                 }
             }
         }
+
+        for (ModelResult r : results) {
+            List<CaseResult> rawFailures = r.cases().stream()
+                    .filter(c -> !c.passed() && c.rawBody() != null).collect(Collectors.toList());
+            if (rawFailures.isEmpty()) continue;
+            sb.append("\n## Raw responses: ").append(r.model()).append("\n\n");
+            sb.append("Full unprocessed HTTP response body for each failed case, before any parsing.\n\n");
+            for (CaseResult f : rawFailures) {
+                sb.append("### ").append(f.name()).append(" — ").append(f.query()).append("\n\n");
+                sb.append("```\n").append(truncateForReport(f.rawBody())).append("\n```\n\n");
+            }
+        }
         return sb.toString();
+    }
+
+    private static final int RAW_BODY_REPORT_CAP = 4000;
+
+    private static String truncateForReport(String rawBody) {
+        if (rawBody.length() <= RAW_BODY_REPORT_CAP) {
+            return rawBody;
+        }
+        return rawBody.substring(0, RAW_BODY_REPORT_CAP)
+                + "\n...[truncated, " + rawBody.length() + " bytes total]";
     }
 
     private static String renderText(List<ModelResult> results, int totalCases, String backendName,
