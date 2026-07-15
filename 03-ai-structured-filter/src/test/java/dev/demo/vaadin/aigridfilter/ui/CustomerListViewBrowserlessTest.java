@@ -5,10 +5,9 @@ import com.vaadin.browserless.ViewPackages;
 import com.vaadin.browserless.internal.MockVaadin;
 import com.vaadin.flow.component.grid.GridTester;
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
+import dev.demo.vaadin.aigridfilter.ai.filter.Condition;
 import dev.demo.vaadin.aigridfilter.ai.filter.CustomerFilter;
 import dev.demo.vaadin.aigridfilter.ai.filter.CustomerFilterSpecifications;
-import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Condition;
-import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Or;
 import dev.demo.vaadin.aigridfilter.ai.filter.Operator;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
@@ -47,19 +46,19 @@ class CustomerListViewBrowserlessTest extends SpringBrowserlessTest {
         /**
          * Ignores the actual query text and returns a fixed result, except for
          * {@link #MULTI_VALUE_QUERY}, which goes through the real {@link CustomerFilterSpecifications}
-         * with an {@code OR} of two {@code companyName} conditions, so the OR-within-field translation
-         * is exercised end to end through the UI, not just at the unit-test level. Same fixture as
-         * {@code 02-ai-agent-filter}'s equivalent test, expressed via {@link CustomerFilter}'s tree
-         * instead of a flat criteria list.
+         * with one {@code companyName} condition holding two values (OR-within-field), so that
+         * translation is exercised end to end through the UI, not just at the unit-test level. Same
+         * fixture as {@code 02-ai-agent-filter}'s equivalent test, expressed via {@link CustomerFilter}'s
+         * flat conditions list instead of a criteria record.
          */
         @Bean
         @Primary
         CustomerSearchAgent fakeSearchAgent() {
             return query -> {
                 if (MULTI_VALUE_QUERY.equals(query)) {
-                    return CustomerFilterSpecifications.from(new CustomerFilter(new Or(List.of(
-                            new Condition("companyName", Operator.EQUALS, "Berlin Data Works"),
-                            new Condition("companyName", Operator.EQUALS, "Hamburg Retail Group")))));
+                    return CustomerFilterSpecifications.from(new CustomerFilter(List.of(new Condition(
+                            "companyName", Operator.EQUALS,
+                            List.of("Berlin Data Works", "Hamburg Retail Group"), false))));
                 }
                 return (root, criteriaQuery, criteriaBuilder) ->
                         criteriaBuilder.equal(root.get("companyName"), "Berlin Data Works");

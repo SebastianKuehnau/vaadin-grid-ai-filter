@@ -20,73 +20,46 @@ ai/
 ├── CustomerSearchAgent.java                    (public interface — the view's only dependency, the testability seam)
 ├── CustomerSearchStructuredOutputService.java  (@Service — ChatClient, system prompt, structured-output call)
 └── filter/
-    ├── CustomerFilter.java                (public record — wraps the root FilterNode)
-    ├── FilterNode.java                    (sealed interface — AND/OR/NOT/CONDITION tree)
+    ├── CustomerFilter.java                (public record — a flat list of conditions, ALL combined with AND)
+    ├── Condition.java                     (public record — one field/operator/values/negate condition)
     ├── Operator.java                      (enum — CONTAINS, EQUALS, GREATER_OR_EQUAL, ...)
-    └── CustomerFilterSpecifications.java  (public final utility — recursive tree -> Specification<Customer>)
+    └── CustomerFilterSpecifications.java  (public final utility — flat conditions -> Specification<Customer>)
 ```
 
 `CustomerSearchAgent.resolveFilter(...)` never throws: on any failure (bad model response,
 unreachable model, ...) it falls back to an unrestricted specification, so the UI never breaks.
 
-### Filter tree structure
+### Flat filter schema
 
-`CustomerFilter` wraps a single `root` `FilterNode` — a tree of `AND` / `OR` / `NOT` / `CONDITION`
-nodes (see `FilterNode.java`). This lets the LLM express any boolean combination, including
-cross-field OR (`city = Berlin OR annualRevenue >= 1000000`), which a flat list of conditions
-cannot represent — the deliberate, demo-relevant contrast with `02-ai-agent-filter`'s flat
-`CustomerSearchCriteria`. `CustomerFilterSpecifications` translates the tree into a JPA
-`Specification` with a recursive walk (AND → `cb.and`, OR → `cb.or`, NOT → `cb.not`, CONDITION →
-the per-field predicate builders). A `null` root, or an `AND`/`OR` with no children, matches every
-customer.
+`CustomerFilter` is a flat list of `Condition`s, always combined with AND (see `Condition.java`).
+Each `Condition` can itself express OR (several `values` for the same field, e.g. `city` matches
+"Berlin" or "Köln") and negation (`negate=true` excludes matches instead of requiring them, e.g.
+"not from Berlin"). A value *range* on one field (e.g. a year) becomes two sibling conditions on
+that field, AND-combined like everything else. `CustomerFilterSpecifications` translates the list
+with a flat walk: per condition, OR the predicates for each value, negate if requested, then AND
+all conditions together. An empty (or `null`) conditions list matches every customer.
 
-Example — `(city=Berlin OR city=Hamburg) AND (annualRevenue>=500000 OR creditRating=GOOD)`:
+This is deliberately less expressive than a recursive AND/OR/NOT tree: **cross-field OR** (e.g.
+`city = Berlin OR annualRevenue >= 1000000`) and **arbitrary nesting** are not representable — a
+conscious trade-off for a shape that's far easier for a small/local model to produce correctly,
+at the cost of that expressiveness. `02-ai-agent-filter`'s flat `CustomerSearchCriteria` remains
+the point of comparison, though its model is simpler still (no explicit operator/negate — semantics
+are baked into each field's predicate builder).
+
+Example — "customers from Berlin or Köln, not from Munich, with at least 100000 revenue":
 
 ```json
 {
-  "root": {
-    "type": "AND",
-    "children": [
-      { "type": "OR", "children": [
-          { "type": "CONDITION", "field": "city", "operator": "CONTAINS", "value": "Berlin" },
-          { "type": "CONDITION", "field": "city", "operator": "CONTAINS", "value": "Hamburg" } ] },
-      { "type": "OR", "children": [
-          { "type": "CONDITION", "field": "annualRevenue", "operator": "GREATER_OR_EQUAL", "value": "500000" },
-          { "type": "CONDITION", "field": "creditRating", "operator": "EQUALS", "value": "GOOD" } ] }
-    ]
-  }
+  "conditions": [
+    { "field": "city", "operator": "CONTAINS", "values": ["Berlin", "Köln"], "negate": false },
+    { "field": "city", "operator": "CONTAINS", "values": ["Munich"], "negate": true },
+    { "field": "annualRevenue", "operator": "GREATER_OR_EQUAL", "values": ["100000"], "negate": false }
+  ]
 }
 ```
 
-Nesting is a bigger ask of the model than a flat list — it must correctly place AND/OR/NOT rather
-than emit one flat list. Smaller local models are more likely to flatten a nested query
-incorrectly (e.g. drop a condition, or misplace it in the wrong branch), especially for
-cross-field OR and NOT-negated groups. `CustomerSearchAgentNestedIT`'s nesting/cross-field cases
-are tagged by the complexity they require (`medium-model-query`, `large-model-query`) so the
-difference shows up per model in the `04-ollama-benchmark` results.
-
-### Ollama integration test architecture
-
-The Ollama-backed integration tests use a subclassing structure instead of one unrelated test
-class per use case:
-
-```
-ai/
-├── LocalOllamaTests.java       (infrastructure: native Ollama, @SpringBootTest)
-└── CustomerSearchAgentIT.java  (test cases, provider-agnostic) extends LocalOllamaTests
-```
-
-- `LocalOllamaTests` is the infrastructure class: it declares the `@SpringBootTest` that wires
-  Spring AI to a native Ollama instance and skips gracefully (via `assumeTrue`) if Ollama is
-  unreachable at `OLLAMA_BASE_URL`.
-- `CustomerSearchAgentIT` holds the actual test cases and assertions. It declares no
-  `@SpringBootTest` of its own — it inherits the Spring context and reachability check from
-  `LocalOllamaTests`.
-- Run with `-Pit-local-ollama`, or a single suite with `-Dit.test=CustomerSearchAgentIT`.
-
-The LLM only produces filter *intent* (a `FilterNode` tree); it never sees the customer data and
-never writes the final query — Java turns the intent into a `Specification` and the database
-executes it.
+Small/local models are noticeably more reliable at producing this shape than the previous
+recursive tree — see `../04-ollama-benchmark`'s recorded latency/accuracy comparison.
 
 ## Running
 
@@ -138,40 +111,40 @@ Spring AI — see `application-ollama.properties` for the one best-effort except
 
 ```bash
 ./mvnw -pl 03-ai-structured-filter test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
-./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama     # CustomerSearchAgentIT(+Nested) + CustomerListViewBrowserlessIT vs native Ollama (skip if unreachable)
+./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama     # CustomerSearchAgentIT(+Extra) + CustomerListViewBrowserlessIT vs native Ollama (skip if unreachable)
 ./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=cloud   # same suite, against the cloud (or mlx) profile instead
 ```
 
 `-Pit-local-ollama` targets the `ollama` profile by default; `-DAI_TEST_PROFILE=mlx|cloud` (or the
 `AI_TEST_PROFILE` environment variable, if you prefer) points the exact same test classes at the
 app's other Spring profiles instead (respecting `MLX_BASE_URL`/`OPENAI_API_KEY`, same as the app
-itself) — see `OllamaTestSupport`.
+itself) — see `src/test/resources/application.properties`.
 
-- **`CustomerFilterSpecificationsTest`** (`@DataJpaTest`, no LLM) — deterministic test of the tree
-  translation against the seeded H2 data. The single-field and multi-value-OR cases use the same
-  field values as `02-ai-agent-filter`'s `CustomerSpecificationsTest`, so DB-level results are
-  directly comparable.
-- **`CustomerFilterSpecificationsNestedTest`** (`@DataJpaTest`, no LLM) — the tree-only cases
-  split out of the class above (AND/OR/NOT nesting, cross-field OR, negation) that have no
-  counterpart in `02-ai-agent-filter`'s flat model, so there's nothing there to compare them
-  against.
-- **`CustomerSearchAgentIT extends LocalOllamaTests`** — 19 natural-language queries against a
-  native Ollama instance (`LocalOllamaTests`/`OllamaTestSupport` duplicated from
-  `02-ai-agent-filter`, this repo's established per-module pattern for Ollama IT infrastructure).
+> **Note:** the module's configured default model, `llama3.1:8b`, is occasionally unreliable on
+> queries that stack three-plus conditions together with the new bare-year date-range rule (see
+> below) — it sometimes drops one bound of a date range. `qwen3:8b` handles the same queries
+> correctly. This is a model-capability gap, not a bug in the prompt/schema; swap the model in
+> `application-ollama.properties` if you hit it during a demo.
+
+- **`CustomerFilterSpecificationsTest`** (`@DataJpaTest`, no LLM) — deterministic test of the flat
+  translation against the seeded H2 data. The single-field, multi-value-OR, and AND-across-fields
+  cases use the same field values as `02-ai-agent-filter`'s `CustomerSpecificationsTest`, so
+  DB-level results are directly comparable.
+- **`CustomerFilterSpecificationsExtraTest`** (`@DataJpaTest`, no LLM) — the one case split out of
+  the class above that `02-ai-agent-filter`'s flat model cannot express at all: negation
+  (`Condition.negate()`).
+- **`CustomerSearchAgentIT`** — natural-language queries against a native Ollama instance.
   Assertions are tolerant of LLM non-determinism: they check that an expected condition is
-  present *somewhere* in the filter tree, ignoring exact tree shape. Every case here uses the
+  present *somewhere* in the flat conditions list, ignoring extras. Every case here uses the
   exact same wording/values as one of `02-ai-agent-filter`'s `CustomerSearchAgentIT` cases, so
   the two modules' results and timings are directly comparable by running this class alone
   (`-Dit.test=CustomerSearchAgentIT`).
-- **`CustomerSearchAgentNestedIT extends LocalOllamaTests`** — the 19 cases split out of the class
-  above that need a capability `02-ai-agent-filter`'s flat model cannot express at all: negation
-  (`NOT`/`NOT_*`), STARTS_WITH/ENDS_WITH/EQUALS operator precision, arbitrary date bounds,
-  cross-field OR, and deeper nesting. The nesting/cross-field cases are additionally tagged
-  `medium-model-query`/`large-model-query` by the complexity required, harder for smaller local
-  models to produce reliably. Note: `04-ollama-benchmark/BenchmarkLocalModels.java`'s published
-  results table still reflects the original 32-query set that predates this split into two
-  classes (38 cases total now) — see that module's README before relying on a "same queries"
-  claim there.
+- **`CustomerSearchAgentExtraIT`** — the cases that need a capability `02-ai-agent-filter`'s flat
+  model cannot express at all: negation, STARTS_WITH/ENDS_WITH/EQUALS operator precision, and
+  arbitrary date bounds (tagged `negation`/`operator-precision`/`relative-date` respectively).
+  Cross-field OR and arbitrary nesting are no longer part of `CustomerFilter` either, so the cases
+  that used to need them (tagged `cross-field-or`/`nested-tree`) were removed rather than moved
+  here — a deliberate trade-off for faster/more reliable structured output, not an oversight.
 - **`CustomerListViewBrowserlessTest`** — [Vaadin Browserless
   testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake, deterministic
   `CustomerSearchAgent` bean, so it never calls a real model. Since the view applies results
@@ -180,7 +153,7 @@ itself) — see `OllamaTestSupport`.
   `pollInSameThread()` loop (so the flush runs on the thread holding the UI `ThreadLocal`) —
   needed because a plain synchronous assertion races the background search thread. Includes the
   same multi-value OR-within-field case as `02-ai-agent-filter`'s equivalent test, expressed via
-  `CustomerFilter`'s tree instead of a flat criteria list.
+  `CustomerFilter`'s flat conditions list instead of a criteria record.
 - **`CustomerListViewBrowserlessIT`** — same Browserless setup, but against a real native Ollama
   instance instead of a fake agent bean (skips gracefully if unreachable, like
   `CustomerSearchAgentIT`), exercising the full `TextField` → structured-output AI layer → `Grid`

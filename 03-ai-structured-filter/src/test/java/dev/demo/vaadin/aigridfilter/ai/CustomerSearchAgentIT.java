@@ -1,18 +1,13 @@
 package dev.demo.vaadin.aigridfilter.ai;
 
+import dev.demo.vaadin.aigridfilter.ai.filter.Condition;
 import dev.demo.vaadin.aigridfilter.ai.filter.CustomerFilter;
-import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode;
-import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.And;
-import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Condition;
-import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Not;
-import dev.demo.vaadin.aigridfilter.ai.filter.FilterNode.Or;
 import dev.demo.vaadin.aigridfilter.ai.filter.Operator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -21,20 +16,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration tests of the AI layer (natural language -> {@link CustomerFilter}) against a real Ollama.
- * Extends {@link LocalOllamaTests}, which provides the connection to a native Ollama instance (no
- * Docker) and skips gracefully when it is unreachable. Run with {@code -Pit-local-ollama} (see
- * {@code 03-ai-structured-filter/pom.xml}), or directly with {@code -Dit.test=CustomerSearchAgentIT}.
+ * Run with {@code -Pit-local-ollama} (see {@code 03-ai-structured-filter/pom.xml}), or directly with
+ * {@code -Dit.test=CustomerSearchAgentIT}.
  * <p>
- * Assertions are tolerant: the LLM is non-deterministic, so we only check that the expected condition is
- * present <em>somewhere</em> in the filter tree (field + value substring), ignoring operator, extras, and
- * where exactly it sits in the AND/OR/NOT structure.
+ * Assertions are tolerant: the LLM is non-deterministic, so we only check that the expected condition
+ * is present <em>somewhere</em> in the flat conditions list (field + value substring), ignoring
+ * operator and extras.
  * <p>
  * Every case here uses the exact same wording/values as one of {@code 02-ai-agent-filter}'s
  * {@code CustomerSearchAgentIT} cases, so the two modules' results and timings are directly
- * comparable. Cases that need a capability {@code 02}'s flat {@code CustomerSearchCriteria}
- * model cannot express at all (negation, STARTS_WITH/ENDS_WITH/EQUALS precision, arbitrary date
- * bounds, cross-field OR, deeper nesting) have no counterpart there and live separately in
- * {@link CustomerSearchAgentNestedIT}.
+ * comparable. Cases that need a capability {@code 02}'s flat {@code CustomerSearchCriteria} model
+ * cannot express at all (negation, STARTS_WITH/ENDS_WITH/EQUALS precision, arbitrary date bounds)
+ * have no counterpart there and live separately in {@link CustomerSearchAgentExtraIT}.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
         "spring.autoconfigure.exclude=com.vaadin.flow.spring.SpringBootAutoConfiguration"
@@ -66,6 +59,16 @@ class CustomerSearchAgentIT {
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(),"hamburg")).isTrue();
         assertThat(hasCondition(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(),"100000")).isTrue();
+    }
+
+    @Test
+    void citiesWithRevenueRange() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT.citiesWithRevenueRange, for direct comparability.
+        CustomerFilter filter = service.requestFilter("Berlin or Hamburg with revenue between 100000 and 500000");
+        assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
+        assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "hamburg")).isTrue();
+        assertThat(hasCondition(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "100000")).isTrue();
+        assertThat(hasCondition(filter, "annualRevenue", Operator.LESS_OR_EQUAL.toString(), "500000")).isTrue();
     }
 
     @Test
@@ -189,62 +192,46 @@ class CustomerSearchAgentIT {
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
     }
 
-    /** True if any condition in the tree is on {@code fieldString} (ignoring case) with a value containing {@code valueSubstring}. */
+    /** One expanded (field, operator, value) leaf; {@code operator} gets a synthetic {@code NOT_} prefix when negated. */
+    record Leaf(String field, String operator, String value) {
+    }
+
+    /** True if any leaf is on {@code fieldString} (ignoring case) with a value containing {@code valueSubstring}. */
     static boolean hasCondition(CustomerFilter filter, String fieldString, String operatorString, String valueSubstring) {
         return hasCondition(filter, fieldString,
                 operatorString == null ? new String[0] : new String[]{operatorString}, valueSubstring);
     }
 
     /**
-     * True if any condition in the tree is on {@code fieldString} (ignoring case), whose operator matches one
-     * of {@code acceptableOperators} (any operator accepted if the array is empty), and whose value contains at
-     * least one of {@code acceptableValueSubstrings} (case-insensitive). Mirrors the tolerant matching in
-     * {@code BenchmarkLocalModels}'s comparable helpers.
+     * True if any leaf is on {@code fieldString} (ignoring case), whose operator matches one of
+     * {@code acceptableOperators} (any operator accepted if the array is empty), and whose value
+     * contains at least one of {@code acceptableValueSubstrings} (case-insensitive). Mirrors the
+     * tolerant matching in {@code BenchmarkLocalModels}'s comparable helpers.
      */
     static boolean hasCondition(CustomerFilter filter, String fieldString, String[] acceptableOperators,
             String... acceptableValueSubstrings) {
-        return flatten(filter).stream().anyMatch(c ->
-                c.field() != null && c.field().equalsIgnoreCase(fieldString)
-                        && (acceptableOperators.length == 0 || (c.operator() != null
-                                && Arrays.stream(acceptableOperators).anyMatch(op -> c.operator().name().equalsIgnoreCase(op))))
-                        && c.value() != null
-                        && Arrays.stream(acceptableValueSubstrings).anyMatch(v -> c.value().toLowerCase().contains(v.toLowerCase())));
+        return flatten(filter).stream().anyMatch(leaf ->
+                leaf.field() != null && leaf.field().equalsIgnoreCase(fieldString)
+                        && (acceptableOperators.length == 0
+                                || Arrays.stream(acceptableOperators).anyMatch(op -> leaf.operator().equalsIgnoreCase(op)))
+                        && leaf.value() != null
+                        && Arrays.stream(acceptableValueSubstrings).anyMatch(v -> leaf.value().toLowerCase().contains(v.toLowerCase())));
     }
 
     /**
-     * Collects every {@link Condition} leaf anywhere in the filter's tree, in encounter order. A leaf
-     * under an odd number of {@link Not} ancestors is negated (EQUALS/CONTAINS flipped to their NOT_*
-     * counterpart) so a query like "not in Munich" matches the expected NOT_EQUALS/NOT_CONTAINS
-     * assertion whether the model expressed it as {@code city NOT_EQUALS Munich} or
-     * {@code NOT(city EQUALS Munich)} — both are valid, equivalent trees.
+     * Expands every {@link Condition} into one {@link Leaf} per value. A negated condition's operator
+     * gets a synthetic {@code NOT_} prefix (e.g. {@code NOT_EQUALS}), so a query like "not in Munich"
+     * matches the expected assertion regardless of which operator the model chose for the positive
+     * comparison.
      */
-    static List<Condition> flatten(CustomerFilter filter) {
-        List<Condition> conditions = new ArrayList<>();
-        if (filter != null) {
-            collect(filter.root(), false, conditions);
+    static List<Leaf> flatten(CustomerFilter filter) {
+        if (filter == null || filter.conditions() == null) {
+            return List.of();
         }
-        return conditions;
-    }
-
-    private static void collect(FilterNode node, boolean negated, List<Condition> into) {
-        switch (node) {
-            case null -> {
-            }
-            case Condition c -> into.add(negated ? negate(c) : c);
-            case And a -> a.children().forEach(child -> collect(child, negated, into));
-            case Or o -> o.children().forEach(child -> collect(child, negated, into));
-            case Not n -> collect(n.child(), !negated, into);
-        }
-    }
-
-    private static Condition negate(Condition c) {
-        Operator negated = switch (c.operator()) {
-            case EQUALS -> Operator.NOT_EQUALS;
-            case NOT_EQUALS -> Operator.EQUALS;
-            case CONTAINS -> Operator.NOT_CONTAINS;
-            case NOT_CONTAINS -> Operator.CONTAINS;
-            case null, default -> c.operator(); // no exact negation (e.g. ranges) — leave as-is, best effort
-        };
-        return new Condition(c.field(), negated, c.value());
+        return filter.conditions().stream()
+                .filter(c -> c != null && c.field() != null && c.operator() != null && c.values() != null)
+                .flatMap(c -> c.values().stream().map(value ->
+                        new Leaf(c.field(), (c.negate() ? "NOT_" : "") + c.operator().name(), value)))
+                .toList();
     }
 }

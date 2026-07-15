@@ -111,10 +111,10 @@
 
 	<profiles>
 		<profile>
-			<!-- Runs CustomerSearchAgentIT/CustomerSearchAgentNestedIT (both extend LocalOllamaTests)
-			     against a native Ollama instance (OLLAMA_BASE_URL) by default; pass
-			     -DAI_TEST_PROFILE=mlx|cloud (or set it as an env var) to target one of the app's
-			     other Spring profiles instead (also respects MLX_BASE_URL/OPENAI_API_KEY). -->
+			<!-- Runs CustomerSearchAgentIT/CustomerSearchAgentExtraIT against a native Ollama instance
+			     (OLLAMA_BASE_URL) by default; pass -DAI_TEST_PROFILE=mlx|cloud (or set it as an env
+			     var) to target one of the app's other Spring profiles instead (also respects
+			     MLX_BASE_URL/OPENAI_API_KEY). -->
 			<id>it-local-ollama</id>
 			<build>
 				<plugins>
@@ -124,7 +124,7 @@
 						<configuration>
 							<includes>
 								<include>**/CustomerSearchAgentIT.java</include>
-								<include>**/CustomerSearchAgentNestedIT.java</include>
+								<include>**/CustomerSearchAgentExtraIT.java</include>
 								<include>**/CustomerListViewBrowserlessIT.java</include>
 							</includes>
 						</configuration>

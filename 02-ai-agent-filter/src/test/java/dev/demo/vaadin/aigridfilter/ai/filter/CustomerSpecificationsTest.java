@@ -111,6 +111,11 @@ class CustomerSpecificationsTest {
                 null, null, null, null, null, null, null, cities, null, null, null, ratings, null);
     }
 
+    private static CustomerSearchCriteria citiesAndRevenue(List<String> cities, RevenueRange... ranges) {
+        return new CustomerSearchCriteria(
+                null, null, null, null, null, null, null, cities, null, null, null, null, List.of(ranges));
+    }
+
     @Test
     void companyNameMatchesSubstringCaseInsensitively() {
         var result = findAll(companyName("berlin"));
@@ -271,6 +276,21 @@ class CustomerSpecificationsTest {
                         || c.getAnnualRevenue().compareTo(BigDecimal.valueOf(5_000)) <= 0).isTrue());
         assertThat(result).anyMatch(c -> c.getAnnualRevenue().compareTo(BigDecimal.valueOf(200_000)) >= 0);
         assertThat(result).anyMatch(c -> c.getAnnualRevenue().compareTo(BigDecimal.valueOf(5_000)) <= 0);
+    }
+
+    @Test
+    void citiesWithRevenueRange() {
+        // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT.citiesWithRevenueRange, for
+        // direct comparability.
+        var result = findAll(citiesAndRevenue(List.of("Berlin", "Hamburg"),
+                new RevenueRange(BigDecimal.valueOf(100_000), BigDecimal.valueOf(500_000))));
+        assertThat(result).isNotEmpty();
+        assertThat(result).allSatisfy(c -> {
+            assertThat(c.getAddress().getCity()).isIn("Berlin", "Hamburg");
+            assertThat(c.getAnnualRevenue()).isBetween(BigDecimal.valueOf(100_000), BigDecimal.valueOf(500_000));
+        });
+        assertThat(result).anyMatch(c -> c.getAddress().getCity().equals("Berlin"));
+        assertThat(result).anyMatch(c -> c.getAddress().getCity().equals("Hamburg"));
     }
 
     @Test

@@ -13,6 +13,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * The AI layer: turns a natural-language query into a JPA {@link Specification}.
@@ -36,8 +37,8 @@ public class CustomerSearchStructuredOutputService implements CustomerSearchAgen
 
     /**
      * Turns the query into a JPA {@link Specification}: ask the LLM for a {@link CustomerFilter}
-     * ({@link #requestFilter}) and translate it. A filter with a {@code null} root (e.g. on a bad
-     * response) matches all.
+     * ({@link #requestFilter}) and translate it. An empty conditions list (e.g. on a bad response)
+     * matches all.
      */
     @Override
     public Specification<Customer> resolveFilter(String naturalLanguageQuery) {
@@ -46,7 +47,7 @@ public class CustomerSearchStructuredOutputService implements CustomerSearchAgen
 
     /**
      * Asks the LLM to express the query as a {@link CustomerFilter}. Package-private so the AI layer
-     * can be tested directly on the produced filter. Returns a filter with a {@code null} root
+     * can be tested directly on the produced filter. Returns a filter with an empty conditions list
      * (match all) if the model produces nothing usable, so the UI never breaks on a bad response.
      */
     CustomerFilter requestFilter(String naturalLanguageQuery) {
@@ -64,7 +65,7 @@ public class CustomerSearchStructuredOutputService implements CustomerSearchAgen
         } catch (Exception e) {
             logger.warn("Could not turn query into a filter; showing all customers. Query: '{}'",
                     naturalLanguageQuery, e);
-            return new CustomerFilter(null);
+            return new CustomerFilter(List.of());
         }
     }
 
@@ -80,46 +81,43 @@ public class CustomerSearchStructuredOutputService implements CustomerSearchAgen
         return """
                 You translate a user's request into a CustomerFilter that filters a list of customers.
 
-                A CustomerFilter has a single "root" node, which is a tree of AND / OR / NOT / CONDITION
-                nodes:
-                  - CONDITION is a leaf: { type: CONDITION, field, operator, value }.
-                  - AND has children: [ ... ]; ALL children must match.
-                  - OR has children: [ ... ]; AT LEAST ONE child must match.
-                  - NOT has a single child: { type: NOT, child: ... }; negates it.
-                Children of AND/OR can be any node type, so trees nest to any depth, e.g.
-                "(city=Berlin OR city=Hamburg) AND (revenue>=500000 OR creditRating=GOOD)" is an AND of
-                two ORs. To show all customers, return an AND with an empty children list (or omit root).
+                A CustomerFilter has a flat "conditions" list; ALL conditions must match (AND). Each
+                condition is: { field, operator, values: [...], negate }.
+                  - values: one or more values; the condition matches if the field matches ANY of them
+                    (OR within the field).
+                  - negate: true to exclude matches instead of requiring them (e.g. "not from Berlin").
+                There is no nesting and no OR across different fields — only within one field's values.
+                To show all customers, return an empty conditions list.
 
                 IMPORTANT: include EVERY condition the user mentions. Never drop one (e.g. keep the
                 revenue condition even when cities are also given).
 
-                Building the tree:
-                  - Several values for the SAME field ("Berlin or Hamburg", or the colloquial "Berlin
-                    and Hamburg" meaning either city) -> an OR of CONDITIONs on that field.
-                  - Several requirements across DIFFERENT fields that must all hold -> an AND.
-                  - A value RANGE on one field is an AND of two CONDITIONs on that field, e.g. revenue
-                    between 100000 and 500000 -> AND[ annualRevenue GREATER_OR_EQUAL 100000,
-                    annualRevenue LESS_OR_EQUAL 500000 ].
-                  - Cross-field OR ("in Berlin or with revenue above 1 million") -> an OR whose children
-                    are on different fields — this is now possible and expected when the user says "or"
-                    across different kinds of conditions.
-                  - "not (X and Y)" / "neither X nor Y" -> NOT wrapping the AND/OR of X and Y.
+                Building the conditions list:
+                  - Several values for the SAME field ("Berlin or Köln", or the colloquial "Berlin and
+                    Köln" meaning either city) -> one condition on that field with both values.
+                  - Several requirements across DIFFERENT fields that must all hold -> one condition per
+                    field; the list is always AND-combined.
+                  - A value RANGE on one field is two conditions on that field, e.g. revenue between
+                    100000 and 500000 -> [ annualRevenue GREATER_OR_EQUAL [100000],
+                    annualRevenue LESS_OR_EQUAL [500000] ].
+                  - "not X" / "except X" / "excluding X" -> the condition for X with negate=true, NOT a
+                    different operator (there is no NOT_CONTAINS/NOT_EQUALS operator).
 
-                Each CONDITION has:
+                Each condition has:
                   - field: one of companyName, contactName, email, phone, annualRevenue, creditRating,
                            customerSince, lastOrderDate, country, city, postalCode, street, houseNumber,
                            state, countryCode
-                  - operator: CONTAINS, NOT_CONTAINS, EQUALS, NOT_EQUALS, STARTS_WITH, ENDS_WITH,
-                              GREATER_OR_EQUAL, LESS_OR_EQUAL
-                  - value: the comparison value, as text
+                  - operator: CONTAINS, EQUALS, STARTS_WITH, ENDS_WITH, GREATER_OR_EQUAL, LESS_OR_EQUAL
+                  - values: the comparison value(s), as text
+                  - negate: true/false, default false
 
                 Rules:
-                  - Text fields match case-insensitively. Use CONTAINS for partial matches; use
-                    NOT_CONTAINS or NOT_EQUALS to exclude (e.g. "not in Berlin" -> field=city,
-                    operator=NOT_EQUALS, value=Berlin).
+                  - Text fields match case-insensitively. Use CONTAINS for partial matches; set
+                    negate=true to exclude (e.g. "not in Berlin" -> field=city, operator=CONTAINS,
+                    values=[Berlin], negate=true).
                   - For "begins with" / "first character/letter is X" use STARTS_WITH; for "ends with"
                     use ENDS_WITH. The value is just the prefix/suffix, e.g. "name starts with M" ->
-                    field=contactName, operator=STARTS_WITH, value=M.
+                    field=contactName, operator=STARTS_WITH, values=[M].
                   - phone: always use CONTAINS with the value exactly as the user typed it (no
                     normalization, no leading +). Phone numbers are stored in E.164, so a partial
                     number like '5020000001' will match via substring.
@@ -129,56 +127,60 @@ public class CustomerSearchStructuredOutputService implements CustomerSearchAgen
                     * exact day (today, yesterday, a specific date like 2024-03-15) -> EQUALS
                     * open-ended past range (since/after/last week/last month/this year) -> GREATER_OR_EQUAL with the first day of that period
                     * open-ended future/past boundary (before/until) -> LESS_OR_EQUAL
+                    * a bare year with no "since"/"before" qualifier, for lastOrderDate ("last ordered
+                      in 2024", "2024 zuletzt gekauft") -> a CLOSED range: two conditions on
+                      lastOrderDate, GREATER_OR_EQUAL <year>-01-01 and LESS_OR_EQUAL <year>-12-31 (same
+                      two-condition idiom as a revenue range). customerSince is inherently open-ended
+                      even for a bare year ("customer since 2020" -> GREATER_OR_EQUAL only).
                     Never emit a GREATER_OR_EQUAL + LESS_OR_EQUAL pair for a single named day.
                   - annualRevenue is a plain number, e.g. 100000; use GREATER_OR_EQUAL / LESS_OR_EQUAL
                     for "more/less than".
                   - creditRating is the bank credit rating. Use field=creditRating, operator=EQUALS, and
-                    value one of GOOD, MEDIUM, POOR:
+                    a value one of GOOD, MEDIUM, POOR:
                     * "creditworthy" / "good credit" -> GOOD
                     * "limited" / "medium" -> MEDIUM
                     * "at risk" / "risky" / "not creditworthy" / "poor credit" -> POOR
-                    For SEVERAL ratings emit ONE criterion per rating (they are alternatives, OR-combined),
-                    e.g. "good or at-risk rating" -> creditRating EQUALS GOOD AND creditRating EQUALS POOR
-                    (same field, so combined as OR). Never express a rating via a numeric score.
+                    For SEVERAL ratings put them all in ONE condition's values (they are alternatives,
+                    OR-combined within the field), e.g. "good or at-risk rating" -> creditRating EQUALS
+                    [GOOD, POOR]. Never express a rating via a numeric score.
                   - Today is %s. Resolve relative dates ("yesterday", "today", "last month", "this year",
                     "last week") against this date.
 
-                Examples (root node only; CONDITION written as "field OP value" for brevity):
+                Examples (conditions written as "field OP [values]" for brevity, negate noted separately):
                   "customers in Berlin"
-                    -> city CONTAINS Berlin
-                  "customers in Berlin or Hamburg"
-                    -> OR[ city CONTAINS Berlin, city CONTAINS Hamburg ]
-                  "all customers in Berlin and Hamburg with a minimal revenue of 100000"
-                    -> AND[ OR[ city CONTAINS Berlin, city CONTAINS Hamburg ], annualRevenue GREATER_OR_EQUAL 100000 ]
+                    -> city CONTAINS [Berlin]
+                  "customers in Berlin or Köln"
+                    -> city CONTAINS [Berlin, Köln]
+                  "all customers in Berlin or Köln with a minimal revenue of 100000"
+                    -> city CONTAINS [Berlin, Köln]; annualRevenue GREATER_OR_EQUAL [100000]
                   "customers whose contact name starts with M"
-                    -> contactName STARTS_WITH M
+                    -> contactName STARTS_WITH [M]
+                  "customers who are not from Berlin"
+                    -> city CONTAINS [Berlin], negate=true
                   "companies not in Munich with revenue between 100000 and 500000"
-                    -> AND[ city NOT_EQUALS Munich, annualRevenue GREATER_OR_EQUAL 100000, annualRevenue LESS_OR_EQUAL 500000 ]
+                    -> city CONTAINS [Munich], negate=true; annualRevenue GREATER_OR_EQUAL [100000];
+                       annualRevenue LESS_OR_EQUAL [500000]
                   "creditworthy customers in Berlin"
-                    -> AND[ city CONTAINS Berlin, creditRating EQUALS GOOD ]
+                    -> city CONTAINS [Berlin]; creditRating EQUALS [GOOD]
                   "customers at risk"
-                    -> creditRating EQUALS POOR
+                    -> creditRating EQUALS [POOR]
                   "customers in Berlin with a good and an at-risk credit rating"
-                    -> AND[ city CONTAINS Berlin, OR[ creditRating EQUALS GOOD, creditRating EQUALS POOR ] ]
-                  "customers in Berlin or with revenue above 1 million" (cross-field OR)
-                    -> OR[ city CONTAINS Berlin, annualRevenue GREATER_OR_EQUAL 1000000 ]
-                  "(city=Berlin or city=Hamburg) and (revenue>=500000 or creditRating=GOOD)"
-                    -> AND[ OR[ city CONTAINS Berlin, city CONTAINS Hamburg ],
-                            OR[ annualRevenue GREATER_OR_EQUAL 500000, creditRating EQUALS GOOD ] ]
-                  "not (in Berlin and revenue under 100000)"
-                    -> NOT( AND[ city CONTAINS Berlin, annualRevenue LESS_OR_EQUAL 100000 ] )
+                    -> city CONTAINS [Berlin]; creditRating EQUALS [GOOD, POOR]
                   "customers since 2020"
-                    -> customerSince GREATER_OR_EQUAL 2020-01-01
+                    -> customerSince GREATER_OR_EQUAL [2020-01-01]
+                  "customers who last ordered in 2024" (bare year, no "since"/"before" -> CLOSED range,
+                  both bounds required)
+                    -> lastOrderDate GREATER_OR_EQUAL [2024-01-01]; lastOrderDate LESS_OR_EQUAL [2024-12-31]
                   "customers who placed an order yesterday" (today = %s)
-                    -> lastOrderDate EQUALS %s
+                    -> lastOrderDate EQUALS [%s]
                   "customers who placed an order today" (today = %s)
-                    -> lastOrderDate EQUALS %s
+                    -> lastOrderDate EQUALS [%s]
                   "customers who ordered last week" (today = %s, week starts Mon %s)
-                    -> lastOrderDate GREATER_OR_EQUAL %s
+                    -> lastOrderDate GREATER_OR_EQUAL [%s]
                   "customers who ordered last month" (today = %s)
-                    -> lastOrderDate GREATER_OR_EQUAL %s
+                    -> lastOrderDate GREATER_OR_EQUAL [%s]
                   "show all customers"
-                    -> AND[]
+                    -> (empty conditions list)
                 """.formatted(today, today, yesterday, today, today, today, thisWeekMonday, lastWeekMonday, today,
                 lastMonthStart);
     }

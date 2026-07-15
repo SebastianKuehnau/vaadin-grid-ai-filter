@@ -146,6 +146,20 @@ class CustomerSearchAgentIT {
     }
 
     @Test
+    void citiesWithRevenueRange() {
+        // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT.citiesWithRevenueRange, for
+        // direct comparability.
+        CustomerSearchCriteria criteria = agent.requestCriteria(
+                "Berlin or Hamburg with revenue between 100000 and 500000");
+        assertThat(criteria.city()).anySatisfy(city -> assertThat(city).containsIgnoringCase("berlin"));
+        assertThat(criteria.city()).anySatisfy(city -> assertThat(city).containsIgnoringCase("hamburg"));
+        assertThat(criteria.annualRevenue()).anySatisfy(range -> {
+            assertThat(range.atLeast()).isNotNull().isGreaterThanOrEqualTo(BigDecimal.valueOf(75_000));
+            assertThat(range.atMost()).isNotNull().isLessThanOrEqualTo(BigDecimal.valueOf(550_000));
+        });
+    }
+
+    @Test
     void country() {
         // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT, for direct comparability.
         CustomerSearchCriteria criteria = agent.requestCriteria("customers in Germany");

@@ -1,6 +1,9 @@
 package dev.demo.vaadin.aigridfilter.ai.filter;
 
-/** How a {@link FilterNode.Condition} compares a customer field with a value. */
+/**
+ * How a {@link Condition} compares a customer field with a value. Negation is not an operator —
+ * see {@link Condition#negate()}.
+ */
 public enum Operator {
-    CONTAINS, NOT_CONTAINS, EQUALS, NOT_EQUALS, GREATER_OR_EQUAL, LESS_OR_EQUAL, STARTS_WITH, ENDS_WITH
+    CONTAINS, EQUALS, GREATER_OR_EQUAL, LESS_OR_EQUAL, STARTS_WITH, ENDS_WITH
 }
