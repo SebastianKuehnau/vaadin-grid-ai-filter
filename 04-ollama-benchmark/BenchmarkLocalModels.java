@@ -59,7 +59,7 @@ public class BenchmarkLocalModels {
     }
 
     record CaseResult(String name, String query, boolean passed, long durationMs, long evalCount,
-                       long evalDurationNs, String error, String gotJson) {
+                       long evalDurationNs, String error, String gotJson, String rawBody) {
     }
 
     record ModelResult(String model, List<CaseResult> cases, Long modelSizeBytes, Long vramBytes,
@@ -73,7 +73,7 @@ public class BenchmarkLocalModels {
      * timing) or, for OpenAI-compatible backends without an equivalent field, the response's token usage and
      * measured wall-clock request duration.
      */
-    record ChatResult(String content, long tokenCount, long tokenDurationNs) {
+    record ChatResult(String content, long tokenCount, long tokenDurationNs, String rawBody) {
     }
 
     /** Backend abstraction so the benchmarking/reporting code doesn't care which API it's talking to. */
@@ -98,7 +98,8 @@ public class BenchmarkLocalModels {
     private static final String MLX_DEFAULT_BASE_URL = "http://localhost:8090";
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
-    record CliArgs(String backend, String baseUrlOverride, List<String> modelNames, boolean thinkDisabled) {
+    record CliArgs(String backend, String baseUrlOverride, List<String> modelNames, boolean thinkDisabled,
+                    boolean debugRaw) {
     }
 
     public static void main(String[] args) throws Exception {
@@ -108,8 +109,8 @@ public class BenchmarkLocalModels {
             System.err.println("WARN: --think has no effect on --backend=ollama "
                     + "(Ollama's native \"think\":false is unconditional already)");
         }
-        ApiClient client = cli.backend().equals("mlx") ? new MlxClient(baseUrl, cli.thinkDisabled())
-                : new OllamaClient(baseUrl);
+        ApiClient client = cli.backend().equals("mlx") ? new MlxClient(baseUrl, cli.thinkDisabled(), cli.debugRaw())
+                : new OllamaClient(baseUrl, cli.debugRaw());
 
         LocalDate today = LocalDate.now();
         String systemPrompt = buildSystemPrompt(today);
@@ -164,6 +165,7 @@ public class BenchmarkLocalModels {
         String baseUrlOverride = null;
         List<String> models = new ArrayList<>();
         boolean thinkDisabled = false;
+        boolean debugRaw = false;
         for (String arg : args) {
             if (arg.equals("--help") || arg.equals("-h")) {
                 printUsage();
@@ -179,6 +181,8 @@ public class BenchmarkLocalModels {
                     System.exit(1);
                 }
                 thinkDisabled = value.equals("off");
+            } else if (arg.equals("--debug-raw")) {
+                debugRaw = true;
             } else if (arg.startsWith("--")) {
                 System.err.println("Unknown flag: " + arg);
                 System.err.println("Run with --help for usage.");
@@ -191,7 +195,7 @@ public class BenchmarkLocalModels {
             System.err.println("Unknown --backend value: " + backend + " (expected 'ollama' or 'mlx')");
             System.exit(1);
         }
-        return new CliArgs(backend, baseUrlOverride, models, thinkDisabled);
+        return new CliArgs(backend, baseUrlOverride, models, thinkDisabled, debugRaw);
     }
 
     private static void printUsage() {
@@ -205,6 +209,9 @@ public class BenchmarkLocalModels {
                                          to the user query (MLX backend only; default: on/unchanged).
                                          Ollama already always sends "think":false, so this flag is a
                                          no-op there.
+                  --debug-raw            Capture each call's full raw HTTP response body (before any
+                                         parsing) and include it in the generated report as a
+                                         "Raw responses" appendix, for failed cases only.
                   --help, -h             Show this help and exit
 
                 Backend defaults:
@@ -466,11 +473,11 @@ public class BenchmarkLocalModels {
                 List<Map<String, Object>> criteria = parseCriteria(content);
                 boolean passed = caseCorrect(criteria, tc.expected());
                 caseResults.add(new CaseResult(tc.name(), tc.query(), passed, durationMs, chatResult.tokenCount(),
-                        chatResult.tokenDurationNs(), null, content));
+                        chatResult.tokenDurationNs(), null, content, chatResult.rawBody()));
             } catch (Exception e) {
                 long durationMs = (System.nanoTime() - t0) / 1_000_000;
                 caseResults.add(new CaseResult(tc.name(), tc.query(), false, durationMs, 0, 0,
-                        e.getClass().getSimpleName() + ": " + e.getMessage(), null));
+                        e.getClass().getSimpleName() + ": " + e.getMessage(), null, null));
             }
         }
 
@@ -522,9 +529,11 @@ public class BenchmarkLocalModels {
 
     static final class OllamaClient implements ApiClient {
         private final String baseUrl;
+        private final boolean debugRaw;
 
-        OllamaClient(String baseUrl) {
+        OllamaClient(String baseUrl, boolean debugRaw) {
             this.baseUrl = baseUrl;
+            this.debugRaw = debugRaw;
         }
 
         @Override
@@ -577,7 +586,8 @@ public class BenchmarkLocalModels {
             if (map.get("message") instanceof Map<?, ?> m && m.get("content") instanceof String s) {
                 content = s;
             }
-            return new ChatResult(content, asLong(map.get("eval_count")), asLong(map.get("eval_duration")));
+            return new ChatResult(content, asLong(map.get("eval_count")), asLong(map.get("eval_duration")),
+                    debugRaw ? response.body() : null);
         }
 
         @Override
@@ -655,10 +665,12 @@ public class BenchmarkLocalModels {
     static final class MlxClient implements ApiClient {
         private final String baseUrl;
         private final boolean thinkDisabled;
+        private final boolean debugRaw;
 
-        MlxClient(String baseUrl, boolean thinkDisabled) {
+        MlxClient(String baseUrl, boolean thinkDisabled, boolean debugRaw) {
             this.baseUrl = baseUrl;
             this.thinkDisabled = thinkDisabled;
+            this.debugRaw = debugRaw;
         }
 
         /** Qwen3's documented, server-version-independent soft-switch: plain user-turn text, never the
@@ -723,7 +735,7 @@ public class BenchmarkLocalModels {
             // No native generation-only duration in the OpenAI-compatible response, unlike Ollama's
             // eval_duration — tok/s for this backend is therefore based on wall-clock request time
             // and includes network + prompt-evaluation overhead (see README for this caveat).
-            return new ChatResult(content, tokenCount, wallClockNs);
+            return new ChatResult(content, tokenCount, wallClockNs, debugRaw ? response.body() : null);
         }
 
         @Override
