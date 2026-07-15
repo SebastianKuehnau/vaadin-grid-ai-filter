@@ -524,6 +524,81 @@ public class BenchmarkLocalModels {
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Hand-rolled JSON Schema for the FilterNode tree (mirrors dev.demo.vaadin.aigridfilter.ai.filter.
+    // FilterNode/Operator in 03-ai-structured-filter exactly — 15 fields, 8 operators). Used with
+    // --mode=schema to constrain model output instead of relying on free-text prompt instructions;
+    // additionalProperties:false plus a single required "children"/"child" key per branch directly
+    // targets the duplicate-key and child-vs-children confusion bugs seen across all three existing
+    // benchmark reports.
+    // ---------------------------------------------------------------------------------------------
+
+    private static final String FILTER_NODE_SCHEMA_JSON = """
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["root"],
+              "properties": {
+                "root": { "oneOf": [ { "$ref": "#/$defs/FilterNode" }, { "type": "null" } ] }
+              },
+              "$defs": {
+                "FilterNode": {
+                  "oneOf": [
+                    { "$ref": "#/$defs/Condition" },
+                    { "$ref": "#/$defs/And" },
+                    { "$ref": "#/$defs/Or" },
+                    { "$ref": "#/$defs/Not" }
+                  ]
+                },
+                "Condition": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["type", "field", "operator", "value"],
+                  "properties": {
+                    "type": { "const": "CONDITION" },
+                    "field": { "type": "string", "enum": [
+                      "companyName","contactName","email","phone","annualRevenue","creditRating",
+                      "customerSince","lastOrderDate","country","city","postalCode","street",
+                      "houseNumber","state","countryCode"
+                    ]},
+                    "operator": { "type": "string", "enum": [
+                      "CONTAINS","NOT_CONTAINS","EQUALS","NOT_EQUALS",
+                      "GREATER_OR_EQUAL","LESS_OR_EQUAL","STARTS_WITH","ENDS_WITH"
+                    ]},
+                    "value": { "type": "string" }
+                  }
+                },
+                "And": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["type", "children"],
+                  "properties": {
+                    "type": { "const": "AND" },
+                    "children": { "type": "array", "items": { "$ref": "#/$defs/FilterNode" } }
+                  }
+                },
+                "Or": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["type", "children"],
+                  "properties": {
+                    "type": { "const": "OR" },
+                    "children": { "type": "array", "items": { "$ref": "#/$defs/FilterNode" } }
+                  }
+                },
+                "Not": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["type", "child"],
+                  "properties": {
+                    "type": { "const": "NOT" },
+                    "child": { "$ref": "#/$defs/FilterNode" }
+                  }
+                }
+              }
+            }
+            """;
+
+    // ---------------------------------------------------------------------------------------------
     // Ollama API client (native /api/chat, /api/tags, /api/ps endpoints — chosen over Ollama's
     // OpenAI-compatible surface for the extra eval_count/eval_duration/VRAM metrics it exposes).
     // ---------------------------------------------------------------------------------------------
