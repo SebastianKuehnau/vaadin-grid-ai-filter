@@ -69,10 +69,11 @@ recursive tree — see `../04-ollama-benchmark`'s recorded latency/accuracy comp
 
 ### Switching LLM backends
 
-The AI layer only ever talks to a single `ChatModel` bean produced by
-`spring-ai-starter-model-openai` — all three backends speak the OpenAI-compatible chat completions
-API, so switching between them is purely a matter of which Spring profile is active
-(`application-<profile>.properties`), never a code change:
+The AI layer only ever talks to a generic Spring AI `ChatModel` bean — switching between backends
+is purely a matter of which Spring profile is active (`application-<profile>.properties`), never a
+code change. `mlx`/`cloud` both speak the OpenAI-compatible chat completions API
+(`spring-ai-starter-model-openai`); `ollama` uses Spring AI's *native* Ollama binding
+(`spring-ai-starter-model-ollama`) instead — see the trade-off note below for why.
 
 ```bash
 ./mvnw -pl 03-ai-structured-filter spring-boot:run                                    # ollama (default, no profile needed)
@@ -80,13 +81,13 @@ API, so switching between them is purely a matter of which Spring profile is act
 ./mvnw -pl 03-ai-structured-filter spring-boot:run -Dspring-boot.run.profiles=cloud   # real OpenAI API
 ```
 
-- **`ollama`** (default) — a local Ollama instance via its OpenAI-compatible endpoint. Start
-  Ollama and pull the model first:
+- **`ollama`** (default) — a local Ollama instance via Spring AI's *native* Ollama binding (not the
+  OpenAI-compatible endpoint — see below). Start Ollama and pull the model first:
   ```bash
   ollama pull llama3.1:8b
   ```
   Other models benchmarked against this module in `../04-ollama-benchmark`: `qwen3.5:4b-mlx`,
-  `qwen3:8b`, `gemma4:26b-mlx` — swap `spring.ai.openai.chat.model` in
+  `qwen3:8b`, `gemma4:26b-mlx` — swap `spring.ai.ollama.chat.model` in
   `application-ollama.properties` to try one.
 - **`mlx`** — a local [`mlx_lm.server`](https://github.com/ml-explore/mlx-lm) instance (Apple
   Silicon only, doesn't run in a Linux container). Start it manually on the host first, e.g.:
@@ -102,10 +103,22 @@ API, so switching between them is purely a matter of which Spring profile is act
   crash) but real requests fail with 401, caught by the same fallback-to-unrestricted-specification
   path as any other model failure.
 
-Trade-off: going through the OpenAI-compatible surface for all three backends means Ollama-native
-tuning (`chat.think`, `chat.num-ctx`, `init.pull-model-strategy`) is no longer configurable via
-Spring AI — see `application-ollama.properties` for the one best-effort exception attempted
-(`chat.extra-body.options.num_ctx`).
+**Why `ollama` uses a different starter than `mlx`/`cloud`:** Ollama's OpenAI-compatible endpoint
+(`/v1/chat/completions`) silently ignores `"think":false` and `"options":{"num_ctx":...}` — verified
+empirically against Ollama 0.32.0 (`qwen3:8b` kept reasoning regardless of `think:false`; a
+requested `num_ctx` never changed the loaded model's actual context size per `/api/ps`). Both are
+fully honored on Ollama's *native* `/api/chat` endpoint, which is what `spring-ai-starter-model-ollama`
+talks to. Since Spring Boot autoconfigures one `ChatModel` bean per starter present on the
+classpath, both starters are declared in `pom.xml` and `spring.ai.model.chat` picks which one wins
+per profile (`openai` by default in `application.properties`, overridden to `ollama` in
+`application-ollama.properties`) — `mlx`/`cloud` still go through the OpenAI-compatible surface,
+since `mlx_lm.server`/the real OpenAI API don't speak Ollama's native protocol.
+
+`application-ollama.properties` sets `spring.ai.ollama.chat.think=false` (llama3.1:8b never
+"thinks" anyway, but this matters the moment you swap in a reasoning-capable model like `qwen3:8b` —
+without it, such a model burns hundreds of tokens on a `<think>` block per call) and
+`spring.ai.ollama.chat.num-ctx=4096` (now genuinely applied, unlike the old best-effort
+`extra-body.options.num_ctx` passthrough this replaced).
 
 ## Tests
 
