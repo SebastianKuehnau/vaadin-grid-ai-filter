@@ -30,9 +30,12 @@ as `benchmark-report-<timestamp>.md`/`.txt` in the current directory.
 
 The script extracts the real system prompt directly from
 `../03-ai-structured-filter/src/main/java/dev/demo/vaadin/aigridfilter/ai/CustomerSearchStructuredOutputService.java`,
-so it cannot drift from production behaviour, and runs the same 32 natural-language queries as
-that module's `CustomerSearchAgentIT` (including the 4 German ones) — see that module's README for
-what each query tests.
+so it cannot drift from production behaviour, and runs the same natural-language queries as that
+module's `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT` (30 cases, including the German ones)
+— see that module's README for what each query tests. `CustomerFilter` is a flat list of conditions
+(all AND-combined; cross-field OR and arbitrary nesting were dropped as a deliberate trade-off for
+faster/more reliable structured output — see "Flat schema migration: before/after" below for the
+measured latency/accuracy delta).
 
 ## MLX Server backend
 
@@ -90,10 +93,9 @@ across nearly every model/backend tested: duplicate JSON keys (e.g. two `"childr
 object, where the second silently wins and the first list is lost), `NOT` emitting `children`
 instead of `child`, truncated/unbalanced JSON, or fields returned as unstructured strings.
 
-`--mode=schema` instead constrains generation with a hand-rolled JSON Schema for the `FilterNode`
-tree (recursive via `$defs`/`$ref`, one branch per node type with `additionalProperties:false` and a
-single `required` `children`/`child` key), enforcing the same shape production defines in
-`FilterNode.java`/`Operator.java`:
+`--mode=schema` instead constrains generation with a hand-rolled JSON Schema for the flat
+conditions list (a single `conditions` array, no `$ref`/`oneOf`/recursion at all), enforcing the
+same shape production defines in `CustomerFilter.java`/`Condition.java`/`Operator.java`:
 
 - **Ollama**: the schema is passed directly in the native `/api/chat` request's `"format"` field
   (grammar-constrained decoding) instead of the generic `"format":"json"` string. This works for
@@ -104,16 +106,40 @@ single `required` `children`/`child` key), enforcing the same shape production d
   If the server rejects it, that surfaces as a normal per-case/per-model failure (same as any other
   HTTP error), not a crash.
 
-**A/B result** (`llama3.1:8b`, `qwen3:8b`, same 32 cases, freeform vs. schema — see
-`benchmark-report-2026-07-15-102828.md` for the full comparison): accuracy delta was 0 for both
-models, with **zero regressions** — every case that passed in freeform still passes in schema mode.
-Critically, **all malformed-JSON symptoms disappeared** (no duplicate keys, no truncation, no
-`child`/`children` confusion) — the schema structurally cannot produce them. The handful of
-remaining failures are semantic reasoning mistakes (e.g. a condition dropped rather than nested)
-that persist because valid JSON isn't the same as *correct* JSON — schema-constrained output fixes
-the shape problem, not the reasoning problem.
+Historically (before the flat-schema migration below), an A/B of freeform vs. schema mode against
+the old recursive `FilterNode` tree found accuracy parity but **zero malformed-JSON symptoms** in
+schema mode (no duplicate keys, no truncation, no `child`/`children` confusion) — schema-constrained
+output fixes the *shape* problem but not the *reasoning* problem (a model can still emit valid JSON
+that drops or misplaces a condition).
+
+### Flat schema migration: before/after
+
+The `FilterNode` AND/OR/NOT/CONDITION tree was replaced with a flat list of conditions (values
+OR-combined per field, a `negate` flag instead of `NOT_*` operators, no cross-field OR, no nesting)
+— see `03-ai-structured-filter`'s README for the schema itself. Measured on the same host, same
+`llama3.1:8b`, same `--mode=schema`, directly before/after the migration (this container's
+hardware, not the M2 Pro Mac numbers in [Recorded results](#recorded-results) below — treat the two
+tables as separate baselines, not comparable to each other):
+
+| Schema | Cases | Accuracy | Median latency |
+| --- | --- | --- | --- |
+| Old recursive `FilterNode` tree | 32 | 27/32 (84%) | 1577 ms |
+| New flat conditions list | 30 | 29/30 (97%) | 1256 ms |
+
+**~20% lower median latency, and higher accuracy** with the smallest/fastest configured model —
+the old tree's 5 failures were exactly the kind of nesting/placement mistakes the flat schema
+structurally rules out (e.g. flattening `NOT`+`CONDITION` into a bare `CONDITION`, or dropping a
+condition when translating an intended `AND` into a single `OR`). The one remaining flat-schema
+failure (`notInCityWithRevenueAndYear`, a 3-condition query needing negation + a two-sided year
+range) is a case where `llama3.1:8b` sometimes drops one bound of the range — `qwen3:8b` handles it
+correctly every time; see `03-ai-structured-filter`'s README for that model-capability note.
 
 ## Recorded results
+
+**Predates the flat-schema migration** (32 cases, old recursive `FilterNode` tree, `--mode=freeform`)
+— see "Flat schema migration: before/after" above for the directly-comparable old-tree-vs-new-flat
+numbers. Kept here as a multi-model accuracy/speed comparison; re-run with the current 30 cases if
+you want up-to-date numbers for a model not covered above.
 
 **Test system:** MacBook Pro, Apple **M2 Pro** (12 cores: 8 performance + 4 efficiency), 32 GB
 unified memory, macOS 26.5.1 (build 25F80), Ollama 0.30.11. Apple-Silicon-optimized `mlx` variants

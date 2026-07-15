@@ -22,9 +22,9 @@ import java.util.stream.Collectors;
 /**
  * Standalone Java benchmark comparing local models — Ollama (default) or an OpenAI-compatible MLX
  * server ({@code mlx_lm.server}) — on the natural-language -&gt; CustomerFilter task. Replicates the
- * {@code CustomerSearchAgentIT} test cases (including the nested AND/OR/NOT tree cases) as raw HTTP
- * calls (no Maven/JUnit, no Spring context) and reports accuracy, latency/throughput, and basic
- * resource usage.
+ * {@code CustomerSearchAgentIT}/{@code CustomerSearchAgentExtraIT} test cases (a flat list of
+ * conditions, ALL combined with AND) as raw HTTP calls (no Maven/JUnit, no Spring context) and
+ * reports accuracy, latency/throughput, and basic resource usage.
  *
  * <p>Run directly with Java's single-file source launcher (no external dependencies, JDK stdlib only):
  * <pre>
@@ -223,8 +223,8 @@ public class BenchmarkLocalModels {
                                          parsing) and include it in the generated report as a
                                          "Raw responses" appendix, for failed cases only.
                   --mode=freeform|schema Freeform JSON completion (default) or schema-constrained
-                                         output. In schema mode, Ollama gets the FilterNode JSON
-                                         Schema via its native "format" field (grammar-constrained
+                                         output. In schema mode, Ollama gets the flat conditions-list
+                                         JSON Schema via its native "format" field (grammar-constrained
                                          decoding, works for any model); the MLX backend attempts the
                                          OpenAI-style "response_format":{"type":"json_schema",...}
                                          field, best-effort — mlx_lm.server's support for it is
@@ -315,9 +315,8 @@ public class BenchmarkLocalModels {
                 lastWeekMonday, today, lastMonthStart);
 
         return prompt + "\n\nRespond ONLY with a JSON object of this exact shape, nothing else:\n"
-                + "{\"root\": {\"type\":\"AND\"|\"OR\"|\"NOT\"|\"CONDITION\", "
-                + "\"children\":[...] (AND/OR only), \"child\":{...} (NOT only), "
-                + "\"field\":\"...\",\"operator\":\"...\",\"value\":\"...\" (CONDITION only)}}";
+                + "{\"conditions\": [ {\"field\":\"...\",\"operator\":\"...\",\"values\":[\"...\"],"
+                + "\"negate\":true|false}, ... ]}";
     }
 
     private static Path locateCustomerSearchStructuredOutputService() {
@@ -336,7 +335,9 @@ public class BenchmarkLocalModels {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Test cases: 1:1 port of CustomerSearchAgentIT.java (32 cases, incl. the 4 German ones).
+    // Test cases: 1:1 port of CustomerSearchAgentIT.java + CustomerSearchAgentExtraIT.java (flat
+    // conditions list — cross-field-OR/nested-tree cases from the old FilterNode tree don't have a
+    // flat-schema equivalent and were dropped, not ported).
     // ---------------------------------------------------------------------------------------------
 
     private static List<TestCase> testCases(LocalDate today) {
@@ -344,7 +345,7 @@ public class BenchmarkLocalModels {
         cases.add(TestCase.of("singleCity", "show me all customers in Berlin",
                 ExpectedCriterion.of("city", "CONTAINS", "berlin")));
         cases.add(TestCase.of("singleFalseCity", "show me all customers except from Berlin",
-                ExpectedCriterion.of("city", "NOT_EQUALS", "berlin")));
+                ExpectedCriterion.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "berlin")));
         cases.add(TestCase.of("multipleCities", "customers in Berlin or Hamburg",
                 ExpectedCriterion.of("city", "CONTAINS", "berlin"),
                 ExpectedCriterion.of("city", "CONTAINS", "hamburg")));
@@ -429,34 +430,26 @@ public class BenchmarkLocalModels {
                 "Zeigen mir Kunden deren Kontaktname Julia ist und die in Berlin sind.",
                 ExpectedCriterion.of("contactName", new String[]{"EQUALS", "CONTAINS"}, "julia"),
                 ExpectedCriterion.of("city", "CONTAINS", "berlin")));
-
-        // --- medium-model-query: nested combinations (an AND of two ORs) ---
-        cases.add(TestCase.of("citiesWithRevenueRange_nestedCombination",
+        cases.add(TestCase.of("citiesWithRevenueRange",
                 "Berlin or Hamburg with revenue between 100000 and 500000",
                 ExpectedCriterion.of("city", "CONTAINS", "berlin"),
                 ExpectedCriterion.of("city", "CONTAINS", "hamburg"),
                 ExpectedCriterion.of("annualRevenue", "GREATER_OR_EQUAL", "100000"),
                 ExpectedCriterion.of("annualRevenue", "LESS_OR_EQUAL", "500000")));
-        cases.add(TestCase.of("nestedOrOfOrs",
-                "customers in Berlin or Hamburg who either have a revenue of at least 500000 or a good credit rating",
-                ExpectedCriterion.of("city", "CONTAINS", "berlin"),
-                ExpectedCriterion.of("city", "CONTAINS", "hamburg"),
-                ExpectedCriterion.of("annualRevenue", "GREATER_OR_EQUAL", "500000"),
-                ExpectedCriterion.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "good", "creditworthy")));
 
-        // --- large-model-query: cross-field OR, only possible with the nested filter tree ---
-        cases.add(TestCase.of("crossFieldOr_cityOrRevenue",
-                "customers in Berlin or with revenue above 1 million",
-                ExpectedCriterion.of("city", "CONTAINS", "berlin"),
-                ExpectedCriterion.of("annualRevenue", "GREATER_OR_EQUAL", "1000000")));
-        cases.add(TestCase.of("crossFieldOr_cityOrCreditRating",
-                "Hamburg or good credit rating",
-                ExpectedCriterion.of("city", "CONTAINS", "hamburg"),
-                ExpectedCriterion.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "good", "creditworthy")));
-        cases.add(TestCase.of("negatedGroup",
-                "show me customers that are not both from Berlin and have a revenue under 100000",
-                ExpectedCriterion.of("city", "CONTAINS", "berlin"),
-                ExpectedCriterion.of("annualRevenue", "LESS_OR_EQUAL", "100000")));
+        // --- negation + AND-across-fields + a bare-year closed range, all flat-expressible ---
+        cases.add(TestCase.of("notInCityWithRevenueAndYear",
+                "customers who are not from Berlin, have at least 1000 in revenue, and last ordered in 2024",
+                ExpectedCriterion.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "berlin"),
+                ExpectedCriterion.of("annualRevenue", "GREATER_OR_EQUAL", "1000"),
+                ExpectedCriterion.of("lastOrderDate", "GREATER_OR_EQUAL", "2024-01-01"),
+                ExpectedCriterion.of("lastOrderDate", "LESS_OR_EQUAL", "2024-12-31")));
+        cases.add(TestCase.of("notInCityWithRevenueAndYear_German",
+                "Kunden, die nicht aus Berlin kommen und mind. 1000 € Umsatz haben und 2024 zuletzt gekauft haben",
+                ExpectedCriterion.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "berlin"),
+                ExpectedCriterion.of("annualRevenue", "GREATER_OR_EQUAL", "1000"),
+                ExpectedCriterion.of("lastOrderDate", "GREATER_OR_EQUAL", "2024-01-01"),
+                ExpectedCriterion.of("lastOrderDate", "LESS_OR_EQUAL", "2024-12-31")));
         return cases;
     }
 
@@ -541,74 +534,38 @@ public class BenchmarkLocalModels {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Hand-rolled JSON Schema for the FilterNode tree (mirrors dev.demo.vaadin.aigridfilter.ai.filter.
-    // FilterNode/Operator in 03-ai-structured-filter exactly — 15 fields, 8 operators). Used with
-    // --mode=schema to constrain model output instead of relying on free-text prompt instructions;
-    // additionalProperties:false plus a single required "children"/"child" key per branch directly
-    // targets the duplicate-key and child-vs-children confusion bugs seen across all three existing
-    // benchmark reports.
+    // Hand-rolled JSON Schema for the flat conditions list (mirrors dev.demo.vaadin.aigridfilter.ai.
+    // filter.CustomerFilter/Condition/Operator in 03-ai-structured-filter exactly — 15 fields, 6
+    // operators, values array, negate boolean). Used with --mode=schema to constrain model output
+    // instead of relying on free-text prompt instructions; additionalProperties:false targets the
+    // duplicate-key/malformed-JSON bugs seen in earlier (tree-schema) benchmark reports. No $ref/
+    // oneOf/recursion at all — the flat shape needs none.
     // ---------------------------------------------------------------------------------------------
 
-    private static final String FILTER_NODE_SCHEMA_JSON = """
+    private static final String FLAT_CONDITIONS_SCHEMA_JSON = """
             {
               "type": "object",
               "additionalProperties": false,
-              "required": ["root"],
+              "required": ["conditions"],
               "properties": {
-                "root": { "oneOf": [ { "$ref": "#/$defs/FilterNode" }, { "type": "null" } ] }
-              },
-              "$defs": {
-                "FilterNode": {
-                  "oneOf": [
-                    { "$ref": "#/$defs/Condition" },
-                    { "$ref": "#/$defs/And" },
-                    { "$ref": "#/$defs/Or" },
-                    { "$ref": "#/$defs/Not" }
-                  ]
-                },
-                "Condition": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": ["type", "field", "operator", "value"],
-                  "properties": {
-                    "type": { "const": "CONDITION" },
-                    "field": { "type": "string", "enum": [
-                      "companyName","contactName","email","phone","annualRevenue","creditRating",
-                      "customerSince","lastOrderDate","country","city","postalCode","street",
-                      "houseNumber","state","countryCode"
-                    ]},
-                    "operator": { "type": "string", "enum": [
-                      "CONTAINS","NOT_CONTAINS","EQUALS","NOT_EQUALS",
-                      "GREATER_OR_EQUAL","LESS_OR_EQUAL","STARTS_WITH","ENDS_WITH"
-                    ]},
-                    "value": { "type": "string" }
-                  }
-                },
-                "And": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": ["type", "children"],
-                  "properties": {
-                    "type": { "const": "AND" },
-                    "children": { "type": "array", "items": { "$ref": "#/$defs/FilterNode" } }
-                  }
-                },
-                "Or": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": ["type", "children"],
-                  "properties": {
-                    "type": { "const": "OR" },
-                    "children": { "type": "array", "items": { "$ref": "#/$defs/FilterNode" } }
-                  }
-                },
-                "Not": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": ["type", "child"],
-                  "properties": {
-                    "type": { "const": "NOT" },
-                    "child": { "$ref": "#/$defs/FilterNode" }
+                "conditions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["field", "operator", "values", "negate"],
+                    "properties": {
+                      "field": { "type": "string", "enum": [
+                        "companyName","contactName","email","phone","annualRevenue","creditRating",
+                        "customerSince","lastOrderDate","country","city","postalCode","street",
+                        "houseNumber","state","countryCode"
+                      ]},
+                      "operator": { "type": "string", "enum": [
+                        "CONTAINS","EQUALS","GREATER_OR_EQUAL","LESS_OR_EQUAL","STARTS_WITH","ENDS_WITH"
+                      ]},
+                      "values": { "type": "array", "items": { "type": "string" } },
+                      "negate": { "type": "boolean" }
+                    }
                   }
                 }
               }
@@ -631,11 +588,11 @@ public class BenchmarkLocalModels {
             this.debugRaw = debugRaw;
         }
 
-        /** "json" (generic JSON-mode) in freeform mode, or the FilterNode JSON Schema object in schema
-         * mode — Ollama's native "format" field accepts either, spliced in unescaped (it's a JSON value,
-         * not a JSON string). */
+        /** "json" (generic JSON-mode) in freeform mode, or the flat conditions JSON Schema object in
+         * schema mode — Ollama's native "format" field accepts either, spliced in unescaped (it's a
+         * JSON value, not a JSON string). */
         private String formatField() {
-            return schemaMode ? FILTER_NODE_SCHEMA_JSON : "\"json\"";
+            return schemaMode ? FLAT_CONDITIONS_SCHEMA_JSON : "\"json\"";
         }
 
         @Override
@@ -789,7 +746,7 @@ public class BenchmarkLocalModels {
             return schemaMode
                     ? ",\"response_format\":{\"type\":\"json_schema\",\"json_schema\":{"
                             + "\"name\":\"customer_filter\",\"strict\":true,\"schema\":"
-                            + FILTER_NODE_SCHEMA_JSON + "}}"
+                            + FLAT_CONDITIONS_SCHEMA_JSON + "}}"
                     : "";
         }
 
@@ -930,10 +887,10 @@ public class BenchmarkLocalModels {
     // ---------------------------------------------------------------------------------------------
 
     /**
-     * Best-effort: returns every CONDITION leaf anywhere in the model's {@code root} filter tree, [] if
-     * the shape is off. Also accepts a bare {@code {"criteria": [...]}} flat list for models that ignore
-     * the nested schema, so a model's degree of non-compliance shows up as lower accuracy rather than
-     * being silently masked.
+     * Best-effort: expands the model's {@code conditions} array into one leaf per value (field/
+     * operator/value), [] if the shape is off. Also accepts a bare top-level array for models that
+     * skip the {@code conditions} wrapper key, so a model's degree of non-compliance shows up as
+     * lower accuracy rather than being silently masked.
      */
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> parseCriteria(String content) {
@@ -949,55 +906,52 @@ public class BenchmarkLocalModels {
                 return List.of();
             }
         }
+        List<?> conditions = null;
+        if (data instanceof Map<?, ?> map && map.get("conditions") instanceof List<?> list) {
+            conditions = list;
+        } else if (data instanceof List<?> list) {          // bare array for models that skip the wrapper key
+            conditions = list;
+        }
         List<Map<String, Object>> result = new ArrayList<>();
-        if (data instanceof List<?> list) {
-            for (Object o : list) {
+        if (conditions != null) {
+            for (Object o : conditions) {
                 if (o instanceof Map<?, ?> m) {
-                    flatten((Map<String, Object>) m, result);
+                    expandCondition((Map<String, Object>) m, result);
                 }
-            }
-        } else if (data instanceof Map<?, ?> map) {
-            if (map.get("criteria") instanceof List<?> list) {          // legacy flat shape
-                for (Object o : list) {
-                    if (o instanceof Map<?, ?> m) {
-                        result.add((Map<String, Object>) m);
-                    }
-                }
-            } else if (map.get("root") instanceof Map<?, ?> root) {
-                flatten((Map<String, Object>) root, result);
             }
         }
         return result;
     }
 
-    /** Collects every CONDITION leaf anywhere in a FilterNode tree, mirroring CustomerSearchAgentIT.flatten. */
-    @SuppressWarnings("unchecked")
-    private static void flatten(Map<String, Object> node, List<Map<String, Object>> into) {
-        if (node == null) {
-            return;
+    /**
+     * Expands one {@code {field, operator, values:[...], negate}} condition into one leaf per value
+     * (field/operator/value). A negated condition's operator gets a synthetic {@code NOT_} prefix
+     * (e.g. {@code NOT_CONTAINS}), so existing {@link ExpectedCriterion} assertions phrased in
+     * {@code NOT_EQUALS}/{@code NOT_CONTAINS} terms keep working unchanged — purely a benchmark-
+     * matching convenience; production's {@code Operator} enum no longer has those values. Also
+     * accepts a bare {@code "value"} string instead of a {@code "values"} array, for models that
+     * ignore the array contract.
+     */
+    private static void expandCondition(Map<String, Object> condition, List<Map<String, Object>> into) {
+        Object field = condition.get("field");
+        Object operator = condition.get("operator");
+        boolean negate = Boolean.TRUE.equals(condition.get("negate"));
+        String effectiveOperator = operator == null ? null : (negate ? "NOT_" + operator : String.valueOf(operator));
+
+        List<?> values;
+        if (condition.get("values") instanceof List<?> list) {
+            values = list;
+        } else if (condition.get("value") != null) {
+            values = List.of(condition.get("value"));
+        } else {
+            values = List.of();
         }
-        String type = String.valueOf(node.getOrDefault("type", "")).toUpperCase();
-        switch (type) {
-            case "CONDITION" -> into.add(node);
-            case "AND", "OR" -> {
-                if (node.get("children") instanceof List<?> children) {
-                    for (Object child : children) {
-                        if (child instanceof Map<?, ?> m) {
-                            flatten((Map<String, Object>) m, into);
-                        }
-                    }
-                }
-            }
-            case "NOT" -> {
-                if (node.get("child") instanceof Map<?, ?> child) {
-                    flatten((Map<String, Object>) child, into);
-                }
-            }
-            default -> {
-                if (node.containsKey("field")) { // model returned a bare condition without "type"
-                    into.add(node);
-                }
-            }
+        for (Object value : values) {
+            Map<String, Object> leaf = new LinkedHashMap<>();
+            leaf.put("field", field);
+            leaf.put("operator", effectiveOperator);
+            leaf.put("value", value);
+            into.add(leaf);
         }
     }
 
