@@ -99,7 +99,7 @@ public class BenchmarkLocalModels {
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
     record CliArgs(String backend, String baseUrlOverride, List<String> modelNames, boolean thinkDisabled,
-                    boolean debugRaw) {
+                    boolean debugRaw, String mode) {
     }
 
     public static void main(String[] args) throws Exception {
@@ -109,8 +109,10 @@ public class BenchmarkLocalModels {
             System.err.println("WARN: --think has no effect on --backend=ollama "
                     + "(Ollama's native \"think\":false is unconditional already)");
         }
-        ApiClient client = cli.backend().equals("mlx") ? new MlxClient(baseUrl, cli.thinkDisabled(), cli.debugRaw())
-                : new OllamaClient(baseUrl, cli.debugRaw());
+        boolean schemaMode = cli.mode().equals("schema");
+        ApiClient client = cli.backend().equals("mlx")
+                ? new MlxClient(baseUrl, cli.thinkDisabled(), schemaMode, cli.debugRaw())
+                : new OllamaClient(baseUrl, schemaMode, cli.debugRaw());
 
         LocalDate today = LocalDate.now();
         String systemPrompt = buildSystemPrompt(today);
@@ -167,6 +169,7 @@ public class BenchmarkLocalModels {
         List<String> models = new ArrayList<>();
         boolean thinkDisabled = false;
         boolean debugRaw = false;
+        String mode = "freeform";
         for (String arg : args) {
             if (arg.equals("--help") || arg.equals("-h")) {
                 printUsage();
@@ -184,6 +187,8 @@ public class BenchmarkLocalModels {
                 thinkDisabled = value.equals("off");
             } else if (arg.equals("--debug-raw")) {
                 debugRaw = true;
+            } else if (arg.startsWith("--mode=")) {
+                mode = arg.substring("--mode=".length());
             } else if (arg.startsWith("--")) {
                 System.err.println("Unknown flag: " + arg);
                 System.err.println("Run with --help for usage.");
@@ -196,7 +201,11 @@ public class BenchmarkLocalModels {
             System.err.println("Unknown --backend value: " + backend + " (expected 'ollama' or 'mlx')");
             System.exit(1);
         }
-        return new CliArgs(backend, baseUrlOverride, models, thinkDisabled, debugRaw);
+        if (!mode.equals("freeform") && !mode.equals("schema")) {
+            System.err.println("Unknown --mode value: " + mode + " (expected 'freeform' or 'schema')");
+            System.exit(1);
+        }
+        return new CliArgs(backend, baseUrlOverride, models, thinkDisabled, debugRaw, mode);
     }
 
     private static void printUsage() {
@@ -213,6 +222,14 @@ public class BenchmarkLocalModels {
                   --debug-raw            Capture each call's full raw HTTP response body (before any
                                          parsing) and include it in the generated report as a
                                          "Raw responses" appendix, for failed cases only.
+                  --mode=freeform|schema Freeform JSON completion (default) or schema-constrained
+                                         output. In schema mode, Ollama gets the FilterNode JSON
+                                         Schema via its native "format" field (grammar-constrained
+                                         decoding, works for any model); the MLX backend attempts the
+                                         OpenAI-style "response_format":{"type":"json_schema",...}
+                                         field, best-effort — mlx_lm.server's support for it is
+                                         version-dependent, and a rejection surfaces as a normal
+                                         per-case/per-model failure like any other HTTP error.
                   --help, -h             Show this help and exit
 
                 Backend defaults:
@@ -605,11 +622,20 @@ public class BenchmarkLocalModels {
 
     static final class OllamaClient implements ApiClient {
         private final String baseUrl;
+        private final boolean schemaMode;
         private final boolean debugRaw;
 
-        OllamaClient(String baseUrl, boolean debugRaw) {
+        OllamaClient(String baseUrl, boolean schemaMode, boolean debugRaw) {
             this.baseUrl = baseUrl;
+            this.schemaMode = schemaMode;
             this.debugRaw = debugRaw;
+        }
+
+        /** "json" (generic JSON-mode) in freeform mode, or the FilterNode JSON Schema object in schema
+         * mode — Ollama's native "format" field accepts either, spliced in unescaped (it's a JSON value,
+         * not a JSON string). */
+        private String formatField() {
+            return schemaMode ? FILTER_NODE_SCHEMA_JSON : "\"json\"";
         }
 
         @Override
@@ -641,9 +667,9 @@ public class BenchmarkLocalModels {
                 throws IOException, InterruptedException {
             String payload = """
                     {"model":%s,"messages":[{"role":"system","content":%s},{"role":"user","content":%s}],
-                    "think":false,"stream":false,"format":"json",
+                    "think":false,"stream":false,"format":%s,
                     "options":{"temperature":0,"num_ctx":4096,"num_predict":512}}
-                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(query));
+                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(query), formatField());
             HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl.stripTrailing().replaceAll("/$", "")
                             + "/api/chat"))
                     .timeout(Duration.ofSeconds(300))
@@ -670,9 +696,9 @@ public class BenchmarkLocalModels {
         public Long timeToFirstTokenMs(String model, String systemPrompt, String query) {
             String payload = """
                     {"model":%s,"messages":[{"role":"system","content":%s},{"role":"user","content":%s}],
-                    "think":false,"stream":true,"format":"json",
+                    "think":false,"stream":true,"format":%s,
                     "options":{"temperature":0,"num_ctx":4096,"num_predict":512}}
-                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(query));
+                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(query), formatField());
             try {
                 HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl.replaceAll("/$", "") + "/api/chat"))
                         .timeout(Duration.ofSeconds(300))
@@ -741,11 +767,13 @@ public class BenchmarkLocalModels {
     static final class MlxClient implements ApiClient {
         private final String baseUrl;
         private final boolean thinkDisabled;
+        private final boolean schemaMode;
         private final boolean debugRaw;
 
-        MlxClient(String baseUrl, boolean thinkDisabled, boolean debugRaw) {
+        MlxClient(String baseUrl, boolean thinkDisabled, boolean schemaMode, boolean debugRaw) {
             this.baseUrl = baseUrl;
             this.thinkDisabled = thinkDisabled;
+            this.schemaMode = schemaMode;
             this.debugRaw = debugRaw;
         }
 
@@ -753,6 +781,16 @@ public class BenchmarkLocalModels {
          * system prompt, so there's no risk of mlx_lm.server rejecting an unrecognized JSON field. */
         private String effectiveQuery(String query) {
             return thinkDisabled ? query + "\n\n/no_think" : query;
+        }
+
+        /** OpenAI-style structured-outputs field, best-effort — mlx_lm.server's support for it is
+         * version-dependent; omitted entirely in freeform mode (unchanged existing payload). */
+        private String responseFormatField() {
+            return schemaMode
+                    ? ",\"response_format\":{\"type\":\"json_schema\",\"json_schema\":{"
+                            + "\"name\":\"customer_filter\",\"strict\":true,\"schema\":"
+                            + FILTER_NODE_SCHEMA_JSON + "}}"
+                    : "";
         }
 
         @Override
@@ -780,8 +818,9 @@ public class BenchmarkLocalModels {
                 throws IOException, InterruptedException {
             String payload = """
                     {"model":%s,"messages":[{"role":"system","content":%s},{"role":"user","content":%s}],
-                    "temperature":0,"max_tokens":512,"stream":false}
-                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(effectiveQuery(query)));
+                    "temperature":0,"max_tokens":512,"stream":false%s}
+                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(effectiveQuery(query)),
+                    responseFormatField());
             HttpRequest request = HttpRequest.newBuilder(
                             URI.create(baseUrl.replaceAll("/$", "") + "/v1/chat/completions"))
                     .timeout(Duration.ofSeconds(300))
@@ -818,8 +857,9 @@ public class BenchmarkLocalModels {
         public Long timeToFirstTokenMs(String model, String systemPrompt, String query) {
             String payload = """
                     {"model":%s,"messages":[{"role":"system","content":%s},{"role":"user","content":%s}],
-                    "temperature":0,"max_tokens":512,"stream":true}
-                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(effectiveQuery(query)));
+                    "temperature":0,"max_tokens":512,"stream":true%s}
+                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(effectiveQuery(query)),
+                    responseFormatField());
             try {
                 HttpRequest request = HttpRequest.newBuilder(
                                 URI.create(baseUrl.replaceAll("/$", "") + "/v1/chat/completions"))
