@@ -16,6 +16,8 @@ java BenchmarkLocalModels.java                          # auto-discovers tool-ca
 java BenchmarkLocalModels.java llama3.1:8b qwen3:8b      # or benchmark specific models
 java BenchmarkLocalModels.java --backend=mlx             # benchmark the model loaded in mlx_lm.server
 java BenchmarkLocalModels.java --backend=mlx --base-url=http://localhost:9000
+java BenchmarkLocalModels.java --mode=schema             # schema-constrained instead of free-text JSON
+java BenchmarkLocalModels.java --backend=mlx --think=off --debug-raw mlx-community/Qwen3-14B-4bit
 java BenchmarkLocalModels.java --help                    # full usage/flags
 ```
 
@@ -61,6 +63,55 @@ isn't directly comparable to Ollama's on-device-only timing.
 **Unrelated to the `-mlx`-suffixed models in the results table below** (e.g. `qwen3.5:4b-mlx`,
 `gemma4:26b-mlx`) — those are Apple-Silicon-optimized quantizations run *through Ollama's own
 runtime* (`--backend=ollama`, the default), not through this MLX Server backend.
+
+### Diagnosing `<think>`-block/reasoning-mode issues (`--think`, `--debug-raw`)
+
+Reasoning-capable models (Qwen3 and others) can spend their entire `max_tokens`/`num_predict` budget
+on an internal `<think>...</think>` block before ever emitting the JSON answer — on the MLX backend
+this showed up as `mlx-community/Qwen3-14B-4bit` scoring 22/32 with a 22011 ms median latency and
+several completely empty responses (see `benchmark-report-2026-07-14-214443.md`).
+
+- `--think=on|off` (MLX backend only, default `on`): when `off`, appends Qwen3's documented
+  `/no_think` soft-switch to the user query, disabling its internal reasoning step. This is plain
+  user-turn text, not an API parameter, so it works regardless of the installed `mlx_lm.server`
+  version. Ollama already always sends `"think":false` natively — the flag is a no-op there.
+- `--debug-raw`: captures each call's full, unprocessed HTTP response body (before any JSON parsing
+  or regex fallback) and includes it in the generated `.md` report as a `## Raw responses: <model>`
+  appendix, for failed cases only. Use this together with `--think=off` to inspect exactly what a
+  reasoning model returned when a case fails.
+
+See `benchmark-report-2026-07-15-*.md` for the thinking-disabled re-run and its conclusion.
+
+## Schema-constrained output (`--mode=schema`)
+
+By default (`--mode=freeform`, unchanged), the model is asked to produce JSON purely through prompt
+instructions — every one of the three 2026-07-14 reports shows this breaking down in the same ways
+across nearly every model/backend tested: duplicate JSON keys (e.g. two `"children"` keys in one
+object, where the second silently wins and the first list is lost), `NOT` emitting `children`
+instead of `child`, truncated/unbalanced JSON, or fields returned as unstructured strings.
+
+`--mode=schema` instead constrains generation with a hand-rolled JSON Schema for the `FilterNode`
+tree (recursive via `$defs`/`$ref`, one branch per node type with `additionalProperties:false` and a
+single `required` `children`/`child` key), enforcing the same shape production defines in
+`FilterNode.java`/`Operator.java`:
+
+- **Ollama**: the schema is passed directly in the native `/api/chat` request's `"format"` field
+  (grammar-constrained decoding) instead of the generic `"format":"json"` string. This works for
+  *any* model Ollama can serve — no tool-calling capability required — so enabling schema mode for a
+  new Ollama model needs no code change, just `--mode=schema <model>`.
+- **MLX server**: sent as an OpenAI-style `"response_format":{"type":"json_schema","json_schema":
+  {...,"strict":true}}` field, best-effort — `mlx_lm.server`'s support for this is version-dependent.
+  If the server rejects it, that surfaces as a normal per-case/per-model failure (same as any other
+  HTTP error), not a crash.
+
+**A/B result** (`llama3.1:8b`, `qwen3:8b`, same 32 cases, freeform vs. schema — see
+`benchmark-report-2026-07-15-102828.md` for the full comparison): accuracy delta was 0 for both
+models, with **zero regressions** — every case that passed in freeform still passes in schema mode.
+Critically, **all malformed-JSON symptoms disappeared** (no duplicate keys, no truncation, no
+`child`/`children` confusion) — the schema structurally cannot produce them. The handful of
+remaining failures are semantic reasoning mistakes (e.g. a condition dropped rather than nested)
+that persist because valid JSON isn't the same as *correct* JSON — schema-constrained output fixes
+the shape problem, not the reasoning problem.
 
 ## Recorded results
 
