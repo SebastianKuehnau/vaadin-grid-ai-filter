@@ -98,13 +98,18 @@ public class BenchmarkLocalModels {
     private static final String MLX_DEFAULT_BASE_URL = "http://localhost:8090";
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
-    record CliArgs(String backend, String baseUrlOverride, List<String> modelNames) {
+    record CliArgs(String backend, String baseUrlOverride, List<String> modelNames, boolean thinkDisabled) {
     }
 
     public static void main(String[] args) throws Exception {
         CliArgs cli = parseArgs(args);
         String baseUrl = resolveBaseUrl(cli);
-        ApiClient client = cli.backend().equals("mlx") ? new MlxClient(baseUrl) : new OllamaClient(baseUrl);
+        if (cli.thinkDisabled() && cli.backend().equals("ollama")) {
+            System.err.println("WARN: --think has no effect on --backend=ollama "
+                    + "(Ollama's native \"think\":false is unconditional already)");
+        }
+        ApiClient client = cli.backend().equals("mlx") ? new MlxClient(baseUrl, cli.thinkDisabled())
+                : new OllamaClient(baseUrl);
 
         LocalDate today = LocalDate.now();
         String systemPrompt = buildSystemPrompt(today);
@@ -158,6 +163,7 @@ public class BenchmarkLocalModels {
         String backend = "ollama";
         String baseUrlOverride = null;
         List<String> models = new ArrayList<>();
+        boolean thinkDisabled = false;
         for (String arg : args) {
             if (arg.equals("--help") || arg.equals("-h")) {
                 printUsage();
@@ -166,6 +172,13 @@ public class BenchmarkLocalModels {
                 backend = arg.substring("--backend=".length());
             } else if (arg.startsWith("--base-url=")) {
                 baseUrlOverride = arg.substring("--base-url=".length());
+            } else if (arg.startsWith("--think=")) {
+                String value = arg.substring("--think=".length());
+                if (!value.equals("on") && !value.equals("off")) {
+                    System.err.println("Unknown --think value: " + value + " (expected 'on' or 'off')");
+                    System.exit(1);
+                }
+                thinkDisabled = value.equals("off");
             } else if (arg.startsWith("--")) {
                 System.err.println("Unknown flag: " + arg);
                 System.err.println("Run with --help for usage.");
@@ -178,7 +191,7 @@ public class BenchmarkLocalModels {
             System.err.println("Unknown --backend value: " + backend + " (expected 'ollama' or 'mlx')");
             System.exit(1);
         }
-        return new CliArgs(backend, baseUrlOverride, models);
+        return new CliArgs(backend, baseUrlOverride, models, thinkDisabled);
     }
 
     private static void printUsage() {
@@ -188,6 +201,10 @@ public class BenchmarkLocalModels {
                 Options:
                   --backend=ollama|mlx   Backend to benchmark against (default: ollama)
                   --base-url=<url>       Override the backend's base URL
+                  --think=on|off         Disable Qwen3-style <think> reasoning by appending /no_think
+                                         to the user query (MLX backend only; default: on/unchanged).
+                                         Ollama already always sends "think":false, so this flag is a
+                                         no-op there.
                   --help, -h             Show this help and exit
 
                 Backend defaults:
@@ -199,7 +216,8 @@ public class BenchmarkLocalModels {
                   java BenchmarkLocalModels.java
                   java BenchmarkLocalModels.java llama3.1:8b qwen3:8b
                   java BenchmarkLocalModels.java --backend=mlx
-                  java BenchmarkLocalModels.java --backend=mlx --base-url=http://localhost:9000""");
+                  java BenchmarkLocalModels.java --backend=mlx --base-url=http://localhost:9000
+                  java BenchmarkLocalModels.java --backend=mlx --think=off mlx-community/Qwen3-14B-4bit""");
     }
 
     private static String resolveBaseUrl(CliArgs cli) {
@@ -636,9 +654,17 @@ public class BenchmarkLocalModels {
 
     static final class MlxClient implements ApiClient {
         private final String baseUrl;
+        private final boolean thinkDisabled;
 
-        MlxClient(String baseUrl) {
+        MlxClient(String baseUrl, boolean thinkDisabled) {
             this.baseUrl = baseUrl;
+            this.thinkDisabled = thinkDisabled;
+        }
+
+        /** Qwen3's documented, server-version-independent soft-switch: plain user-turn text, never the
+         * system prompt, so there's no risk of mlx_lm.server rejecting an unrecognized JSON field. */
+        private String effectiveQuery(String query) {
+            return thinkDisabled ? query + "\n\n/no_think" : query;
         }
 
         @Override
@@ -667,7 +693,7 @@ public class BenchmarkLocalModels {
             String payload = """
                     {"model":%s,"messages":[{"role":"system","content":%s},{"role":"user","content":%s}],
                     "temperature":0,"max_tokens":512,"stream":false}
-                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(query));
+                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(effectiveQuery(query)));
             HttpRequest request = HttpRequest.newBuilder(
                             URI.create(baseUrl.replaceAll("/$", "") + "/v1/chat/completions"))
                     .timeout(Duration.ofSeconds(300))
@@ -705,7 +731,7 @@ public class BenchmarkLocalModels {
             String payload = """
                     {"model":%s,"messages":[{"role":"system","content":%s},{"role":"user","content":%s}],
                     "temperature":0,"max_tokens":512,"stream":true}
-                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(query));
+                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(effectiveQuery(query)));
             try {
                 HttpRequest request = HttpRequest.newBuilder(
                                 URI.create(baseUrl.replaceAll("/$", "") + "/v1/chat/completions"))
