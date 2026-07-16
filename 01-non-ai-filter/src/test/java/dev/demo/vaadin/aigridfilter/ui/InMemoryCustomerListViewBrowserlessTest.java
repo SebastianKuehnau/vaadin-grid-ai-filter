@@ -20,7 +20,7 @@ class InMemoryCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
 
     @Test
     void allCustomersShownInitially() {
-        GridTester<?, Customer> grid = test(navigate(InMemoryCustomerListView.class).getGrid());
+        GridTester<?, Customer> grid = test(navigate(InMemoryCustomerListView.class).grid);
 
         assertThat(grid.size()).isEqualTo(100);
     }
@@ -28,7 +28,7 @@ class InMemoryCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
     @Test
     void sortingByCompanyNameWorks() {
         InMemoryCustomerListView view = navigate(InMemoryCustomerListView.class);
-        GridTester<?, Customer> grid = test(view.getGrid());
+        GridTester<?, Customer> grid = test(view.grid);
 
         grid.sortByColumn("companyName", SortDirection.ASCENDING);
 
@@ -39,9 +39,9 @@ class InMemoryCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
     @Test
     void filterBySpecificPersonWorks() {
         InMemoryCustomerListView view = navigate(InMemoryCustomerListView.class);
-        test(view.getFilterField()).setValue("Laura Schmidt");
+        test(view.filterField).setValue("Laura Schmidt");
 
-        GridTester<?, Customer> grid = test(view.getGrid());
+        GridTester<?, Customer> grid = test(view.grid);
         assertThat(grid.size()).isEqualTo(1);
         assertThat(grid.getRow(0).getContactName()).isEqualTo("Laura Schmidt");
     }
@@ -49,9 +49,9 @@ class InMemoryCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
     @Test
     void filterByYesterdaysDateWorks() {
         InMemoryCustomerListView view = navigate(InMemoryCustomerListView.class);
-        test(view.getFilterField()).setValue(LocalDate.now().minusDays(1).toString());
+        test(view.filterField).setValue(LocalDate.now().minusDays(1).toString());
 
-        GridTester<?, Customer> grid = test(view.getGrid());
+        GridTester<?, Customer> grid = test(view.grid);
         assertThat(grid.size()).isGreaterThanOrEqualTo(1);
         assertThat(rows(grid)).extracting(Customer::getCompanyName).contains("Berlin Data Works");
     }
@@ -59,9 +59,9 @@ class InMemoryCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
     @Test
     void filterByCityBerlinWorks() {
         InMemoryCustomerListView view = navigate(InMemoryCustomerListView.class);
-        test(view.getFilterField()).setValue("Berlin");
+        test(view.filterField).setValue("Berlin");
 
-        GridTester<?, Customer> grid = test(view.getGrid());
+        GridTester<?, Customer> grid = test(view.grid);
         assertThat(grid.size()).isGreaterThan(0);
         assertThat(rows(grid)).extracting(customer -> customer.getAddress().getCity())
                 .containsOnly("Berlin");

@@ -1,9 +1,6 @@
 package dev.demo.vaadin.aigridfilter.ui;
 
 import com.vaadin.flow.component.AbstractField;
-import com.vaadin.flow.component.AttachEvent;
-import com.vaadin.flow.component.grid.ColumnTextAlign;
-import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
@@ -12,18 +9,14 @@ import com.vaadin.flow.router.RouteAlias;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
 
-import java.text.NumberFormat;
 import java.util.Comparator;
-import java.util.Locale;
 
 @Route("")
 @RouteAlias("in-memory")
 public class InMemoryCustomerListView extends VerticalLayout {
 
-    private static final NumberFormat REVENUE_FORMAT = NumberFormat.getNumberInstance(Locale.GERMANY);
-
-    private final Grid<Customer> grid;
-    private final TextField filterField;
+    final CustomerGrid grid;
+    final TextField filterField;
     private final CustomerRepository customerRepository;
 
     public InMemoryCustomerListView(CustomerRepository customerRepository) {
@@ -36,63 +29,15 @@ public class InMemoryCustomerListView extends VerticalLayout {
         filterField.setWidthFull();
         add(filterField);
 
-        grid = new Grid<>(Customer.class);
-        grid.setColumns("companyName", "contactName", "email", "phone", "customerSince", "lastOrderDate");
-        grid.addColumn(customer -> customer.getAnnualRevenue() == null ?
-                        "" : REVENUE_FORMAT.format(customer.getAnnualRevenue()) + " €")
-                .setHeader("Annual Revenue").setKey("annualRevenue").setSortable(true)
-                .setComparator(Comparator.comparing(Customer::getAnnualRevenue, Comparator.nullsFirst(Comparator.naturalOrder())))
-                .setTextAlign(ColumnTextAlign.END);
-        grid.addColumn(Customer::getAddress).setHeader("Address").setKey("address").setSortable(true).setComparator(InMemoryCustomerListView::compareAddress).setFlexGrow(2);
-        grid.addComponentColumn(CreditScoreIndicator::new).setHeader("Credit Rating").setKey("creditRating")
-                .setSortable(true).setComparator(Comparator.comparingInt(Customer::getCreditScore));
+        grid = new CustomerGrid();
+        grid.getColumnByKey("annualRevenue").setSortable(true)
+                .setComparator(Comparator.comparing(Customer::getAnnualRevenue, Comparator.nullsFirst(Comparator.naturalOrder())));
+        grid.getColumnByKey("address").setSortable(true).setComparator(InMemoryCustomerListView::compareAddress);
+        grid.getColumnByKey("creditRating").setSortable(true).setComparator(Comparator.comparingInt(Customer::getCreditScore));
         grid.setItems(customerRepository.findAll());
-        grid.setSizeFull();
         add(grid);
 
         setSizeFull();
-    }
-
-    Grid<Customer> getGrid() {
-        return grid;
-    }
-
-    TextField getFilterField() {
-        return filterField;
-    }
-
-    /** Viewport width (px) at or above which the medium-priority columns are shown. */
-    private static final int MEDIUM_BREAKPOINT = 768;
-    /** Viewport width (px) at or above which the large-priority columns are shown. */
-    private static final int LARGE_BREAKPOINT = 1200;
-
-    @Override
-    protected void onAttach(AttachEvent attachEvent) {
-        var page = attachEvent.getUI().getPage();
-        // Apply once for the initial window size, then on every resize.
-        page.retrieveExtendedClientDetails(details -> applyResponsiveColumns(details.getWindowInnerWidth()));
-        page.addBrowserWindowResizeListener(event -> applyResponsiveColumns(event.getWidth()));
-    }
-
-    /**
-     * Shows or hides columns by priority based on the viewport width:
-     * <ul>
-     *     <li>always: Company Name, Contact Name, Credit Rating</li>
-     *     <li>medium (≥ {@value #MEDIUM_BREAKPOINT}px): + Address, Phone, Email</li>
-     *     <li>large (≥ {@value #LARGE_BREAKPOINT}px): + Customer Since, Last Order Date, Annual Revenue</li>
-     * </ul>
-     */
-    private void applyResponsiveColumns(int width) {
-        boolean medium = width >= MEDIUM_BREAKPOINT;
-        boolean large = width >= LARGE_BREAKPOINT;
-
-        grid.getColumnByKey("address").setVisible(medium);
-        grid.getColumnByKey("phone").setVisible(medium);
-        grid.getColumnByKey("email").setVisible(medium);
-
-        grid.getColumnByKey("customerSince").setVisible(large);
-        grid.getColumnByKey("lastOrderDate").setVisible(large);
-        grid.getColumnByKey("annualRevenue").setVisible(large);
     }
 
     private void onFilter(AbstractField.ComponentValueChangeEvent<TextField, String> event) {

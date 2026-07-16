@@ -30,7 +30,7 @@ class LazyCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
 
     @Test
     void allCustomersShownInitially() {
-        GridTester<?, Customer> grid = test(navigate(LazyCustomerListView.class).getGrid());
+        GridTester<?, Customer> grid = test(navigate(LazyCustomerListView.class).grid);
 
         assertThat(grid.size()).isEqualTo(100);
     }
@@ -38,7 +38,7 @@ class LazyCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
     @Test
     void sortingByCompanyNameWorks() {
         LazyCustomerListView view = navigate(LazyCustomerListView.class);
-        GridTester<?, Customer> grid = test(view.getGrid());
+        GridTester<?, Customer> grid = test(view.grid);
 
         grid.sortByColumn("companyName", SortDirection.ASCENDING);
 
@@ -50,7 +50,7 @@ class LazyCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
         LazyCustomerListView view = navigate(LazyCustomerListView.class);
         test(textFilter(view, "contactName")).setValue("Laura Schmidt");
 
-        GridTester<?, Customer> grid = test(view.getGrid());
+        GridTester<?, Customer> grid = test(view.grid);
         assertThat(grid.size()).isEqualTo(1);
         assertThat(grid.getRow(0).getContactName()).isEqualTo("Laura Schmidt");
     }
@@ -60,7 +60,7 @@ class LazyCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
         LazyCustomerListView view = navigate(LazyCustomerListView.class);
         test(dateFilter(view, "lastOrderDate")).setValue(LocalDate.now().minusDays(1));
 
-        GridTester<?, Customer> grid = test(view.getGrid());
+        GridTester<?, Customer> grid = test(view.grid);
         assertThat(rows(grid)).extracting(Customer::getCompanyName).contains("Berlin Data Works");
     }
 
@@ -69,7 +69,7 @@ class LazyCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
         LazyCustomerListView view = navigate(LazyCustomerListView.class);
         test(textFilter(view, "address")).setValue("Berlin");
 
-        GridTester<?, Customer> grid = test(view.getGrid());
+        GridTester<?, Customer> grid = test(view.grid);
         assertThat(grid.size()).isGreaterThan(0);
         assertThat(rows(grid)).extracting(customer -> customer.getAddress().getCity())
                 .containsOnly("Berlin");
@@ -81,7 +81,7 @@ class LazyCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
         test(textFilter(view, "companyName")).setValue("Berlin Data Works");
         test(textFilter(view, "address")).setValue("Berlin");
 
-        GridTester<?, Customer> grid = test(view.getGrid());
+        GridTester<?, Customer> grid = test(view.grid);
         assertThat(grid.size()).isEqualTo(1);
         assertThat(grid.getRow(0).getCompanyName()).isEqualTo("Berlin Data Works");
     }
@@ -103,7 +103,7 @@ class LazyCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
         test(dateFilter(view, "lastOrderDate")).setValue(yesterday);
         test((MultiSelectComboBox<?>) headerFilter(view, "creditRating")).selectItem("Creditworthy");
 
-        GridTester<?, Customer> grid = test(view.getGrid());
+        GridTester<?, Customer> grid = test(view.grid);
         List<String> actualCompanyNames = rows(grid).stream().map(Customer::getCompanyName).sorted().toList();
         assertThat(actualCompanyNames).isEqualTo(expectedCompanyNames);
     }
@@ -113,9 +113,9 @@ class LazyCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
     }
 
     private static Component headerFilter(LazyCustomerListView view, String columnKey) {
-        Grid<Customer> grid = view.getGrid();
+        Grid<Customer> grid = view.grid;
         // The default header row (column titles) is prepended; the filter fields live in the
-        // row appended afterwards by LazyCustomerListView, so it's the last one, not the first.
+        // row appended afterwards by FilterableCustomerGrid, so it's the last one, not the first.
         return grid.getHeaderRows().getLast().getCell(grid.getColumnByKey(columnKey)).getComponent();
     }
 
