@@ -1,7 +1,12 @@
 # 04-ollama-benchmark
 
-A standalone benchmark comparing local models — Ollama (default) or an MLX Server — for accuracy
-and speed on the natural-language-to-filter task used by `03-ai-structured-filter`.
+A standalone **prompt-reliability eval** comparing local models — Ollama (default) or an MLX
+Server — for accuracy and speed on the natural-language-to-filter task, covering **both** AI
+approaches this project demos: `02-ai-agent-filter`'s tool calling and `03-ai-structured-filter`'s
+structured output. Every case runs `--runs` times, so per-case **pass-rate** (not just a single
+pass/fail) is measurable — the point being to answer, after editing a system prompt or a
+`@ToolParam`/`@JsonPropertyDescription`, "does this still produce the correct filter with high
+probability, and did any case regress?" on a fast inner loop (`--quick`).
 
 This is **not a Maven module** — it is not listed in the root `pom.xml`'s `<modules>` and has no
 `pom.xml` of its own. `BenchmarkLocalModels.java` is a dependency-free, single-file Java program
@@ -12,13 +17,17 @@ context.
 
 ```bash
 cd 04-ollama-benchmark
-java BenchmarkLocalModels.java                          # auto-discovers tool-capable models from Ollama
-java BenchmarkLocalModels.java llama3.1:8b qwen3:8b      # or benchmark specific models
-java BenchmarkLocalModels.java --backend=mlx             # benchmark the model loaded in mlx_lm.server
+java BenchmarkLocalModels.java                                    # auto-discovers tool-capable models from Ollama
+java BenchmarkLocalModels.java llama3.1:8b qwen3:8b                # or benchmark specific models
+java BenchmarkLocalModels.java --approach=both --runs=5            # both AI approaches, 5 runs/case, full set
+java BenchmarkLocalModels.java --approach=tool-calling --runs=3     # only 02's tool-calling approach
+java BenchmarkLocalModels.java --quick --runs=3                    # fast edit-loop subset (5 cases)
+java BenchmarkLocalModels.java --min-pass-rate=0.8 --runs=5         # exit non-zero if any pass rate < 0.8
+java BenchmarkLocalModels.java --backend=mlx                       # benchmark the model loaded in mlx_lm.server
 java BenchmarkLocalModels.java --backend=mlx --base-url=http://localhost:9000
-java BenchmarkLocalModels.java --mode=schema             # schema-constrained instead of free-text JSON
+java BenchmarkLocalModels.java --mode=schema                       # schema-constrained instead of free-text JSON
 java BenchmarkLocalModels.java --backend=mlx --think=off --debug-raw mlx-community/Qwen3-14B-4bit
-java BenchmarkLocalModels.java --help                    # full usage/flags
+java BenchmarkLocalModels.java --help                              # full usage/flags
 ```
 
 By default it talks to Ollama at `OLLAMA_BASE_URL` (default `http://localhost:11434`), so start
@@ -28,37 +37,89 @@ Ollama and pull the models to compare first. With `--backend=mlx`, it talks to a
 base URL can be overridden with `--base-url=<url>`. Results are printed to the console and written
 as `benchmark-report-<timestamp>.md`/`.txt` in the current directory.
 
-The script extracts the real system prompt directly from
-`../03-ai-structured-filter/src/main/java/dev/demo/vaadin/aigridfilter/ai/CustomerSearchStructuredOutputService.java`,
-so it cannot drift from production behaviour, and runs the same natural-language queries as that
-module's `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT` (33 cases, including the German ones)
-— see that module's README for what each query tests. `CustomerFilter` is a flat list of conditions
-(all AND-combined; cross-field OR and arbitrary nesting were dropped as a deliberate trade-off for
-faster/more reliable structured output — see "Flat schema migration: before/after" below for the
-measured latency/accuracy delta).
+### Both AI approaches, no drift
 
-### Strict scoring: catching over-generation and wrong-magnitude numbers
+`--approach=tool-calling|structured|both` (default `structured`, unchanged from before) selects
+which of the two production AI layers to evaluate, each driven by the **real** system prompt (and,
+for tool calling, the real `searchCustomers` tool/argument schema) extracted at runtime from that
+module's production source — never hard-coded, so the eval cannot drift from what the app does:
 
-Scoring is tolerant by default (case-insensitive value substring, any accepted operator, extra
-conditions on other fields ignored) — necessary since the LLM is non-deterministic. Two opt-in,
-per-case/per-criterion strict behaviors close specific gaps that let wrong output score as correct,
-without changing the default for every other case:
+- **`structured`**: extracted from
+  `../03-ai-structured-filter/src/main/java/dev/demo/vaadin/aigridfilter/ai/CustomerSearchStructuredOutputService.java`
+  (the `CustomerFilter`/flat-conditions-list shape).
+- **`tool-calling`**: extracted from
+  `../02-ai-agent-filter/src/main/java/dev/demo/vaadin/aigridfilter/ai/CustomerSearchToolCallingService.java`
+  — the `SYSTEM_PROMPT` constant plus the `searchCustomers` `@Tool`/`@ToolParam` descriptions, from
+  which the tool's JSON Schema is built at runtime (the JSON-Schema *structure* per Java type —
+  `List<String>` → array of strings, `List<CreditRating>` → enum, `List<RevenueRange>` → object with
+  `atLeast`/`atMost` — is inherent Java-type-to-schema plumbing, not "the prompt"). Talks to
+  Ollama's/the OpenAI-compatible API's native tool-calling (`tools`/`tool_calls`), single round trip
+  — it does not implement the two-hop `currentLocalDateTime()` chain relative-date queries need,
+  matching the same capability gap already documented in `02`'s own `CustomerSearchAgentIT`.
 
-- **No-extra-fields guard** (`TestCase.ofStrict(name, query, allowedFields, ...)`): fails a case if
-  the model emits a condition on a field outside an explicit allow-list, catching a hallucinated
-  extra filter (e.g. an unasked-for `annualRevenue` condition on "customers in Berlin"). Applied to
-  the single-/two-field, unambiguous cases (e.g. `singleCity`, `contactNameAndCity`,
-  `citiesWithRevenueRange`).
-- **Exact-numeric matching** (`ExpectedCriterion.ofExactNumeric(field, operator, value)`): requires
-  the value to parse to the exact same number as expected (formatting/currency/thousands-separators
-  tolerated), instead of a substring match — so a required `1000` no longer accepts a returned
-  `1000000`. Applied only to pure integer fields (`annualRevenue`); date/year values (e.g.
-  `lastOrderDate`) stay substring-tolerant, since models legitimately emit them as `"2020-01-01"`.
+Each run's console line and report row is labeled with its approach, and a log line names the
+source file each prompt was extracted from (proving no hard-coded copy).
 
-Three robustness/anti-hallucination cases exercise this: `smalltalk_noCriteria` and
-`unrelatedRequest_noCriteria` (small talk / an off-topic query must yield an empty filter), and
+The case list mirrors the aligned `CustomerSearchAgentIT` suites (see
+`tasks/align-ai-integration-tests.md`) exactly — 16 cases shared by both approaches (same method
+names/wording as `02`'s and `03`'s `CustomerSearchAgentIT`), plus 20 structured-only cases mirroring
+`03`'s `CustomerSearchAgentExtraIT` (negation, operator precision, relative dates — capabilities
+tool calling's flat `CustomerSearchCriteria` can't express — plus 3 anti-hallucination cases from
+`tasks/harden-filter-test-assertions.md`, never verified against tool calling either).
+`--approach=tool-calling` therefore runs 16 cases; `structured` and `both` run all 36.
+
+### Pass-rate over K runs (`--runs`)
+
+`--runs=N` (default `1`, i.e. today's single-shot pass/fail) runs every case `N` times and reports,
+per case, a pass-rate of the form `passes/N`, plus an aggregate mean pass-rate per model/approach —
+this is what makes a prompt-reliability *regression* visible (a case dropping from 3/3 to 2/3 across
+edits) instead of a single non-deterministic pass/fail.
+
+### Field-precise scoring
+
+Each case has one exact expected outcome (which field(s) must be set, to which value, and — where
+the approach exposes it — which operator/negation; every other field must stay empty). A run passes
+a case only if **every** expected field is correct **and every unexpected field is empty** — so a
+model that populates an unexpected field (e.g. a company-name query leaking into `email`) is scored
+as a failure for that case, not a pass. Value matching stays tolerant (case-insensitive substring,
+and revenue thresholds accept headroom instead of the literal number, mirroring the aligned ITs'
+tolerance); field placement, operator, and negation are scored exactly. The report's "Per-field
+accuracy" table (per model × approach, across the case suite × runs) is the annotation-tuning
+readout — it localizes exactly which `@ToolParam`/`@JsonPropertyDescription` is weak.
+
+### Fast edit-loop subset (`--quick`)
+
+`--quick` runs 5 representative cases instead of the full 36/16: `singleCity` (plain text),
+`companyNameContains` (a cross-field-leak risk case — company name could leak into
+`email`/`contactName`), `annualRevenueOverThreshold` (numeric-tolerant revenue threshold),
+`citiesAndRevenue_keepsEveryCondition` (multi-field AND), and `singleFalseCity` (structured-only
+negation, so `--approach=both --quick` still exercises the capability gap). This is the loop to run
+after every prompt edit; the full set is the considered verdict before committing.
+
+### Scriptable gate (`--min-pass-rate`)
+
+`--min-pass-rate=<X>` (0..1) makes the program exit non-zero if any evaluated model/approach's
+aggregate mean pass rate falls below `X`, and exit zero otherwise — for wiring this eval into a
+regression check on top of manual runs (not a CI gate on its own; see "Not a CI gate" below).
+
+### Exact-numeric matching: catching wrong-magnitude numbers
+
+Field-precise scoring above already catches over-generation (any field not in a case's expected set
+must stay empty, for every case, always). One further opt-in, per-criterion strict behavior closes a
+gap that field-precision alone doesn't: value matching normally stays tolerant (case-insensitive
+substring, and revenue thresholds accept headroom instead of the literal number). **Exact-numeric
+matching** (`new NumericExact(field, value)`) instead requires the value to parse to the exact same
+number as expected (formatting/currency/thousands-separators tolerated), instead of a substring or
+headroom-tolerant threshold — so a required `1000` no longer accepts a returned `1000000`. Applied
+only to a genuinely exact query (`revenueExact_notOverGenerated`); the range-style revenue cases
+(`citiesAndRevenue_keepsEveryCondition`, `citiesWithRevenueRange`, the `notInCityWithRevenue...`
+cases) keep their deliberately headroom-tolerant `NumericAtLeast`/`NumericAtMost` matching.
+
+Three robustness/anti-hallucination cases exercise this (structured-only — never verified against
+`02`'s flat `CustomerSearchCriteria`): `smalltalk_noCriteria` and `unrelatedRequest_noCriteria`
+(small talk / an off-topic query must yield an empty filter, i.e. every field stays empty), and
 `revenueExact_notOverGenerated` ("exactly 100000 in annual revenue" — `EQUALS` on a numeric field,
-exact value, and the no-extra-fields guard together).
+exact value, with every other field required to stay empty by the universal field-precision check).
 
 ## MLX Server backend
 
@@ -102,9 +163,11 @@ several completely empty responses (see `benchmark-report-2026-07-14-214443.md`)
   user-turn text, not an API parameter, so it works regardless of the installed `mlx_lm.server`
   version. Ollama already always sends `"think":false` natively — the flag is a no-op there.
 - `--debug-raw`: captures each call's full, unprocessed HTTP response body (before any JSON parsing
-  or regex fallback) and includes it in the generated `.md` report as a `## Raw responses: <model>`
-  appendix, for failed cases only. Use this together with `--think=off` to inspect exactly what a
-  reasoning model returned when a case fails.
+  or regex fallback) and includes it in the generated `.md` report as a
+  `## Raw responses (--debug-raw): <model> [<approach>]` appendix, for failed runs only. Use this
+  together with `--think=off` to inspect exactly what a reasoning model returned when a case fails —
+  this is also how the tool-calling approach's JSON-encoded-string-instead-of-array quirk for
+  `annualRevenue` (see `normalizeToolCallArgs` in the source) was originally found.
 
 See `benchmark-report-2026-07-15-*.md` for the thinking-disabled re-run and its conclusion.
 
@@ -159,9 +222,12 @@ correctly every time; see `03-ai-structured-filter`'s README for that model-capa
 
 ## Recorded results
 
-**Predates the flat-schema migration** (32 cases, old recursive `FilterNode` tree, `--mode=freeform`)
-— see "Flat schema migration: before/after" above for the directly-comparable old-tree-vs-new-flat
-numbers. Kept here as a multi-model accuracy/speed comparison; re-run with the current 30 cases if
+**Predates both the flat-schema migration and the case-set alignment with `02`/`03`'s ITs** (32
+cases, old recursive `FilterNode` tree, `--mode=freeform`, single-shot accuracy — no `--runs`/
+`--approach` yet) — see "Flat schema migration: before/after" above for the directly-comparable
+old-tree-vs-new-flat numbers. Kept here as a multi-model accuracy/speed comparison; re-run with the
+current case set (36 for `--approach=structured`, 16 for `tool-calling`; see "Both AI approaches, no
+drift" above) if
 you want up-to-date numbers for a model not covered above.
 
 **Test system:** MacBook Pro, Apple **M2 Pro** (12 cores: 8 performance + 4 efficiency), 32 GB
