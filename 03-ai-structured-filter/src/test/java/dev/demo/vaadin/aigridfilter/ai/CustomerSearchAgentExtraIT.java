@@ -29,6 +29,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>{@code anti-hallucination} — combines an exact-numeric value check with the "no conditions
  *       outside an allow-list" guard (see {@link CustomerSearchAgentIT}'s Javadoc); {@code 02}'s model
  *       has no exact-value/no-extras contract to hold to this precision</li>
+ *   <li>{@code fuzzy-match} — {@code phoneNumberContains} is expressible via 02's flat
+ *       {@code CustomerSearchCriteria} too, but doesn't reliably pass there against its default
+ *       {@code llama3.1:8b} (observed hallucinating an unrelated phone number during alignment
+ *       testing), so per the "shared set = reliably-passing intersection" rule it stays here
+ *       instead of {@code CustomerSearchAgentIT}</li>
  * </ul>
  * Cross-field OR and arbitrary nesting are no longer part of {@link CustomerFilter} either (a
  * deliberate trade-off for faster/more reliable structured output from small/local models), so the
@@ -42,6 +47,15 @@ class CustomerSearchAgentExtraIT {
 
     @Autowired
     CustomerSearchStructuredOutputService service;
+
+    @Test
+    @Tag("fuzzy-match")
+    void phoneNumberContains() {
+        CustomerFilter filter = service.requestFilter(
+                "show me the customer with the phone number 5020000001 or similar");
+        assertThat(hasCondition(filter, "phone", Operator.CONTAINS.toString(), "5020000001")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "phone")).isTrue();
+    }
 
     @Test
     @Tag("negation")

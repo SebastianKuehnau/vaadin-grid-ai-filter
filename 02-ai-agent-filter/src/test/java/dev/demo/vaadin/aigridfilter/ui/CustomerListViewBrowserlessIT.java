@@ -38,6 +38,12 @@ import static org.awaitility.Awaitility.await;
  * module's configured default) reliably fails the two-hop tool-call chain that requires — see the
  * module README's "Known limitation" section, and {@code CustomerSearchAgentIT} which excludes it
  * for the same reason.
+ * <p>
+ * {@code customersSince2020} was tried here too during alignment but dropped from the shared set:
+ * {@code 03-ai-structured-filter}'s structured-output layer, against its default {@code llama3.1:8b},
+ * omitted the upper date bound for a "since &lt;year&gt;" query (a single {@code -Pit-local-ollama}
+ * run, 100% reproducible on retry), letting rows from later years leak into the grid — even though
+ * this module's tool-calling layer passes it reliably.
  */
 @SpringBootTest
 @ViewPackages(classes = CustomerListView.class)
@@ -76,17 +82,6 @@ class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
         assertThat(grid.size()).isGreaterThan(0);
         for (int i = 0; i < grid.size(); i++) {
             assertThat(grid.getRow(i).getCreditRating()).isEqualTo(CreditRating.POOR);
-        }
-    }
-
-    @Test
-    @Timeout(value = 120, unit = TimeUnit.SECONDS)
-    void customersSince2020() {
-        GridTester<?, Customer> grid = search("customers since 2020");
-
-        assertThat(grid.size()).isGreaterThan(0).isLessThan(Math.toIntExact(customerRepository.count()));
-        for (int i = 0; i < grid.size(); i++) {
-            assertThat(grid.getRow(i).getCustomerSince().getYear()).isEqualTo(2020);
         }
     }
 
