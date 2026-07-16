@@ -16,9 +16,12 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Integration tests of the AI layer (natural language -> {@link CustomerFilter}) against a real Ollama.
- * Run with {@code -Pit-local-ollama} (see {@code 03-ai-structured-filter/pom.xml}), or directly with
- * {@code -Dit.test=CustomerSearchAgentIT}.
+ * Integration tests of the AI layer (natural language -> {@link CustomerFilter}) against a real
+ * Ollama. Run with {@code -Pit-local-ollama} (see {@code 03-ai-structured-filter/pom.xml}), which
+ * targets a native Ollama instance at {@code OLLAMA_BASE_URL} by default (pass
+ * {@code -DAI_TEST_PROFILE=mlx|cloud} to target another backend instead); or directly with
+ * {@code -Dit.test=CustomerSearchAgentIT}. There is no reachability probe — if the backend isn't
+ * reachable, the run fails rather than skipping.
  * <p>
  * Assertions are tolerant by default: the LLM is non-deterministic, so we only check that the expected
  * condition is present <em>somewhere</em> in the flat conditions list (field + value substring),
@@ -38,11 +41,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       emit them as {@code "2020-01-01"}.</li>
  * </ul>
  * <p>
- * Every case here uses the exact same wording/values as one of {@code 02-ai-agent-filter}'s
- * {@code CustomerSearchAgentIT} cases, so the two modules' results and timings are directly
- * comparable. Cases that need a capability {@code 02}'s flat {@code CustomerSearchCriteria} model
- * cannot express at all (negation, STARTS_WITH/ENDS_WITH/EQUALS precision, arbitrary date bounds)
- * have no counterpart there and live separately in {@link CustomerSearchAgentExtraIT}.
+ * Every case here uses the exact same method name, wording/values, and source order as the
+ * corresponding case in {@code 02-ai-agent-filter}'s {@code CustomerSearchAgentIT}, so the two
+ * modules' results and timings are directly comparable — verified by extracting and diffing the
+ * (method name, query) pairs of both classes. Cases that need a capability {@code 02}'s flat
+ * {@code CustomerSearchCriteria} model cannot express at all (negation, STARTS_WITH/ENDS_WITH/EQUALS
+ * precision, arbitrary date bounds) have no counterpart there and live separately in
+ * {@link CustomerSearchAgentExtraIT}.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
         "spring.autoconfigure.exclude=com.vaadin.flow.spring.SpringBootAutoConfiguration"
@@ -61,12 +66,101 @@ class CustomerSearchAgentIT {
     }
 
     @Test
+    void creditworthyCustomers() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerFilter filter = service.requestFilter("show me all creditworthy customers");
+        assertThat(hasCondition(filter, "creditRating",
+                new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "good", "creditworthy")).isTrue();
+    }
+
+    @Test
+    void atRiskCustomers() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerFilter filter = service.requestFilter("show me all customers that are at risk");
+        assertThat(hasCondition(filter, "creditRating",
+                new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "poor", "risk")).isTrue();
+    }
+
+    @Test
+    void creditworthyInCity() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT.creditworthyInCity, for direct comparability.
+        CustomerFilter filter = service.requestFilter("creditworthy customers in Hamburg");
+        assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "hamburg")).isTrue();
+        assertThat(hasCondition(filter, "creditRating",
+                new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "good", "creditworthy")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "city", "creditRating")).isTrue();
+    }
+
+    @Test
+    void contactNameContains() {
+        CustomerFilter filter = service.requestFilter(
+                "show me all customers with \"meyer\" in the contact name");
+        assertThat(hasCondition(filter, "contactName", Operator.CONTAINS.toString(), "meyer")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "contactName")).isTrue();
+    }
+
+    @Test
+    void companyNameContains() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerFilter filter = service.requestFilter("customers whose company name contains data");
+        assertThat(hasCondition(filter, "companyName", Operator.CONTAINS.toString(), "data")).isTrue();
+    }
+
+    @Test
+    void customerSinceYear() {
+        CustomerFilter filter = service.requestFilter("customers since 2020");
+        assertThat(hasCondition(filter, "customerSince", Operator.GREATER_OR_EQUAL.toString(), "2020")).isTrue();
+    }
+
+    @Test
+    void germanPhoneNumberNormalizedToE164() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerFilter filter = service.requestFilter(
+                "show me the customer with phone number 030 10023757");
+        assertThat(hasCondition(filter, "phone", new String[0], "3010023757")).isTrue();
+    }
+
+    @Test
+    void phoneNumberContains() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerFilter filter = service.requestFilter(
+                "show me the customer with the phone number 5020000001 or similar");
+        assertThat(hasCondition(filter, "phone", Operator.CONTAINS.toString(), "5020000001")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "phone")).isTrue();
+    }
+
+    @Test
     void multiValueCities() {
         // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT.multiValueCities, for direct comparability.
         CustomerFilter filter = service.requestFilter("show me customers from Berlin or Hamburg");
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "hamburg")).isTrue();
         assertThat(hasNoConditionsOutside(filter, "city")).isTrue();
+    }
+
+    @Test
+    void multiValueCreditRating() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerFilter filter = service.requestFilter("show me customers with GOOD or MEDIUM credit rating");
+        assertThat(hasCondition(filter, "creditRating",
+                new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "good", "creditworthy")).isTrue();
+        assertThat(hasCondition(filter, "creditRating",
+                new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "medium", "moderate")).isTrue();
+    }
+
+    @Test
+    void multiValueCustomerSinceYears() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerFilter filter = service.requestFilter("customers since 2020 or 2021");
+        assertThat(hasCondition(filter, "customerSince", Operator.GREATER_OR_EQUAL.toString(), "2020")).isTrue();
+        assertThat(hasCondition(filter, "customerSince", Operator.GREATER_OR_EQUAL.toString(), "2021")).isTrue();
+    }
+
+    @Test
+    void annualRevenueOverThreshold() {
+        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerFilter filter = service.requestFilter("show me customers with annual revenue over 200000");
+        assertThat(hasCondition(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "200000")).isTrue();
     }
 
     @Test
@@ -91,105 +185,11 @@ class CustomerSearchAgentIT {
     }
 
     @Test
-    void contactNameContains() {
-        CustomerFilter filter = service.requestFilter(
-                "show me all customers with \"meyer\" in the contact name");
-        assertThat(hasCondition(filter, "contactName", Operator.CONTAINS.toString(), "meyer")).isTrue();
-        assertThat(hasNoConditionsOutside(filter, "contactName")).isTrue();
-    }
-
-    @Test
-    void phoneNumberContains() {
-        CustomerFilter filter = service.requestFilter(
-                "show me the customer with the phone number 5020000001 or similar");
-        assertThat(hasCondition(filter, "phone", Operator.CONTAINS.toString(), "5020000001")).isTrue();
-        assertThat(hasNoConditionsOutside(filter, "phone")).isTrue();
-    }
-
-    @Test
-    void germanPhoneNumberNormalizedToE164() {
-        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
-        CustomerFilter filter = service.requestFilter(
-                "show me the customer with phone number 030 10023757");
-        assertThat(hasCondition(filter, "phone", new String[0], "3010023757")).isTrue();
-    }
-
-    @Test
-    void customerSinceYear() {
-        CustomerFilter filter = service.requestFilter("customers since 2020");
-        assertThat(hasCondition(filter, "customerSince", Operator.GREATER_OR_EQUAL.toString(), "2020")).isTrue();
-    }
-
-    @Test
-    void multiValueCustomerSinceYears() {
-        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
-        CustomerFilter filter = service.requestFilter("customers since 2020 or 2021");
-        assertThat(hasCondition(filter, "customerSince", Operator.GREATER_OR_EQUAL.toString(), "2020")).isTrue();
-        assertThat(hasCondition(filter, "customerSince", Operator.GREATER_OR_EQUAL.toString(), "2021")).isTrue();
-    }
-
-    @Test
-    void annualRevenueOverThreshold() {
-        // Same wording/threshold as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
-        CustomerFilter filter = service.requestFilter("show me customers with annual revenue over 200000");
-        assertThat(hasCondition(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "200000")).isTrue();
-    }
-
-    @Test
     void country() {
         CustomerFilter filter = service.requestFilter("customers in Germany");
         assertThat(hasCondition(filter, "country",
                 new String[]{Operator.CONTAINS.toString(), Operator.EQUALS.toString()}, "germany")).isTrue();
         assertThat(hasNoConditionsOutside(filter, "country")).isTrue();
-    }
-
-    @Test
-    void companyNameContains() {
-        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
-        CustomerFilter filter = service.requestFilter("customers whose company name contains data");
-        assertThat(hasCondition(filter, "companyName", Operator.CONTAINS.toString(), "data")).isTrue();
-    }
-
-    @Test
-    void creditworthyCustomers() {
-        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
-        CustomerFilter filter = service.requestFilter("show me all creditworthy customers");
-        assertThat(hasCondition(filter, "creditRating",
-                new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "good", "creditworthy")).isTrue();
-    }
-
-    @Test
-    void atRiskCustomers() {
-        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
-        CustomerFilter filter = service.requestFilter("show me all customers that are at risk");
-        assertThat(hasCondition(filter, "creditRating",
-                new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "poor", "risk")).isTrue();
-    }
-
-    @Test
-    void multiValueCreditRating() {
-        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT, for direct comparability.
-        CustomerFilter filter = service.requestFilter("show me customers with GOOD or MEDIUM credit rating");
-        assertThat(hasCondition(filter, "creditRating",
-                new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "good", "creditworthy")).isTrue();
-        assertThat(hasCondition(filter, "creditRating",
-                new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "medium", "moderate")).isTrue();
-    }
-
-    @Test
-    void creditworthyInCity() {
-        // Same wording as 02-ai-agent-filter's CustomerSearchAgentIT.creditworthyInCity, for direct comparability.
-        CustomerFilter filter = service.requestFilter("creditworthy customers in Hamburg");
-        assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "hamburg")).isTrue();
-        assertThat(hasCondition(filter, "creditRating",
-                new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "good", "creditworthy")).isTrue();
-        assertThat(hasNoConditionsOutside(filter, "city", "creditRating")).isTrue();
-    }
-
-    @Test
-    void showAllCustomers_noCriteria() {
-        CustomerFilter filter = service.requestFilter("show all customers");
-        assertThat(flatten(filter)).isEmpty();
     }
 
     @Test
@@ -226,6 +226,12 @@ class CustomerSearchAgentIT {
         assertThat(hasCondition(filter, "contactName", new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "julia")).isTrue();
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
         assertThat(hasNoConditionsOutside(filter, "contactName", "city")).isTrue();
+    }
+
+    @Test
+    void showAllCustomers_noCriteria() {
+        CustomerFilter filter = service.requestFilter("show all customers");
+        assertThat(flatten(filter)).isEmpty();
     }
 
     /** One expanded (field, operator, value) leaf; {@code operator} gets a synthetic {@code NOT_} prefix when negated. */

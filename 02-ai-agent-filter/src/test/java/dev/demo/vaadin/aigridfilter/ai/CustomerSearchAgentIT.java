@@ -15,10 +15,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration tests of the AI layer (natural language -> {@link CustomerSearchCriteria}) against a
- * real Ollama. Extends {@link LocalOllamaTests}, which provides the connection to a native Ollama
- * instance (no Docker) and skips gracefully when it is unreachable. Run with
- * {@code -Pit-local-ollama} (see {@code 02-ai-agent-filter/pom.xml}), or directly with
- * {@code -Dit.test=CustomerSearchAgentIT}.
+ * real Ollama. Run with {@code -Pit-local-ollama} (see {@code 02-ai-agent-filter/pom.xml}), which
+ * targets a native Ollama instance at {@code OLLAMA_BASE_URL} by default (pass
+ * {@code -DAI_TEST_PROFILE=mlx|cloud} to target another backend instead); or directly with
+ * {@code -Dit.test=CustomerSearchAgentIT}. There is no reachability probe — if the backend isn't
+ * reachable, the run fails rather than skipping.
  * <p>
  * Assertions are tolerant: the LLM is non-deterministic, so values are checked case-insensitively
  * and by substring rather than exact equality. Unlike {@code 03-ai-structured-filter}'s
@@ -27,12 +28,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * asserted with {@code anySatisfy}/{@code contains}, and multi-value queries assert on all expected
  * entries.
  * <p>
- * Every case here uses the exact same wording/values as one of {@code 03-ai-structured-filter}'s
- * {@code CustomerSearchAgentIT} cases, so the two modules' results and timings are directly
- * comparable. That module has additional cases with no counterpart here (tagged {@code negation},
- * {@code operator-precision}, {@code relative-date}, {@code cross-field-or}, {@code nested-tree}),
+ * Every case here uses the exact same method name, wording/values, and source order as the
+ * corresponding case in {@code 03-ai-structured-filter}'s {@code CustomerSearchAgentIT}, so the two
+ * modules' results and timings are directly comparable — verified by extracting and diffing the
+ * (method name, query) pairs of both classes. That module has additional cases with no counterpart
+ * here, in its own {@code CustomerSearchAgentExtraIT} (tagged {@code negation} and
+ * {@code operator-precision}, plus arbitrary-date-bound cases tagged {@code relative-date}),
  * because this module's flat {@link CustomerSearchCriteria} can't express NOT, STARTS_WITH/ENDS_WITH,
- * arbitrary date bounds, or OR/nesting across different fields — see that class's Javadoc.
+ * or arbitrary date bounds — see that class's Javadoc.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
         "spring.autoconfigure.exclude=com.vaadin.flow.spring.SpringBootAutoConfiguration"
@@ -101,6 +104,14 @@ class CustomerSearchAgentIT {
         CustomerSearchCriteria criteria = agent.requestCriteria(
                 "show me the customer with phone number 030 10023757");
         assertThat(criteria.phone()).anySatisfy(phone -> assertThat(phone).contains("3010023757"));
+    }
+
+    @Test
+    void phoneNumberContains() {
+        // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerSearchCriteria criteria = agent.requestCriteria(
+                "show me the customer with the phone number 5020000001 or similar");
+        assertThat(criteria.phone()).anySatisfy(phone -> assertThat(phone).contains("5020000001"));
     }
 
     @Test
