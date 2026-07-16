@@ -12,6 +12,11 @@ structured-output approach in `03-ai-structured-filter`.
   query (and blurring/pressing enter) sends it to the AI layer; a blank query resets to all rows.
   The view has zero Spring AI imports — it only knows `CustomerSearchAgent` and applies the
   `Specification` it returns.
+- **`CustomerGrid`** — the `Grid<Customer>` itself (column config, backend sort configuration, and
+  responsive show/hide), extracted out of the view. Unlike `01-non-ai-filter`'s
+  `CustomerGrid`/`FilterableCustomerGrid` split, this module has a single fixed sort strategy and no
+  per-column filter fields (filtering is the one AI `TextField` above), so sort config lives inside
+  `CustomerGrid` rather than being applied by the view afterward.
 
 ## AI layer (`ai` / `ai/filter`)
 
@@ -176,6 +181,7 @@ itself) — see `OllamaTestSupport`.
 ## Sources
 
 - `src/main/java/dev/demo/vaadin/aigridfilter/ui/CustomerListView.java` — the view
+- `src/main/java/dev/demo/vaadin/aigridfilter/ui/CustomerGrid.java` — the grid (columns, sort, responsive layout)
 - `src/main/java/dev/demo/vaadin/aigridfilter/ai/` — the AI layer (see above)
 - `src/main/java/dev/demo/vaadin/aigridfilter/data/` — the shared `Customer`/`Address` JPA model
 - `src/main/resources/data.sql` — seed data (100 customers)
