@@ -155,13 +155,13 @@ class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
      */
     private GridTester<?, Customer> search(String query) {
         CustomerListView view = navigate(CustomerListView.class);
-        test(view.getFilterField()).setValue(query);
+        test(view.filterField).setValue(query);
 
         await().pollInSameThread().atMost(Duration.ofSeconds(90)).untilAsserted(() -> {
             MockVaadin.runUIQueue();
-            assertThat(view.getFilterField().isEnabled()).isTrue();
+            assertThat(view.filterField.isEnabled()).isTrue();
         });
 
-        return test(view.getGrid());
+        return test(view.grid);
     }
 }

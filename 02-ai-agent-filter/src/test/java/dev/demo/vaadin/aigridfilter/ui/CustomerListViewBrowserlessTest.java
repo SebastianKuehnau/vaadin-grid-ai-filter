@@ -65,9 +65,9 @@ class CustomerListViewBrowserlessTest extends SpringBrowserlessTest {
     @Test
     void typingQueryNarrowsGridToFakeAgentsResult() {
         CustomerListView view = navigate(CustomerListView.class);
-        test(view.getFilterField()).setValue("anything - the fake agent ignores the actual text");
+        test(view.filterField).setValue("anything - the fake agent ignores the actual text");
 
-        GridTester<?, Customer> grid = test(view.getGrid());
+        GridTester<?, Customer> grid = test(view.grid);
         // pollInSameThread(): MockVaadin.runUIQueue() needs UI.getCurrent(), a ThreadLocal only
         // set on this test thread, not on Awaitility's default background poll thread. It flushes
         // the ui.access(...) commands the background search thread queued.
@@ -81,9 +81,9 @@ class CustomerListViewBrowserlessTest extends SpringBrowserlessTest {
     @Test
     void multiValueQueryNarrowsGridToOrMatchedRows() {
         CustomerListView view = navigate(CustomerListView.class);
-        test(view.getFilterField()).setValue(MULTI_VALUE_QUERY);
+        test(view.filterField).setValue(MULTI_VALUE_QUERY);
 
-        GridTester<?, Customer> grid = test(view.getGrid());
+        GridTester<?, Customer> grid = test(view.grid);
         await().pollInSameThread().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
             MockVaadin.runUIQueue();
             assertThat(grid.size()).isEqualTo(2);
@@ -95,9 +95,9 @@ class CustomerListViewBrowserlessTest extends SpringBrowserlessTest {
     @Test
     void blankQueryResetsToAllRows() {
         CustomerListView view = navigate(CustomerListView.class);
-        test(view.getFilterField()).setValue("narrow it first");
+        test(view.filterField).setValue("narrow it first");
 
-        GridTester<?, Customer> grid = test(view.getGrid());
+        GridTester<?, Customer> grid = test(view.grid);
         // pollInSameThread(): MockVaadin.runUIQueue() needs UI.getCurrent(), a ThreadLocal only
         // set on this test thread, not on Awaitility's default background poll thread. It flushes
         // the ui.access(...) commands the background search thread queued.
@@ -106,7 +106,7 @@ class CustomerListViewBrowserlessTest extends SpringBrowserlessTest {
             assertThat(grid.size()).isEqualTo(1);
         });
 
-        test(view.getFilterField()).setValue("");
+        test(view.filterField).setValue("");
 
         assertThat(grid.size()).isEqualTo((int) customerRepository.count());
     }

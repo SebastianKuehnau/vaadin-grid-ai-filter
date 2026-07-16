@@ -35,10 +35,10 @@ public class CustomerListView extends VerticalLayout {
 
     private static final NumberFormat REVENUE_FORMAT = NumberFormat.getNumberInstance(Locale.GERMANY);
 
-    private final Grid<Customer> grid;
+    final Grid<Customer> grid;
     private final CustomerRepository customerRepository;
     private final CustomerSearchAgent searchAgent;
-    private final TextField filterField;
+    final TextField filterField;
 
     public CustomerListView(CustomerRepository customerRepository, CustomerSearchAgent searchAgent) {
         this.customerRepository = customerRepository;
@@ -136,13 +136,5 @@ public class CustomerListView extends VerticalLayout {
                 query -> customerRepository.findAll(specification,
                         VaadinSpringDataHelpers.toSpringPageRequest(query)).stream(),
                 _ -> Math.toIntExact(customerRepository.count(specification)));
-    }
-
-    Grid<Customer> getGrid() {
-        return grid;
-    }
-
-    TextField getFilterField() {
-        return filterField;
     }
 }
