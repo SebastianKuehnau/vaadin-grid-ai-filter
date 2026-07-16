@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Integration tests of the AI layer (natural language -> {@link CustomerFilter}) against a real
  * Ollama. Run with {@code -Pit-local-ollama} (see {@code 03-ai-structured-filter/pom.xml}), which
  * targets a native Ollama instance at {@code OLLAMA_BASE_URL} by default (pass
- * {@code -DAI_TEST_PROFILE=mlx|cloud} to target another backend instead); or directly with
+ * {@code -DAI_TEST_PROFILE=openai} to target the real OpenAI API instead); or directly with
  * {@code -Dit.test=CustomerSearchAgentIT}. There is no reachability probe — if the backend isn't
  * reachable, the run fails rather than skipping.
  * <p>

@@ -29,9 +29,9 @@ import static org.awaitility.Awaitility.await;
  * Runs standalone rather than sharing a base class with {@code CustomerSearchAgentIT}: browserless
  * testing needs the default {@code MOCK} web environment and Vaadin's Spring Boot autoconfiguration,
  * so the backend wiring is duplicated here rather than inherited. Which of the app's
- * {@code ollama}(default)/{@code mlx}/{@code cloud} Spring profiles {@code AI_TEST_PROFILE} selects
+ * {@code ollama}/{@code openai}(default) Spring profiles {@code AI_TEST_PROFILE} selects
  * comes from {@code src/test/resources/application.properties}'s
- * {@code spring.profiles.active=${AI_TEST_PROFILE:cloud}}. There is no reachability probe — if the
+ * {@code spring.profiles.active=${AI_TEST_PROFILE:openai}}. There is no reachability probe — if the
  * backend isn't reachable, the run fails rather than skipping, same as {@code CustomerSearchAgentIT}.
  * <p>
  * No relative-date case (e.g. "customers who ordered yesterday"): {@code llama3.1:8b} (this

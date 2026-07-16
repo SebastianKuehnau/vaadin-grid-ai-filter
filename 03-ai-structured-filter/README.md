@@ -76,17 +76,20 @@ recursive tree — see `../04-ollama-benchmark`'s recorded latency/accuracy comp
 
 The AI layer only ever talks to a generic Spring AI `ChatModel` bean — switching between backends
 is purely a matter of which Spring profile is active (`application-<profile>.properties`), never a
-code change. `mlx`/`cloud` both speak the OpenAI-compatible chat completions API
+code change. `openai` speaks the OpenAI-compatible chat completions API
 (`spring-ai-starter-model-openai`); `ollama` uses Spring AI's *native* Ollama binding
 (`spring-ai-starter-model-ollama`) instead — see the trade-off note below for why.
 
 ```bash
-./mvnw -pl 03-ai-structured-filter spring-boot:run                                    # ollama (default, no profile needed)
-./mvnw -pl 03-ai-structured-filter spring-boot:run -Dspring-boot.run.profiles=mlx     # mlx_lm.server, Apple Silicon only
-./mvnw -pl 03-ai-structured-filter spring-boot:run -Dspring-boot.run.profiles=cloud   # real OpenAI API
+./mvnw -pl 03-ai-structured-filter spring-boot:run                                     # openai (default, no profile needed)
+./mvnw -pl 03-ai-structured-filter spring-boot:run -Dspring-boot.run.profiles=ollama   # local Ollama
 ```
 
-- **`ollama`** (default) — a local Ollama instance via Spring AI's *native* Ollama binding (not the
+- **`openai`** (default) — the real OpenAI API. Requires the `OPENAI_API_KEY` environment variable
+  (never hardcoded/committed); without it the app still starts (a dummy fallback key avoids a
+  boot-time crash) but real requests fail with 401, caught by the same
+  fallback-to-unrestricted-specification path as any other model failure.
+- **`ollama`** — a local Ollama instance via Spring AI's *native* Ollama binding (not the
   OpenAI-compatible endpoint — see below). Start Ollama and pull the model first:
   ```bash
   ollama pull llama3.1:8b
@@ -94,21 +97,8 @@ code change. `mlx`/`cloud` both speak the OpenAI-compatible chat completions API
   Other models benchmarked against this module in `../04-ollama-benchmark`: `qwen3.5:4b-mlx`,
   `qwen3:8b`, `gemma4:26b-mlx` — swap `spring.ai.ollama.chat.model` in
   `application-ollama.properties` to try one.
-- **`mlx`** — a local [`mlx_lm.server`](https://github.com/ml-explore/mlx-lm) instance (Apple
-  Silicon only, doesn't run in a Linux container). Start it manually on the host first, e.g.:
-  ```bash
-  mlx_lm.server --model mlx-community/Meta-Llama-3.1-8B-Instruct-4bit --port 8090
-  ```
-  Adjust `spring.ai.openai.chat.model` in `application-mlx.properties` to whatever model you
-  actually loaded. If the app itself runs inside a container that needs to reach a host-side
-  `mlx_lm.server`, point `MLX_BASE_URL` at `http://host.docker.internal:8090` instead of
-  `localhost`, following the same pattern as `OLLAMA_BASE_URL`.
-- **`cloud`** — the real OpenAI API. Requires the `OPENAI_API_KEY` environment variable (never
-  hardcoded/committed); without it the app still starts (a dummy fallback key avoids a boot-time
-  crash) but real requests fail with 401, caught by the same fallback-to-unrestricted-specification
-  path as any other model failure.
 
-**Why `ollama` uses a different starter than `mlx`/`cloud`:** Ollama's OpenAI-compatible endpoint
+**Why `ollama` uses a different starter than `openai`:** Ollama's OpenAI-compatible endpoint
 (`/v1/chat/completions`) silently ignores `"think":false` and `"options":{"num_ctx":...}` — verified
 empirically against Ollama 0.32.0 (`qwen3:8b` kept reasoning regardless of `think:false`; a
 requested `num_ctx` never changed the loaded model's actual context size per `/api/ps`). Both are
@@ -116,8 +106,8 @@ fully honored on Ollama's *native* `/api/chat` endpoint, which is what `spring-a
 talks to. Since Spring Boot autoconfigures one `ChatModel` bean per starter present on the
 classpath, both starters are declared in `pom.xml` and `spring.ai.model.chat` picks which one wins
 per profile (`openai` by default in `application.properties`, overridden to `ollama` in
-`application-ollama.properties`) — `mlx`/`cloud` still go through the OpenAI-compatible surface,
-since `mlx_lm.server`/the real OpenAI API don't speak Ollama's native protocol.
+`application-ollama.properties`) — `openai` still goes through the OpenAI-compatible surface,
+since the real OpenAI API doesn't speak Ollama's native protocol.
 
 `application-ollama.properties` sets `spring.ai.ollama.chat.think=false` (llama3.1:8b never
 "thinks" anyway, but this matters the moment you swap in a reasoning-capable model like `qwen3:8b` —
@@ -130,12 +120,12 @@ without it, such a model burns hundreds of tokens on a `<think>` block per call)
 ```bash
 ./mvnw -pl 03-ai-structured-filter test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
 ./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama     # CustomerSearchAgentIT(+Extra) + CustomerListViewBrowserlessIT vs native Ollama (skip if unreachable)
-./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=cloud   # same suite, against the cloud (or mlx) profile instead
+./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API instead
 ```
 
-`-Pit-local-ollama` targets the `ollama` profile by default; `-DAI_TEST_PROFILE=mlx|cloud` (or the
+`-Pit-local-ollama` targets the `ollama` profile by default; `-DAI_TEST_PROFILE=openai` (or the
 `AI_TEST_PROFILE` environment variable, if you prefer) points the exact same test classes at the
-app's other Spring profiles instead (respecting `MLX_BASE_URL`/`OPENAI_API_KEY`, same as the app
+app's `openai` Spring profile instead (respecting `OPENAI_API_KEY`, same as the app
 itself) — see `src/test/resources/application.properties`.
 
 > **Note:** the module's configured default model, `llama3.1:8b`, is occasionally unreliable on

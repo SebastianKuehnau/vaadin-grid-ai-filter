@@ -31,7 +31,7 @@
 		</dependency>
 		<dependency>
 			<!-- ollama profile only: native Ollama binding, so "think"/"num_ctx" are actually honored
-			     (Ollama's OpenAI-compatible endpoint silently ignores both). mlx/cloud profiles keep
+			     (Ollama's OpenAI-compatible endpoint silently ignores both). The openai profile keeps
 			     using the OpenAI-compatible starter above; see spring.ai.model.chat in application*.properties. -->
 			<groupId>org.springframework.ai</groupId>
 			<artifactId>spring-ai-starter-model-ollama</artifactId>
@@ -119,9 +119,9 @@
 	<profiles>
 		<profile>
 			<!-- Runs CustomerSearchAgentIT (extends LocalOllamaTests) against a native Ollama instance
-			     (OLLAMA_BASE_URL) by default; pass -DAI_TEST_PROFILE=mlx|cloud (or set it as an env
-			     var) to target one of the app's other Spring profiles instead (also respects
-			     MLX_BASE_URL/OPENAI_API_KEY). -->
+			     (OLLAMA_BASE_URL) by default; pass -DAI_TEST_PROFILE=openai (or set it as an env
+			     var) to target the app's openai Spring profile instead (also respects
+			     OPENAI_API_KEY). -->
 			<id>it-local-ollama</id>
 			<build>
 				<plugins>
