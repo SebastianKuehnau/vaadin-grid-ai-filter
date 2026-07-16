@@ -43,7 +43,15 @@ A task is only finished when:
 4. For new filter capabilities: a corresponding test case has also been added to
    `04-ollama-benchmark/BenchmarkLocalModels.java`.
 
+Points 1–3 apply before **every** commit, not only at the end of the task.
 Iterate on your own until all points are met before reporting the task as done.
+
+## Plan approval gate
+
+When a task requests a plan first: present the plan, then STOP and wait for an
+explicit go-ahead before changing any file. A later check-in from the user is
+never "stale" — treat it as authoritative. Do not begin implementation, commits,
+or file changes on your own initiative.
 
 ## Conventions
 
@@ -53,6 +61,15 @@ Iterate on your own until all points are met before reporting the task as done.
   (01 → 02 → 03 increase in complexity; same domain, different filtering mechanism).
 - CSS belongs in theme files, not inline in Java components.
 - Commit after every completed, verified step (Conventional Commits, no push).
+- Never commit benchmark reports, logs, or other generated artifacts unless the
+    task explicitly says so — they are covered by .gitignore; verify the staged
+    file list (`git status`) before every commit.
+- For Spring test configuration, prefer test-scoped `application.properties`
+  files over custom `ActiveProfilesResolver` or `@DynamicPropertySource`
+  mechanisms — choose the simplest configuration approach that works.
+- Only launch subagents with a concrete deliverable and a step limit, and show
+  their results directly — never wait silently on background agents. If a file
+  referenced by the task is missing, stop and report instead of improvising.
 
 ## Guidelines & Skills
 
