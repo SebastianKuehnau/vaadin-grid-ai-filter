@@ -26,19 +26,18 @@ import static org.awaitility.Awaitility.await;
  * {@link CustomerListViewBrowserlessTest} (fast, fake agent, no LLM) and {@code CustomerSearchAgentIT}
  * (real backend, but bypasses the UI).
  * <p>
- * Deliberately extends {@link SpringBrowserlessTest} rather than {@code LocalOllamaTests}: the
- * two can't be combined by inheritance (browserless testing needs the default {@code MOCK} web
- * environment and Vaadin's Spring Boot autoconfiguration, both of which {@code LocalOllamaTests}
- * turns off for its own UI-less use case), so the backend wiring below is duplicated rather than
- * inherited. Which of the app's {@code ollama}(default)/{@code mlx}/{@code cloud} Spring profiles
- * {@code AI_TEST_PROFILE} selects comes from {@code src/test/resources/application.properties}'s
- * {@code spring.profiles.active=${AI_TEST_PROFILE:ollama}} — see {@link OllamaTestSupport} for the
- * reachability probe — and skips gracefully when that backend isn't reachable, same as
- * {@code CustomerSearchAgentIT}.
+ * Runs standalone rather than sharing a base class with {@code CustomerSearchAgentIT}: browserless
+ * testing needs the default {@code MOCK} web environment and Vaadin's Spring Boot autoconfiguration,
+ * so the backend wiring is duplicated here rather than inherited. Which of the app's
+ * {@code ollama}(default)/{@code mlx}/{@code cloud} Spring profiles {@code AI_TEST_PROFILE} selects
+ * comes from {@code src/test/resources/application.properties}'s
+ * {@code spring.profiles.active=${AI_TEST_PROFILE:cloud}}. There is no reachability probe — if the
+ * backend isn't reachable, the run fails rather than skipping, same as {@code CustomerSearchAgentIT}.
  * <p>
- * Uses the <em>same 5 queries</em> as {@code 02-ai-agent-filter}'s
- * {@code CustomerListViewBrowserlessIT}, so the two modules' {@code -Pit-local-ollama} runs are
- * directly comparable on speed and result quality between tool calling and structured output.
+ * Uses the <em>same 8 queries</em>, method names, and source order as {@code 02-ai-agent-filter}'s
+ * {@code CustomerListViewBrowserlessIT} — verified by extracting and diffing the (method name,
+ * query) pairs of both classes — so the two modules' {@code -Pit-local-ollama} runs are directly
+ * comparable on speed and result quality between tool calling and structured output.
  */
 @SpringBootTest
 @ViewPackages(classes = CustomerListView.class)

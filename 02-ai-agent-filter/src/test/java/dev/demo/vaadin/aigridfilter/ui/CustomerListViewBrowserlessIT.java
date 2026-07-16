@@ -18,7 +18,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Browserless UI integration test against a real AI backend — no fake {@code CustomerSearchAgent}
@@ -27,15 +26,13 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * {@link CustomerListViewBrowserlessTest} (fast, fake agent, no LLM) and {@code CustomerSearchAgentIT}
  * (real backend, but bypasses the UI).
  * <p>
- * Deliberately extends {@link SpringBrowserlessTest} rather than {@code LocalOllamaTests}: the two
- * can't be combined by inheritance (browserless testing needs the default {@code MOCK} web
- * environment and Vaadin's Spring Boot autoconfiguration, both of which {@code LocalOllamaTests}
- * turns off for its own UI-less use case), so the backend wiring below is duplicated rather than
- * inherited. Which of the app's {@code ollama}(default)/{@code mlx}/{@code cloud} Spring profiles
- * {@code AI_TEST_PROFILE} selects comes from {@code src/test/resources/application.properties}'s
- * {@code spring.profiles.active=${AI_TEST_PROFILE:ollama}} — see {@link OllamaTestSupport} for the
- * reachability probe — and skips gracefully when that backend isn't reachable, same as
- * {@code CustomerSearchAgentIT}.
+ * Runs standalone rather than sharing a base class with {@code CustomerSearchAgentIT}: browserless
+ * testing needs the default {@code MOCK} web environment and Vaadin's Spring Boot autoconfiguration,
+ * so the backend wiring is duplicated here rather than inherited. Which of the app's
+ * {@code ollama}(default)/{@code mlx}/{@code cloud} Spring profiles {@code AI_TEST_PROFILE} selects
+ * comes from {@code src/test/resources/application.properties}'s
+ * {@code spring.profiles.active=${AI_TEST_PROFILE:cloud}}. There is no reachability probe — if the
+ * backend isn't reachable, the run fails rather than skipping, same as {@code CustomerSearchAgentIT}.
  * <p>
  * No relative-date case (e.g. "customers who ordered yesterday"): {@code llama3.1:8b} (this
  * module's configured default) reliably fails the two-hop tool-call chain that requires — see the
@@ -48,12 +45,6 @@ class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
 
     @Autowired
     private CustomerRepository customerRepository;
-
-//    @BeforeAll
-//    static void requireReachableBackend() {
-//        assumeTrue(OllamaTestSupport.reachable(), "AI backend (profile '" + OllamaTestSupport.profile()
-//                + "') not reachable at " + OllamaTestSupport.baseUrl() + " — skipping");
-//    }
 
     @Test
     @Timeout(value = 120, unit = TimeUnit.SECONDS)
