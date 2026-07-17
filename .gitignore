@@ -7,3 +7,4 @@ src/main/frontend/generated/
 
 # Generated benchmark artifacts (see CLAUDE.md conventions)
 **/benchmark-results/
+**/benchmark-report-*
