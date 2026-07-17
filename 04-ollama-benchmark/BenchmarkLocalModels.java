@@ -490,7 +490,7 @@ public class BenchmarkLocalModels {
                 ExpectedCriterion.of("lastOrderDate", "LESS_OR_EQUAL", "2024-12-31")));
 
         // --- robustness / anti-hallucination cases ---
-        cases.add(TestCase.of("smalltalk_noCriteria", "How are you doing today?"));
+        cases.add(TestCase.of("smalltalk_noCriteria", "Nice weather today, isn't it?"));
         cases.add(TestCase.of("unrelatedRequest_noCriteria", "What's the capital of France?"));
         cases.add(TestCase.ofStrict("revenueExact_notOverGenerated",
                 "customers with exactly 100000 in annual revenue", Set.of("annualRevenue"),

@@ -200,7 +200,7 @@ class CustomerSearchAgentIT {
 
     @Test
     void smalltalk_noCriteria() {
-        CustomerFilter filter = service.requestFilter("How are you doing today?");
+        CustomerFilter filter = service.requestFilter("Nice weather today, isn't it?");
         assertThat(flatten(filter)).isEmpty();
     }
 
