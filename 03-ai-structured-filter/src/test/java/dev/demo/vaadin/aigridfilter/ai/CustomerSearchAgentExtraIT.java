@@ -12,6 +12,8 @@ import java.time.LocalDate;
 import java.util.concurrent.TimeUnit;
 
 import static dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgentIT.hasCondition;
+import static dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgentIT.hasConditionExactNumeric;
+import static dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgentIT.hasNoConditionsOutside;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -24,6 +26,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>{@code operator-precision} — STARTS_WITH/ENDS_WITH/EQUALS distinctions its CONTAINS-only
  *       text matching can't make</li>
  *   <li>{@code relative-date} — arbitrary date bounds vs. its year-equality-only dates</li>
+ *   <li>{@code anti-hallucination} — combines an exact-numeric value check with the "no conditions
+ *       outside an allow-list" guard (see {@link CustomerSearchAgentIT}'s Javadoc); {@code 02}'s model
+ *       has no exact-value/no-extras contract to hold to this precision</li>
  * </ul>
  * Cross-field OR and arbitrary nesting are no longer part of {@link CustomerFilter} either (a
  * deliberate trade-off for faster/more reliable structured output from small/local models), so the
@@ -51,6 +56,7 @@ class CustomerSearchAgentExtraIT {
         CustomerFilter filter = service.requestFilter(
                 "show me all customers with an \"m\" as the first character in the contact name");
         assertThat(hasCondition(filter, "contactName", Operator.STARTS_WITH.toString(), "m")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "contactName")).isTrue();
     }
 
     @Test
@@ -59,6 +65,7 @@ class CustomerSearchAgentExtraIT {
         CustomerFilter filter = service.requestFilter(
                 "show me all customers their contact name ends with \"schmidt\"");
         assertThat(hasCondition(filter, "contactName", Operator.ENDS_WITH.toString(), "schmidt")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "contactName")).isTrue();
     }
 
     @Test
@@ -68,6 +75,7 @@ class CustomerSearchAgentExtraIT {
                 "customers whose contact name is Sofia and who are from Berlin");
         assertThat(hasCondition(filter, "contactName", Operator.EQUALS.toString(), "sofia")).isTrue();
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "contactName", "city")).isTrue();
     }
 
     @Test
@@ -108,8 +116,9 @@ class CustomerSearchAgentExtraIT {
         CustomerFilter filter = service.requestFilter(
                 "companies not in Munich with revenue between 100000 and 500000");
         assertThat(hasCondition(filter, "city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "munich")).isTrue();
-        assertThat(hasCondition(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "100000")).isTrue();
-        assertThat(hasCondition(filter, "annualRevenue", Operator.LESS_OR_EQUAL.toString(), "500000")).isTrue();
+        assertThat(hasConditionExactNumeric(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "100000")).isTrue();
+        assertThat(hasConditionExactNumeric(filter, "annualRevenue", Operator.LESS_OR_EQUAL.toString(), "500000")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "city", "annualRevenue")).isTrue();
     }
 
     @Test
@@ -117,6 +126,7 @@ class CustomerSearchAgentExtraIT {
     void emailEndsWith() {
         CustomerFilter filter = service.requestFilter("customers whose email ends with .com");
         assertThat(hasCondition(filter, "email", Operator.ENDS_WITH.toString(), ".com")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "email")).isTrue();
     }
 
     @Test
@@ -124,6 +134,7 @@ class CustomerSearchAgentExtraIT {
     void emailNotContains() {
         CustomerFilter filter = service.requestFilter("customers whose email does not contain gmail");
         assertThat(hasCondition(filter, "email", new String[]{"NOT_CONTAINS", "NOT_EQUALS"}, "gmail")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "email")).isTrue();
     }
 
     @Test
@@ -131,6 +142,7 @@ class CustomerSearchAgentExtraIT {
     void companyNameStartsWith() {
         CustomerFilter filter = service.requestFilter("customers whose company name starts with A");
         assertThat(hasCondition(filter, "companyName", Operator.STARTS_WITH.toString(), "a")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "companyName")).isTrue();
     }
 
     @Test
@@ -152,8 +164,9 @@ class CustomerSearchAgentExtraIT {
         CustomerFilter filter = service.requestFilter(
                 "Alle Kunden ausser aus Hamburg mit einem Umsatz von 500000 bis 1000000");
         assertThat(hasCondition(filter, "city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "hamburg")).isTrue();
-        assertThat(hasCondition(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "500000")).isTrue();
-        assertThat(hasCondition(filter, "annualRevenue", Operator.LESS_OR_EQUAL.toString(), "1000000")).isTrue();
+        assertThat(hasConditionExactNumeric(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "500000")).isTrue();
+        assertThat(hasConditionExactNumeric(filter, "annualRevenue", Operator.LESS_OR_EQUAL.toString(), "1000000")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "city", "annualRevenue")).isTrue();
     }
 
     @Test
@@ -163,9 +176,10 @@ class CustomerSearchAgentExtraIT {
         CustomerFilter filter = service.requestFilter(
                 "customers who are not from Berlin, have at least 1000 in revenue, and last ordered in 2024");
         assertThat(hasCondition(filter, "city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "berlin")).isTrue();
-        assertThat(hasCondition(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "1000")).isTrue();
+        assertThat(hasConditionExactNumeric(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "1000")).isTrue();
         assertThat(hasCondition(filter, "lastOrderDate", Operator.GREATER_OR_EQUAL.toString(), "2024-01-01")).isTrue();
         assertThat(hasCondition(filter, "lastOrderDate", Operator.LESS_OR_EQUAL.toString(), "2024-12-31")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "city", "annualRevenue", "lastOrderDate")).isTrue();
     }
 
     @Test
@@ -174,8 +188,17 @@ class CustomerSearchAgentExtraIT {
         CustomerFilter filter = service.requestFilter(
                 "Kunden, die nicht aus Berlin kommen und mind. 1000 € Umsatz haben und 2024 zuletzt gekauft haben");
         assertThat(hasCondition(filter, "city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "berlin")).isTrue();
-        assertThat(hasCondition(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "1000")).isTrue();
+        assertThat(hasConditionExactNumeric(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "1000")).isTrue();
         assertThat(hasCondition(filter, "lastOrderDate", Operator.GREATER_OR_EQUAL.toString(), "2024-01-01")).isTrue();
         assertThat(hasCondition(filter, "lastOrderDate", Operator.LESS_OR_EQUAL.toString(), "2024-12-31")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "city", "annualRevenue", "lastOrderDate")).isTrue();
+    }
+
+    @Test
+    @Tag("anti-hallucination")
+    void revenueExact_notOverGenerated() {
+        CustomerFilter filter = service.requestFilter("customers with exactly 100000 in annual revenue");
+        assertThat(hasConditionExactNumeric(filter, "annualRevenue", Operator.EQUALS.toString(), "100000")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "annualRevenue")).isTrue();
     }
 }

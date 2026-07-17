@@ -31,11 +31,34 @@ as `benchmark-report-<timestamp>.md`/`.txt` in the current directory.
 The script extracts the real system prompt directly from
 `../03-ai-structured-filter/src/main/java/dev/demo/vaadin/aigridfilter/ai/CustomerSearchStructuredOutputService.java`,
 so it cannot drift from production behaviour, and runs the same natural-language queries as that
-module's `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT` (30 cases, including the German ones)
+module's `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT` (33 cases, including the German ones)
 — see that module's README for what each query tests. `CustomerFilter` is a flat list of conditions
 (all AND-combined; cross-field OR and arbitrary nesting were dropped as a deliberate trade-off for
 faster/more reliable structured output — see "Flat schema migration: before/after" below for the
 measured latency/accuracy delta).
+
+### Strict scoring: catching over-generation and wrong-magnitude numbers
+
+Scoring is tolerant by default (case-insensitive value substring, any accepted operator, extra
+conditions on other fields ignored) — necessary since the LLM is non-deterministic. Two opt-in,
+per-case/per-criterion strict behaviors close specific gaps that let wrong output score as correct,
+without changing the default for every other case:
+
+- **No-extra-fields guard** (`TestCase.ofStrict(name, query, allowedFields, ...)`): fails a case if
+  the model emits a condition on a field outside an explicit allow-list, catching a hallucinated
+  extra filter (e.g. an unasked-for `annualRevenue` condition on "customers in Berlin"). Applied to
+  the single-/two-field, unambiguous cases (e.g. `singleCity`, `contactNameAndCity`,
+  `citiesWithRevenueRange`).
+- **Exact-numeric matching** (`ExpectedCriterion.ofExactNumeric(field, operator, value)`): requires
+  the value to parse to the exact same number as expected (formatting/currency/thousands-separators
+  tolerated), instead of a substring match — so a required `1000` no longer accepts a returned
+  `1000000`. Applied only to pure integer fields (`annualRevenue`); date/year values (e.g.
+  `lastOrderDate`) stay substring-tolerant, since models legitimately emit them as `"2020-01-01"`.
+
+Three robustness/anti-hallucination cases exercise this: `smalltalk_noCriteria` and
+`unrelatedRequest_noCriteria` (small talk / an off-topic query must yield an empty filter), and
+`revenueExact_notOverGenerated` ("exactly 100000 in annual revenue" — `EQUALS` on a numeric field,
+exact value, and the no-extra-fields guard together).
 
 ## MLX Server backend
 

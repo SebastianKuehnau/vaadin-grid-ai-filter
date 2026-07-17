@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -19,9 +20,23 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Run with {@code -Pit-local-ollama} (see {@code 03-ai-structured-filter/pom.xml}), or directly with
  * {@code -Dit.test=CustomerSearchAgentIT}.
  * <p>
- * Assertions are tolerant: the LLM is non-deterministic, so we only check that the expected condition
- * is present <em>somewhere</em> in the flat conditions list (field + value substring), ignoring
- * operator and extras.
+ * Assertions are tolerant by default: the LLM is non-deterministic, so we only check that the expected
+ * condition is present <em>somewhere</em> in the flat conditions list (field + value substring),
+ * ignoring operator and extras.
+ * <p>
+ * A curated subset of cases layers two additional, deliberately stricter, opt-in checks on top of that
+ * default — always as a refinement, never a contradiction, of what the tolerant assertion for the same
+ * query would accept:
+ * <ul>
+ *   <li>{@link #hasNoConditionsOutside(CustomerFilter, String...)} — fails if the model emitted a
+ *       condition on a field outside an explicit allow-list, catching hallucinated/over-generated
+ *       filters that the default tolerant check (which ignores extras) would let through.</li>
+ *   <li>{@link #hasConditionExactNumeric(CustomerFilter, String, String, String)} — requires the value
+ *       to parse to the exact same number as expected (formatting/currency/thousands-separators
+ *       tolerated), instead of a case-insensitive substring match. Applied only to pure integer fields
+ *       (e.g. {@code annualRevenue}); date/year fields stay substring-tolerant since models legitimately
+ *       emit them as {@code "2020-01-01"}.</li>
+ * </ul>
  * <p>
  * Every case here uses the exact same wording/values as one of {@code 02-ai-agent-filter}'s
  * {@code CustomerSearchAgentIT} cases, so the two modules' results and timings are directly
@@ -42,6 +57,7 @@ class CustomerSearchAgentIT {
     void singleCity() {
         CustomerFilter filter = service.requestFilter("show me all customers in Berlin");
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "city")).isTrue();
     }
 
     @Test
@@ -50,6 +66,7 @@ class CustomerSearchAgentIT {
         CustomerFilter filter = service.requestFilter("show me customers from Berlin or Hamburg");
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "hamburg")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "city")).isTrue();
     }
 
     @Test
@@ -58,7 +75,8 @@ class CustomerSearchAgentIT {
                 "show me all customers in Berlin or Hamburg with a minimal revenue of 100000");
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(),"hamburg")).isTrue();
-        assertThat(hasCondition(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(),"100000")).isTrue();
+        assertThat(hasConditionExactNumeric(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "100000")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "city", "annualRevenue")).isTrue();
     }
 
     @Test
@@ -67,8 +85,9 @@ class CustomerSearchAgentIT {
         CustomerFilter filter = service.requestFilter("Berlin or Hamburg with revenue between 100000 and 500000");
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "hamburg")).isTrue();
-        assertThat(hasCondition(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "100000")).isTrue();
-        assertThat(hasCondition(filter, "annualRevenue", Operator.LESS_OR_EQUAL.toString(), "500000")).isTrue();
+        assertThat(hasConditionExactNumeric(filter, "annualRevenue", Operator.GREATER_OR_EQUAL.toString(), "100000")).isTrue();
+        assertThat(hasConditionExactNumeric(filter, "annualRevenue", Operator.LESS_OR_EQUAL.toString(), "500000")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "city", "annualRevenue")).isTrue();
     }
 
     @Test
@@ -76,6 +95,7 @@ class CustomerSearchAgentIT {
         CustomerFilter filter = service.requestFilter(
                 "show me all customers with \"meyer\" in the contact name");
         assertThat(hasCondition(filter, "contactName", Operator.CONTAINS.toString(), "meyer")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "contactName")).isTrue();
     }
 
     @Test
@@ -83,6 +103,7 @@ class CustomerSearchAgentIT {
         CustomerFilter filter = service.requestFilter(
                 "show me the customer with the phone number 5020000001 or similar");
         assertThat(hasCondition(filter, "phone", Operator.CONTAINS.toString(), "5020000001")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "phone")).isTrue();
     }
 
     @Test
@@ -119,6 +140,7 @@ class CustomerSearchAgentIT {
         CustomerFilter filter = service.requestFilter("customers in Germany");
         assertThat(hasCondition(filter, "country",
                 new String[]{Operator.CONTAINS.toString(), Operator.EQUALS.toString()}, "germany")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "country")).isTrue();
     }
 
     @Test
@@ -161,6 +183,7 @@ class CustomerSearchAgentIT {
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "hamburg")).isTrue();
         assertThat(hasCondition(filter, "creditRating",
                 new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "good", "creditworthy")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "city", "creditRating")).isTrue();
     }
 
     @Test
@@ -172,6 +195,18 @@ class CustomerSearchAgentIT {
     @Test
     void resetTheFilter_German() {
         CustomerFilter filter = service.requestFilter("setze den Filter zurück");
+        assertThat(flatten(filter)).isEmpty();
+    }
+
+    @Test
+    void smalltalk_noCriteria() {
+        CustomerFilter filter = service.requestFilter("Nice weather today, isn't it?");
+        assertThat(flatten(filter)).isEmpty();
+    }
+
+    @Test
+    void unrelatedRequest_noCriteria() {
+        CustomerFilter filter = service.requestFilter("What's the capital of France?");
         assertThat(flatten(filter)).isEmpty();
     }
 
@@ -190,6 +225,7 @@ class CustomerSearchAgentIT {
                 "Zeigen mir Kunden deren Kontaktname Julia ist und die in Berlin sind.");
         assertThat(hasCondition(filter, "contactName", new String[]{Operator.EQUALS.toString(), Operator.CONTAINS.toString()}, "julia")).isTrue();
         assertThat(hasCondition(filter, "city", Operator.CONTAINS.toString(), "berlin")).isTrue();
+        assertThat(hasNoConditionsOutside(filter, "contactName", "city")).isTrue();
     }
 
     /** One expanded (field, operator, value) leaf; {@code operator} gets a synthetic {@code NOT_} prefix when negated. */
@@ -233,5 +269,50 @@ class CustomerSearchAgentIT {
                 .flatMap(c -> c.values().stream().map(value ->
                         new Leaf(c.field(), (c.negate() ? "NOT_" : "") + c.operator().name(), value)))
                 .toList();
+    }
+
+    /**
+     * Opt-in "no conditions on fields other than these" guard: {@code true} only if every leaf's field
+     * is in {@code allowedFields} (ignoring case). Catches a model hallucinating an extra filter (e.g.
+     * an unasked-for {@code annualRevenue} condition on "customers in Berlin"), which the tolerant
+     * {@link #hasCondition} checks (which ignore extras) would let through.
+     */
+    static boolean hasNoConditionsOutside(CustomerFilter filter, String... allowedFields) {
+        return flatten(filter).stream().allMatch(leaf ->
+                leaf.field() != null && Arrays.stream(allowedFields).anyMatch(f -> f.equalsIgnoreCase(leaf.field())));
+    }
+
+    /**
+     * Opt-in strict counterpart of {@link #hasCondition}: same field/operator matching, but the value
+     * must parse to the exact same number as {@code expectedValue} (formatting/currency/thousands-
+     * separators tolerated via {@link #parseNumeric}), instead of a substring match. Use only for pure
+     * integer fields (e.g. {@code annualRevenue}) — never for dates/years, which are legitimately
+     * emitted as {@code "2020-01-01"}.
+     */
+    static boolean hasConditionExactNumeric(CustomerFilter filter, String field, String operator, String expectedValue) {
+        BigDecimal wanted = parseNumeric(expectedValue);
+        if (wanted == null) return false;
+        return flatten(filter).stream().anyMatch(leaf -> {
+            BigDecimal actual = parseNumeric(leaf.value());
+            return leaf.field() != null && leaf.field().equalsIgnoreCase(field)
+                    && leaf.operator() != null && leaf.operator().equalsIgnoreCase(operator)
+                    && actual != null && actual.compareTo(wanted) == 0;
+        });
+    }
+
+    /**
+     * Parses a numeric value, tolerating currency symbols and thousands separators (e.g.
+     * {@code "100,000"}, {@code "$100000.00"}); {@code null} if no digits are present. Mirrors
+     * {@code BenchmarkLocalModels}'s equivalent helper.
+     */
+    static BigDecimal parseNumeric(String raw) {
+        if (raw == null) return null;
+        String cleaned = raw.replaceAll("[^0-9.]", "");
+        if (cleaned.isEmpty() || cleaned.equals(".")) return null;
+        try {
+            return new BigDecimal(cleaned);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }
