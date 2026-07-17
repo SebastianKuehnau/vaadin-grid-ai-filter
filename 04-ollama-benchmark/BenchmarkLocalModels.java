@@ -1,5 +1,6 @@
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -14,6 +15,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -41,20 +43,44 @@ import java.util.stream.Collectors;
  */
 public class BenchmarkLocalModels {
 
-    record ExpectedCriterion(String field, String[] operators, String[] valueSubstrings) {
+    /**
+     * {@code exactNumeric}: opt-in strict value check for pure integer fields (e.g. {@code annualRevenue}).
+     * When {@code true}, the value must parse to the same number as the (single) expected value
+     * substring, tolerating currency/thousands-separator formatting — instead of the default
+     * case-insensitive substring match. Do not set this for date/year fields: their values are
+     * legitimately emitted as {@code "2020-01-01"}, which numeric parsing would reject.
+     */
+    record ExpectedCriterion(String field, String[] operators, String[] valueSubstrings, boolean exactNumeric) {
         static ExpectedCriterion of(String field, String operator, String value) {
             return new ExpectedCriterion(field, operator == null ? new String[0] : new String[]{operator},
-                    new String[]{value});
+                    new String[]{value}, false);
         }
 
         static ExpectedCriterion of(String field, String[] operators, String... values) {
-            return new ExpectedCriterion(field, operators, values);
+            return new ExpectedCriterion(field, operators, values, false);
+        }
+
+        /** Strict counterpart of {@link #of(String, String, String)}: exact numeric value match. */
+        static ExpectedCriterion ofExactNumeric(String field, String operator, String value) {
+            return new ExpectedCriterion(field, operator == null ? new String[0] : new String[]{operator},
+                    new String[]{value}, true);
         }
     }
 
-    record TestCase(String name, String query, List<ExpectedCriterion> expected) {
+    /**
+     * {@code allowedFields}: opt-in "no conditions on fields other than these" guard. {@code null}
+     * (the default via {@link #of}) means unrestricted — extra conditions on unexpected fields are
+     * ignored, as before. When set (via {@link #ofStrict}), the case fails if the model emits any
+     * condition on a field outside this set, catching over-generation/hallucinated filters.
+     */
+    record TestCase(String name, String query, List<ExpectedCriterion> expected, Set<String> allowedFields) {
         static TestCase of(String name, String query, ExpectedCriterion... expected) {
-            return new TestCase(name, query, List.of(expected));
+            return new TestCase(name, query, List.of(expected), null);
+        }
+
+        /** Strict counterpart of {@link #of}: fails if any condition lands on a field outside {@code allowedFields}. */
+        static TestCase ofStrict(String name, String query, Set<String> allowedFields, ExpectedCriterion... expected) {
+            return new TestCase(name, query, List.of(expected), allowedFields);
         }
     }
 
@@ -482,7 +508,7 @@ public class BenchmarkLocalModels {
                 long durationMs = (System.nanoTime() - t0) / 1_000_000;
                 String content = chatResult.content();
                 List<Map<String, Object>> criteria = parseCriteria(content);
-                boolean passed = caseCorrect(criteria, tc.expected());
+                boolean passed = caseCorrect(criteria, tc);
                 caseResults.add(new CaseResult(tc.name(), tc.query(), passed, durationMs, chatResult.tokenCount(),
                         chatResult.tokenDurationNs(), null, content, chatResult.rawBody()));
             } catch (Exception e) {
@@ -955,7 +981,13 @@ public class BenchmarkLocalModels {
         }
     }
 
-    private static boolean caseCorrect(List<Map<String, Object>> criteria, List<ExpectedCriterion> expected) {
+    private static boolean caseCorrect(List<Map<String, Object>> criteria, TestCase testCase) {
+        if (testCase.allowedFields() != null) {
+            boolean hasExtraField = criteria.stream().anyMatch(
+                    c -> testCase.allowedFields().stream().noneMatch(f -> f.equalsIgnoreCase(String.valueOf(c.get("field")))));
+            if (hasExtraField) return false;
+        }
+        List<ExpectedCriterion> expected = testCase.expected();
         if (expected.isEmpty()) {
             return criteria.isEmpty();
         }
@@ -978,16 +1010,39 @@ public class BenchmarkLocalModels {
                 }
                 if (!opOk) continue;
             }
-            boolean valueOk = false;
-            for (String v : expected.valueSubstrings()) {
-                if (value.toLowerCase().contains(v.toLowerCase())) {
-                    valueOk = true;
-                    break;
+            boolean valueOk;
+            if (expected.exactNumeric()) {
+                BigDecimal actual = parseNumeric(value);
+                BigDecimal wanted = expected.valueSubstrings().length > 0 ? parseNumeric(expected.valueSubstrings()[0]) : null;
+                valueOk = actual != null && wanted != null && actual.compareTo(wanted) == 0;
+            } else {
+                valueOk = false;
+                for (String v : expected.valueSubstrings()) {
+                    if (value.toLowerCase().contains(v.toLowerCase())) {
+                        valueOk = true;
+                        break;
+                    }
                 }
             }
             if (valueOk) return true;
         }
         return false;
+    }
+
+    /**
+     * Parses a numeric value, tolerating currency symbols and thousands separators (e.g.
+     * {@code "100,000"}, {@code "$100000.00"}); {@code null} if no digits are present. Used only for
+     * {@link ExpectedCriterion#exactNumeric()} checks on pure integer fields — never for dates/years.
+     */
+    private static BigDecimal parseNumeric(String raw) {
+        if (raw == null) return null;
+        String cleaned = raw.replaceAll("[^0-9.]", "");
+        if (cleaned.isEmpty() || cleaned.equals(".")) return null;
+        try {
+            return new BigDecimal(cleaned);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private static long asLong(Object o) {
