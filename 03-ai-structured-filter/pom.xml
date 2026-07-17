@@ -118,10 +118,10 @@
 
 	<profiles>
 		<profile>
-			<!-- Runs CustomerSearchAgentIT/CustomerSearchAgentExtraIT against a native Ollama instance
-			     (OLLAMA_BASE_URL) by default; pass -DAI_TEST_PROFILE=openai (or set it as an env
-			     var) to target the app's openai Spring profile instead (also respects
-			     OPENAI_API_KEY). -->
+			<!-- Enables CustomerSearchAgentIT/CustomerSearchAgentExtraIT + CustomerListViewBrowserlessIT.
+			     The default test Spring profile is openai (src/test/resources/application.properties);
+			     pass -DAI_TEST_PROFILE=ollama (or set it as an env var) to target a native Ollama
+			     instance (OLLAMA_BASE_URL) instead. -->
 			<id>it-local-ollama</id>
 			<build>
 				<plugins>

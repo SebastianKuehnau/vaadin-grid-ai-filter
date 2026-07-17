@@ -119,14 +119,16 @@ without it, such a model burns hundreds of tokens on a `<think>` block per call)
 
 ```bash
 ./mvnw -pl 03-ai-structured-filter test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
-./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama     # CustomerSearchAgentIT(+Extra) + CustomerListViewBrowserlessIT vs native Ollama (skip if unreachable)
-./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API instead
+./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=ollama   # CustomerSearchAgentIT(+Extra) + CustomerListViewBrowserlessIT vs native Ollama
+./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama                            # same suite, against the real OpenAI API (openai is the default test profile)
 ```
 
-`-Pit-local-ollama` targets the `ollama` profile by default; `-DAI_TEST_PROFILE=openai` (or the
-`AI_TEST_PROFILE` environment variable, if you prefer) points the exact same test classes at the
-app's `openai` Spring profile instead (respecting `OPENAI_API_KEY`, same as the app
-itself) — see `src/test/resources/application.properties`.
+`-Pit-local-ollama` only controls which test classes run (it enables the Ollama-only ITs); which
+Spring profile the app itself uses is a separate choice that defaults to `openai`
+(`src/test/resources/application.properties`), so target a native Ollama instance with
+`-DAI_TEST_PROFILE=ollama` (or the `AI_TEST_PROFILE` environment variable) — the same flag also
+accepts `openai` (respecting `OPENAI_API_KEY`, same as the app itself) to run the identical test
+classes against the real OpenAI API instead.
 
 > **Note:** the module's configured default model, `llama3.1:8b`, is occasionally unreliable on
 > queries that stack three-plus conditions together with the new bare-year date-range rule (see

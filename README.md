@@ -69,16 +69,15 @@ the whole reactor at once:
 ## Configuration
 
 - **`01-non-ai-filter`** needs no configuration — it does not call a model.
-- **`02-ai-agent-filter`** and **`03-ai-structured-filter`** both talk to a single
-  `spring-ai-starter-model-openai` `ChatModel` bean and pick a backend purely via Spring profile
-  (`ollama` / `mlx` / `cloud`, each an `application-<profile>.properties` file) — never a code
-  change. Default (no profile) is a **local Ollama** via its OpenAI-compatible endpoint:
+- **`02-ai-agent-filter`** and **`03-ai-structured-filter`** both talk to a single Spring AI
+  `ChatModel` bean and pick a backend purely via Spring profile (`openai` / `ollama`, each an
+  `application-<profile>.properties` file) — never a code change. Default (no profile) is the real
+  **OpenAI API** (needs `OPENAI_API_KEY`); `ollama` targets a local Ollama instance via Spring AI's
+  native Ollama binding:
   ```bash
   ollama pull llama3.1:8b
   ```
-  `mlx` targets a local `mlx_lm.server` (Apple Silicon only); `cloud` targets the real OpenAI API
-  (needs `OPENAI_API_KEY`). See either module's README for the full switching commands and
-  trade-offs.
+  See either module's README for the full switching commands and trade-offs.
 
 ## Tests
 
