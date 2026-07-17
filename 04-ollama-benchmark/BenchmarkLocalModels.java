@@ -368,33 +368,39 @@ public class BenchmarkLocalModels {
 
     private static List<TestCase> testCases(LocalDate today) {
         List<TestCase> cases = new ArrayList<>();
-        cases.add(TestCase.of("singleCity", "show me all customers in Berlin",
+        cases.add(TestCase.ofStrict("singleCity", "show me all customers in Berlin", Set.of("city"),
                 ExpectedCriterion.of("city", "CONTAINS", "berlin")));
         cases.add(TestCase.of("singleFalseCity", "show me all customers except from Berlin",
                 ExpectedCriterion.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "berlin")));
-        cases.add(TestCase.of("multipleCities", "customers in Berlin or Hamburg",
+        cases.add(TestCase.ofStrict("multipleCities", "customers in Berlin or Hamburg", Set.of("city"),
                 ExpectedCriterion.of("city", "CONTAINS", "berlin"),
                 ExpectedCriterion.of("city", "CONTAINS", "hamburg")));
-        cases.add(TestCase.of("citiesAndRevenue_keepsEveryCondition",
+        cases.add(TestCase.ofStrict("citiesAndRevenue_keepsEveryCondition",
                 "show me all customers in Berlin or Hamburg with a minimal revenue of 100000",
+                Set.of("city", "annualRevenue"),
                 ExpectedCriterion.of("city", "CONTAINS", "berlin"),
                 ExpectedCriterion.of("city", "CONTAINS", "hamburg"),
-                ExpectedCriterion.of("annualRevenue", "GREATER_OR_EQUAL", "100000")));
-        cases.add(TestCase.of("contactNameStartsWith",
+                ExpectedCriterion.ofExactNumeric("annualRevenue", "GREATER_OR_EQUAL", "100000")));
+        cases.add(TestCase.ofStrict("contactNameStartsWith",
                 "show me all customers with an \"m\" as the first character in the contact name",
+                Set.of("contactName"),
                 ExpectedCriterion.of("contactName", "STARTS_WITH", "m")));
-        cases.add(TestCase.of("contactNameContains",
+        cases.add(TestCase.ofStrict("contactNameContains",
                 "show me all customers with \"meyer\" in the contact name",
+                Set.of("contactName"),
                 ExpectedCriterion.of("contactName", "CONTAINS", "meyer")));
-        cases.add(TestCase.of("contactNameEndsWith",
+        cases.add(TestCase.ofStrict("contactNameEndsWith",
                 "show me all customers their contact name ends with \"schmidt\"",
+                Set.of("contactName"),
                 ExpectedCriterion.of("contactName", "ENDS_WITH", "schmidt")));
-        cases.add(TestCase.of("contactNameAndCity",
+        cases.add(TestCase.ofStrict("contactNameAndCity",
                 "customers whose contact name is Sofia and who are from Berlin",
+                Set.of("contactName", "city"),
                 ExpectedCriterion.of("contactName", "EQUALS", "sofia"),
                 ExpectedCriterion.of("city", "CONTAINS", "berlin")));
-        cases.add(TestCase.of("phoneNumberContains",
+        cases.add(TestCase.ofStrict("phoneNumberContains",
                 "show me the customer with the phone number 5020000001 or similar",
+                Set.of("phone"),
                 ExpectedCriterion.of("phone", "CONTAINS", "5020000001")));
         cases.add(TestCase.of("orderedInTheLastWeek",
                 "Show me all customers who placed an order in the last week",
@@ -414,25 +420,26 @@ public class BenchmarkLocalModels {
         cases.add(TestCase.of("revenueOverAMillion",
                 "companies with annual revenue over 1 million",
                 ExpectedCriterion.of("annualRevenue", "GREATER_OR_EQUAL", "1000000")));
-        cases.add(TestCase.of("notInCityWithRevenueRange_keepsEveryCondition",
+        cases.add(TestCase.ofStrict("notInCityWithRevenueRange_keepsEveryCondition",
                 "companies not in Munich with revenue between 100000 and 500000",
+                Set.of("city", "annualRevenue"),
                 ExpectedCriterion.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "munich"),
-                ExpectedCriterion.of("annualRevenue", "GREATER_OR_EQUAL", "100000"),
-                ExpectedCriterion.of("annualRevenue", "LESS_OR_EQUAL", "500000")));
-        cases.add(TestCase.of("country",
-                "customers in Germany",
+                ExpectedCriterion.ofExactNumeric("annualRevenue", "GREATER_OR_EQUAL", "100000"),
+                ExpectedCriterion.ofExactNumeric("annualRevenue", "LESS_OR_EQUAL", "500000")));
+        cases.add(TestCase.ofStrict("country",
+                "customers in Germany", Set.of("country"),
                 ExpectedCriterion.of("country", new String[]{"CONTAINS", "EQUALS"}, "germany")));
-        cases.add(TestCase.of("emailEndsWith",
-                "customers whose email ends with .com",
+        cases.add(TestCase.ofStrict("emailEndsWith",
+                "customers whose email ends with .com", Set.of("email"),
                 ExpectedCriterion.of("email", "ENDS_WITH", ".com")));
-        cases.add(TestCase.of("emailNotContains",
-                "customers whose email does not contain gmail",
+        cases.add(TestCase.ofStrict("emailNotContains",
+                "customers whose email does not contain gmail", Set.of("email"),
                 ExpectedCriterion.of("email", new String[]{"NOT_CONTAINS", "NOT_EQUALS"}, "gmail")));
-        cases.add(TestCase.of("companyNameStartsWith",
-                "customers whose company name starts with A",
+        cases.add(TestCase.ofStrict("companyNameStartsWith",
+                "customers whose company name starts with A", Set.of("companyName"),
                 ExpectedCriterion.of("companyName", "STARTS_WITH", "a")));
-        cases.add(TestCase.of("creditworthyInCity",
-                "creditworthy customers in Berlin",
+        cases.add(TestCase.ofStrict("creditworthyInCity",
+                "creditworthy customers in Berlin", Set.of("city", "creditRating"),
                 ExpectedCriterion.of("city", "CONTAINS", "berlin"),
                 ExpectedCriterion.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "good", "creditworthy")));
         cases.add(TestCase.of("creditRatingTwoValues_staySeparateCriteria",
@@ -447,35 +454,47 @@ public class BenchmarkLocalModels {
                 ExpectedCriterion.of("city", "CONTAINS", "berlin"),
                 ExpectedCriterion.of("city", "CONTAINS", "hamburg"),
                 ExpectedCriterion.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "good", "creditworthy")));
-        cases.add(TestCase.of("notInCityWithRevenueRange_keepsEveryCondition_German",
+        cases.add(TestCase.ofStrict("notInCityWithRevenueRange_keepsEveryCondition_German",
                 "Alle Kunden ausser aus Hamburg mit einem Umsatz von 500000 bis 1000000",
+                Set.of("city", "annualRevenue"),
                 ExpectedCriterion.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "hamburg"),
-                ExpectedCriterion.of("annualRevenue", "GREATER_OR_EQUAL", "500000"),
-                ExpectedCriterion.of("annualRevenue", "LESS_OR_EQUAL", "1000000")));
-        cases.add(TestCase.of("contactNameAndCity_German",
+                ExpectedCriterion.ofExactNumeric("annualRevenue", "GREATER_OR_EQUAL", "500000"),
+                ExpectedCriterion.ofExactNumeric("annualRevenue", "LESS_OR_EQUAL", "1000000")));
+        cases.add(TestCase.ofStrict("contactNameAndCity_German",
                 "Zeigen mir Kunden deren Kontaktname Julia ist und die in Berlin sind.",
+                Set.of("contactName", "city"),
                 ExpectedCriterion.of("contactName", new String[]{"EQUALS", "CONTAINS"}, "julia"),
                 ExpectedCriterion.of("city", "CONTAINS", "berlin")));
-        cases.add(TestCase.of("citiesWithRevenueRange",
+        cases.add(TestCase.ofStrict("citiesWithRevenueRange",
                 "Berlin or Hamburg with revenue between 100000 and 500000",
+                Set.of("city", "annualRevenue"),
                 ExpectedCriterion.of("city", "CONTAINS", "berlin"),
                 ExpectedCriterion.of("city", "CONTAINS", "hamburg"),
-                ExpectedCriterion.of("annualRevenue", "GREATER_OR_EQUAL", "100000"),
-                ExpectedCriterion.of("annualRevenue", "LESS_OR_EQUAL", "500000")));
+                ExpectedCriterion.ofExactNumeric("annualRevenue", "GREATER_OR_EQUAL", "100000"),
+                ExpectedCriterion.ofExactNumeric("annualRevenue", "LESS_OR_EQUAL", "500000")));
 
         // --- negation + AND-across-fields + a bare-year closed range, all flat-expressible ---
-        cases.add(TestCase.of("notInCityWithRevenueAndYear",
+        cases.add(TestCase.ofStrict("notInCityWithRevenueAndYear",
                 "customers who are not from Berlin, have at least 1000 in revenue, and last ordered in 2024",
+                Set.of("city", "annualRevenue", "lastOrderDate"),
                 ExpectedCriterion.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "berlin"),
-                ExpectedCriterion.of("annualRevenue", "GREATER_OR_EQUAL", "1000"),
+                ExpectedCriterion.ofExactNumeric("annualRevenue", "GREATER_OR_EQUAL", "1000"),
                 ExpectedCriterion.of("lastOrderDate", "GREATER_OR_EQUAL", "2024-01-01"),
                 ExpectedCriterion.of("lastOrderDate", "LESS_OR_EQUAL", "2024-12-31")));
-        cases.add(TestCase.of("notInCityWithRevenueAndYear_German",
+        cases.add(TestCase.ofStrict("notInCityWithRevenueAndYear_German",
                 "Kunden, die nicht aus Berlin kommen und mind. 1000 € Umsatz haben und 2024 zuletzt gekauft haben",
+                Set.of("city", "annualRevenue", "lastOrderDate"),
                 ExpectedCriterion.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "berlin"),
-                ExpectedCriterion.of("annualRevenue", "GREATER_OR_EQUAL", "1000"),
+                ExpectedCriterion.ofExactNumeric("annualRevenue", "GREATER_OR_EQUAL", "1000"),
                 ExpectedCriterion.of("lastOrderDate", "GREATER_OR_EQUAL", "2024-01-01"),
                 ExpectedCriterion.of("lastOrderDate", "LESS_OR_EQUAL", "2024-12-31")));
+
+        // --- robustness / anti-hallucination cases ---
+        cases.add(TestCase.of("smalltalk_noCriteria", "How are you doing today?"));
+        cases.add(TestCase.of("unrelatedRequest_noCriteria", "What's the capital of France?"));
+        cases.add(TestCase.ofStrict("revenueExact_notOverGenerated",
+                "customers with exactly 100000 in annual revenue", Set.of("annualRevenue"),
+                ExpectedCriterion.ofExactNumeric("annualRevenue", "EQUALS", "100000")));
         return cases;
     }
 
