@@ -97,12 +97,15 @@ class CustomerSearchToolCallingService implements CustomerSearchAgent {
             Search and filter the customer grid. Returns nothing; it updates the grid in place to show
             only the matching customers, replacing any previous filter (filters are not additive).
             All parameters are optional - pass null (or an empty list) to ignore one; passing all null
-            shows every customer. Every parameter is a list: pass one entry for a single value, or
-            several entries for multiple values, which are matched with OR (e.g. two cities means
-            "in this city OR that city"). Different parameters are still combined with AND.
+            shows every customer. Every parameter is a JSON array: always wrap the value(s) in square
+            brackets, even for a single value (one city is ["Berlin"], never "Berlin"; one revenue
+            range is [{"atLeast": 500000}], never {"atLeast": 500000}). Never pass a bare scalar or
+            object for a parameter. Pass one entry for a single value, or several entries for multiple
+            values, which are matched with OR (e.g. two cities means "in this city OR that city").
+            Different parameters are still combined with AND.
             Text parameters match case-insensitively on any substring.
             Date parameters (customerSince, lastOrderDate) each match customers anywhere in the year
-            the given date falls in (e.g. '2020-01-01' matches all of 2020), in ISO format yyyy-MM-dd.
+            the given date falls in (e.g. ["2020-01-01"] matches all of 2020), in ISO format yyyy-MM-dd.
             For relative dates such as "last month", call the current date/time tool first to resolve
             the actual date.
             """)
@@ -116,12 +119,14 @@ class CustomerSearchToolCallingService implements CustomerSearchAgent {
                     '0160 57 123456' -> '+4916057123456' (assume Germany / +49 for national numbers).""") List<String> phone,
             @ToolParam(description = """
                     'customer since' years to match, or null. Each entry matches customers who became a
-                    customer anywhere in that entry's year. Pass ISO yyyy-MM-dd; interpret ambiguous user
-                    input as day-first (German format), e.g. '03.05.05' -> '2005-05-03'.""") List<LocalDate> customerSince,
+                    customer anywhere in that entry's year. A JSON array of ISO yyyy-MM-dd dates;
+                    interpret ambiguous user input as day-first (German format), e.g. '03.05.05' ->
+                    ["2005-05-03"], and "since 2020" -> ["2020-01-01"].""") List<LocalDate> customerSince,
             @ToolParam(description = """
                     last-order years to match, or null. Each entry matches customers whose last order
-                    falls anywhere in that entry's year. Pass ISO yyyy-MM-dd; interpret ambiguous user
-                    input as day-first (German format), e.g. '03.05.05' -> '2005-05-03'.""") List<LocalDate> lastOrderDate,
+                    falls anywhere in that entry's year. A JSON array of ISO yyyy-MM-dd dates; interpret
+                    ambiguous user input as day-first (German format), e.g. '03.05.05' ->
+                    ["2005-05-03"].""") List<LocalDate> lastOrderDate,
             @ToolParam(description = "countries, part of each to match, or null") List<String> country,
             @ToolParam(description = "cities, part of each to match, or null") List<String> city,
             @ToolParam(description = "postal codes, part of each to match, or null") List<String> postalCode,
@@ -131,11 +136,12 @@ class CustomerSearchToolCallingService implements CustomerSearchAgent {
                     credit ratings to match, or null. Each one of: GOOD (creditworthy),
                     MEDIUM (limited creditworthiness), POOR (at risk / not creditworthy).""") List<CreditRating> creditRating,
             @ToolParam(description = """
-                    annual revenue ranges to match, or null. Each range has an optional "atLeast" and/or
-                    "atMost" (either may be omitted/null for an open-ended range): "over 500000" ->
-                    {atLeast: 500000}, "under 50000" -> {atMost: 50000}, "between 50000 and 200000" ->
-                    {atLeast: 50000, atMost: 200000}. Multiple ranges are matched with OR, e.g. "over
-                    500000 or under 50000" -> two ranges.""") List<RevenueRange> annualRevenue
+                    annual revenue ranges to match, or null. A JSON array of range objects, each with an
+                    optional "atLeast" and/or "atMost" (either may be omitted/null for an open-ended
+                    range): "over 500000" -> [{"atLeast": 500000}], "under 50000" -> [{"atMost": 50000}],
+                    "between 50000 and 200000" -> [{"atLeast": 50000, "atMost": 200000}]. Multiple ranges
+                    are matched with OR, e.g. "over 500000 or under 50000" -> [{"atLeast": 500000},
+                    {"atMost": 50000}].""") List<RevenueRange> annualRevenue
     ) {
         logger.info("searchCustomers: companyName={}, contactName={}, email={}, phone={}, customerSince={}, " +
                         "lastOrderDate={}, country={}, city={}, postalCode={}, street={}, houseNumber={}, " +
