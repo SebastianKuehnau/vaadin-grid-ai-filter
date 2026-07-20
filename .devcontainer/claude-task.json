@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "variant": "base",
+  "java": {
+    "version": "25",
+    "vendor": "temurin"
+  },
+  "buildTool": "maven",
+  "firewall": "allowlist",
+  "mcpServers": [
+    "vaadin"
+  ],
+  "plugins": []
+}

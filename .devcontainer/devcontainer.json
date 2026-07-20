@@ -1,0 +1,16 @@
+{
+  "name": "claude-task project container",
+  "build": {
+    "dockerfile": "claude-task.Dockerfile"
+  },
+  "mounts": [
+    "source=${localEnv:HOME}/.claude-container/claude,target=/home/node/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude-container/claude.json,target=/home/node/.claude.json,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/.devcontainer/m2-cache,target=/home/node/.m2/repository,type=bind,consistency=cached"
+  ],
+  "remoteUser": "node",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspace",
+  "postCreateCommand": "sudo chown -R node:node /home/node/.claude /home/node/.claude.json /home/node/.m2",
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh"
+}

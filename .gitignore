@@ -8,3 +8,5 @@ src/main/frontend/generated/
 # Generated benchmark artifacts (see CLAUDE.md conventions)
 **/benchmark-results/
 **/benchmark-report-*
+.devcontainer/m2-cache/
+.devcontainer/devcontainer.env
