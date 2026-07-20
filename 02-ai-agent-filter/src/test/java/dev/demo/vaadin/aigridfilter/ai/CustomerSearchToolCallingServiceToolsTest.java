@@ -4,6 +4,7 @@ import dev.demo.vaadin.aigridfilter.ai.filter.CustomerSearchCriteria;
 import dev.demo.vaadin.aigridfilter.ai.filter.RevenueRange;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.springframework.ai.chat.model.ChatModel;
 
 import java.math.BigDecimal;
@@ -11,6 +12,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -22,6 +24,7 @@ import static org.mockito.Mockito.mock;
  * actual current time. The {@link ChatModel} is mocked purely to satisfy the constructor — it is
  * never invoked.
  */
+@Timeout(value = 60, unit = TimeUnit.SECONDS)
 class CustomerSearchToolCallingServiceToolsTest {
 
     private final CustomerSearchToolCallingService service = new CustomerSearchToolCallingService(mock(ChatModel.class));
