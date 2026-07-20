@@ -6,13 +6,22 @@ USER root
 
 # SDKMAN: single mechanism for the Java-version/vendor override and the
 # build-tool install (Maven/Gradle aren't in the base image at all).
-RUN curl -s "https://get.sdkman.io" | bash
+# - zip/unzip are SDKMAN hard dependencies and are NOT in the base image.
+# - SDKMAN_DIR must be exported BEFORE the installer runs; otherwise the
+#   installer (running as root) writes to /root/.sdkman and the later
+#   sdkman-init.sh lookups under /home/node/.sdkman miss.
+RUN apt-get update && apt-get install -y --no-install-recommends zip unzip \
+    && rm -rf /var/lib/apt/lists/*
 ENV SDKMAN_DIR=/home/node/.sdkman
+RUN curl -s "https://get.sdkman.io" | bash
 RUN bash -lc 'source "$SDKMAN_DIR/bin/sdkman-init.sh" \
     && CANDIDATE=$(sdk list java 2>/dev/null | grep -oE "25\.[0-9.]+-tem" | head -1) \
     && if [ -z "$CANDIDATE" ]; then echo "No SDKMAN candidate found for 25-tem" >&2; exit 1; fi \
     && sdk install java "$CANDIDATE"'
 RUN bash -lc 'source "$SDKMAN_DIR/bin/sdkman-init.sh" && sdk install maven'
+# SDKMAN was installed as root; hand the tree to the node user so the final
+# runtime user can use `sdk` and the installed candidates.
+RUN chown -R node:node /home/node/.sdkman
 ENV JAVA_HOME=/home/node/.sdkman/candidates/java/current
 ENV PATH="${JAVA_HOME}/bin:/home/node/.sdkman/candidates/maven/current/bin:/home/node/.sdkman/candidates/gradle/current/bin:${PATH}"
 # MAVEN_OPTS file-locking is inherited from the base image — do not override.
