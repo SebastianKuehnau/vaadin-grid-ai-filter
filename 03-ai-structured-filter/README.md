@@ -92,7 +92,7 @@ code change. `openai` speaks the OpenAI-compatible chat completions API
 - **`ollama`** — a local Ollama instance via Spring AI's *native* Ollama binding (not the
   OpenAI-compatible endpoint — see below). Start Ollama and pull the model first:
   ```bash
-  ollama pull llama3.1:8b
+  ollama pull qwen3:8b
   ```
   Other models benchmarked against this module in `../04-ollama-benchmark`: `qwen3.5:4b-mlx`,
   `qwen3:8b`, `gemma4:26b-mlx` — swap `spring.ai.ollama.chat.model` in
@@ -109,9 +109,9 @@ per profile (`openai` by default in `application.properties`, overridden to `oll
 `application-ollama.properties`) — `openai` still goes through the OpenAI-compatible surface,
 since the real OpenAI API doesn't speak Ollama's native protocol.
 
-`application-ollama.properties` sets `spring.ai.ollama.chat.think=false` (llama3.1:8b never
-"thinks" anyway, but this matters the moment you swap in a reasoning-capable model like `qwen3:8b` —
-without it, such a model burns hundreds of tokens on a `<think>` block per call) and
+`application-ollama.properties` sets `spring.ai.ollama.chat.think=false` (the configured default
+`qwen3:8b` is reasoning-capable, so without this it would burn hundreds of tokens on a `<think>`
+block per call; a non-reasoning model like `llama3.1:8b` ignores the flag anyway) and
 `spring.ai.ollama.chat.num-ctx=4096` (now genuinely applied, unlike the old best-effort
 `extra-body.options.num_ctx` passthrough this replaced).
 
@@ -130,11 +130,11 @@ Spring profile the app itself uses is a separate choice that defaults to `openai
 accepts `openai` (respecting `OPENAI_API_KEY`, same as the app itself) to run the identical test
 classes against the real OpenAI API instead.
 
-> **Note:** the module's configured default model, `llama3.1:8b`, is occasionally unreliable on
-> queries that stack three-plus conditions together with the new bare-year date-range rule (see
-> below) — it sometimes drops one bound of a date range. `qwen3:8b` handles the same queries
-> correctly. This is a model-capability gap, not a bug in the prompt/schema; swap the model in
-> `application-ollama.properties` if you hit it during a demo.
+> **Note:** the configured default model, `qwen3:8b`, handles queries that stack three-plus
+> conditions together with the bare-year date-range rule (see below) correctly. A weaker model such
+> as `llama3.1:8b` is occasionally unreliable on them — it sometimes drops one bound of a date
+> range. This is a model-capability gap, not a bug in the prompt/schema; keep the configured default
+> (or swap the model in `application-ollama.properties`) if you hit it during a demo.
 
 - **`CustomerFilterSpecificationsTest`** (`@DataJpaTest`, no LLM) — deterministic test of the flat
   translation against the seeded H2 data. The single-field, multi-value-OR, and AND-across-fields

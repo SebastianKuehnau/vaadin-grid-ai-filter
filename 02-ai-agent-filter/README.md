@@ -69,9 +69,9 @@ model no longer needs the tool description prose to carry the "over" vs. "under"
 
 For a relative date ("yesterday", "last week") the model must call `currentLocalDateTime()`, then
 compute an offset from its result and pass that computed date into `searchCustomers`. This
-two-hop chain is harder than a single tool call: `llama3.1:8b` (this module's configured default)
-reliably fails it — it either passes a literal placeholder string instead of a computed date, or
-skips the tool call and hallucinates a stale one — while `qwen3:8b` handles it correctly. This is
+two-hop chain is harder than a single tool call: a weaker model like `llama3.1:8b` reliably fails
+it — it either passes a literal placeholder string instead of a computed date, or skips the tool
+call and hallucinates a stale one — while the configured default `qwen3:8b` handles it correctly. This is
 a genuine model-capability gap in the tool-calling approach, not a bug in the tool wiring, and is
 why `CustomerSearchAgentIT` (below) does not include a relative-date case. `03-ai-structured-filter`
 avoids the issue entirely by putting "today" directly into its prompt text instead of requiring a
@@ -103,7 +103,7 @@ code change. `openai` speaks the OpenAI-compatible chat completions API
 - **`ollama`** — a local Ollama instance via Spring AI's *native* Ollama binding (not the
   OpenAI-compatible endpoint — see below). Start Ollama and pull the model first:
   ```bash
-  ollama pull llama3.1:8b
+  ollama pull qwen3:8b
   ```
 
 **Why `ollama` uses a different starter than `openai`:** Ollama's OpenAI-compatible endpoint
@@ -117,9 +117,9 @@ per profile (`openai` by default in `application.properties`, overridden to `oll
 `application-ollama.properties`) — `openai` still goes through the OpenAI-compatible surface,
 since the real OpenAI API doesn't speak Ollama's native protocol.
 
-`application-ollama.properties` sets `spring.ai.ollama.chat.think=false` (llama3.1:8b never
-"thinks" anyway, but this matters the moment you swap in a reasoning-capable model like `qwen3:8b` —
-without it, such a model burns hundreds of tokens on a `<think>` block per tool call) and
+`application-ollama.properties` sets `spring.ai.ollama.chat.think=false` (the configured default
+`qwen3:8b` is reasoning-capable, so without this it would burn hundreds of tokens on a `<think>`
+block per tool call; a non-reasoning model like `llama3.1:8b` ignores the flag anyway) and
 `spring.ai.ollama.chat.num-ctx=4096` (now genuinely applied, unlike the old best-effort
 `extra-body.options.num_ctx` passthrough this replaced).
 
