@@ -9,8 +9,10 @@ import java.util.List;
  * The flat set of filter values extracted from a natural-language query via tool calling. Every
  * field is optional ({@code null} or empty means "don't filter on this"); a field with multiple
  * values matches any of them (OR), and all given fields are combined with AND by
- * {@link CustomerSpecifications#from}. Deliberately flat (no AND/OR/NOT tree) — the demo-relevant
- * contrast with {@code 03-ai-structured-filter}'s {@code FilterNode} tree.
+ * {@link CustomerSpecifications#from}. Deliberately flat, with no per-field operator or negation —
+ * the demo-relevant contrast with {@code 03-ai-structured-filter}'s {@code CustomerFilter}, whose
+ * conditions carry an explicit operator and a {@code negate} flag (though it too is a flat list of
+ * conditions, not a tree).
  * <p>
  * Each {@code customerSince}/{@code lastOrderDate} value is interpreted as the full year it falls
  * in (Jan 1 - Dec 31). {@code annualRevenue} is a list of {@link RevenueRange} bounds rather than
