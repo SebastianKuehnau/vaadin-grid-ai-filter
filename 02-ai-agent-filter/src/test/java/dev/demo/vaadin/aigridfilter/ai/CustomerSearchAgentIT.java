@@ -38,9 +38,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * arbitrary date bounds — see that class's Javadoc.
  * <p>
  * Three cases that were tried here during alignment were dropped from the shared set (present in
- * neither module's suite now) because {@code 03}'s structured-output layer, against its default
- * {@code llama3.1:8b}, could not pass them reliably (single {@code -Pit-local-ollama} run, 100%
- * reproducible on retry) even though this module's tool-calling layer passes them every time:
+ * neither module's suite now) because {@code 03}'s structured-output layer, on the weaker
+ * {@code llama3.1:8b} (the module default at the time; the default is now {@code qwen3:8b}), could
+ * not pass them reliably (single {@code -Pit-local-ollama} run, 100% reproducible on retry) even
+ * though this module's tool-calling layer passes them every time:
  * {@code germanPhoneNumberNormalizedToE164} (the model echoed the raw, un-normalized phone string
  * instead of the expected E.164 digits), {@code multiValueCustomerSinceYears} (the model expressed
  * "2020 or 2021" as a single {@code [2020-01-01, 2021-12-31]} range instead of two disjoint
@@ -103,13 +104,13 @@ class CustomerSearchAgentIT {
     }
 
     // No relative-date case ("yesterday", "last week") here: it requires the model to chain two
-    // tool calls — read currentLocalDateTime(), then compute an offset date from it — and
-    // llama3.1:8b (this module's configured default) reliably fails that chain, either passing a
-    // literal placeholder string instead of a computed date, or skipping the tool call and
-    // hallucinating a stale one. qwen3:8b handles it correctly, so this is a model capability gap,
-    // not a bug in the tool wiring (see the module README's "Known limitations" note). Module 04
-    // avoids the issue entirely by putting "today" directly into its prompt text instead of
-    // requiring a live tool call.
+    // tool calls — read currentLocalDateTime(), then compute an offset date from it. The configured
+    // default qwen3:8b handles that chain correctly, but a weaker model like llama3.1:8b reliably
+    // fails it, either passing a literal placeholder string instead of a computed date, or skipping
+    // the tool call and hallucinating a stale one. It is a model-capability gap, not a bug in the
+    // tool wiring (see the module README's "Known limitation" note), so the case is left out to keep
+    // the shared set reliably passing. 03-ai-structured-filter avoids the issue entirely by putting
+    // "today" directly into its prompt text instead of requiring a live tool call.
 
     @Test
     void multiValueCities() {

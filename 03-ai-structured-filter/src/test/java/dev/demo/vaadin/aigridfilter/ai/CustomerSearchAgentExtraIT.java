@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       outside an allow-list" guard (see {@link CustomerSearchAgentIT}'s Javadoc); {@code 02}'s model
  *       has no exact-value/no-extras contract to hold to this precision</li>
  *   <li>{@code fuzzy-match} — {@code phoneNumberContains} is expressible via 02's flat
- *       {@code CustomerSearchCriteria} too, but doesn't reliably pass there against its default
+ *       {@code CustomerSearchCriteria} too, but doesn't reliably pass there on the weaker
  *       {@code llama3.1:8b} (observed hallucinating an unrelated phone number during alignment
  *       testing), so per the "shared set = reliably-passing intersection" rule it stays here
  *       instead of {@code CustomerSearchAgentIT}</li>

@@ -28,11 +28,12 @@ import static org.awaitility.Awaitility.await;
  * <p>
  * Runs standalone rather than sharing a base class with {@code CustomerSearchAgentIT}: browserless
  * testing needs the default {@code MOCK} web environment and Vaadin's Spring Boot autoconfiguration,
- * so the backend wiring is duplicated here rather than inherited. Which of the app's
- * {@code ollama}/{@code openai}(default) Spring profiles {@code AI_TEST_PROFILE} selects
- * comes from {@code src/test/resources/application.properties}'s
- * {@code spring.profiles.active=${AI_TEST_PROFILE:openai}}. There is no reachability probe — if the
- * backend isn't reachable, the run fails rather than skipping, same as {@code CustomerSearchAgentIT}.
+ * so the backend wiring is duplicated here rather than inherited. Which Spring profile
+ * {@code AI_TEST_PROFILE} selects comes from {@code src/test/resources/application.properties}'s
+ * {@code spring.profiles.active=${AI_TEST_PROFILE:ollama}}, so the ITs target a native Ollama
+ * instance by default (the app's own default profile is {@code openai}; only the test config
+ * overrides it to {@code ollama}). There is no reachability probe — if the backend isn't reachable,
+ * the run fails rather than skipping, same as {@code CustomerSearchAgentIT}.
  * <p>
  * Uses the <em>same 7 queries</em>, method names, and source order as {@code 02-ai-agent-filter}'s
  * {@code CustomerListViewBrowserlessIT} — verified by extracting and diffing the (method name,
@@ -40,9 +41,9 @@ import static org.awaitility.Awaitility.await;
  * comparable on speed and result quality between tool calling and structured output.
  * <p>
  * {@code customersSince2020} was tried here too during alignment but dropped from the shared set:
- * against this module's default {@code llama3.1:8b}, the structured-output layer omitted the upper
- * date bound for a "since &lt;year&gt;" query (a single {@code -Pit-local-ollama} run, 100%
- * reproducible on retry), letting rows from later years leak into the grid — even though
+ * on the weaker {@code llama3.1:8b} (the module default at the time), the structured-output layer
+ * omitted the upper date bound for a "since &lt;year&gt;" query (a single {@code -Pit-local-ollama}
+ * run, 100% reproducible on retry), letting rows from later years leak into the grid — even though
  * {@code 02}'s tool-calling layer passes it reliably.
  */
 @SpringBootTest

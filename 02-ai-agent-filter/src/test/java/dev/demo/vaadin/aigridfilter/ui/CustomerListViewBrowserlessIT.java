@@ -28,22 +28,23 @@ import static org.awaitility.Awaitility.await;
  * <p>
  * Runs standalone rather than sharing a base class with {@code CustomerSearchAgentIT}: browserless
  * testing needs the default {@code MOCK} web environment and Vaadin's Spring Boot autoconfiguration,
- * so the backend wiring is duplicated here rather than inherited. Which of the app's
- * {@code ollama}/{@code openai}(default) Spring profiles {@code AI_TEST_PROFILE} selects
- * comes from {@code src/test/resources/application.properties}'s
- * {@code spring.profiles.active=${AI_TEST_PROFILE:openai}}. There is no reachability probe — if the
- * backend isn't reachable, the run fails rather than skipping, same as {@code CustomerSearchAgentIT}.
+ * so the backend wiring is duplicated here rather than inherited. Which Spring profile
+ * {@code AI_TEST_PROFILE} selects comes from {@code src/test/resources/application.properties}'s
+ * {@code spring.profiles.active=${AI_TEST_PROFILE:ollama}}, so the ITs target a native Ollama
+ * instance by default (the app's own default profile is {@code openai}; only the test config
+ * overrides it to {@code ollama}). There is no reachability probe — if the backend isn't reachable,
+ * the run fails rather than skipping, same as {@code CustomerSearchAgentIT}.
  * <p>
- * No relative-date case (e.g. "customers who ordered yesterday"): {@code llama3.1:8b} (this
- * module's configured default) reliably fails the two-hop tool-call chain that requires — see the
- * module README's "Known limitation" section, and {@code CustomerSearchAgentIT} which excludes it
- * for the same reason.
+ * No relative-date case (e.g. "customers who ordered yesterday"): it needs a two-hop tool-call chain
+ * that a weaker model like {@code llama3.1:8b} reliably fails, while the configured default
+ * {@code qwen3:8b} handles it — see the module README's "Known limitation" section, and
+ * {@code CustomerSearchAgentIT} which excludes it for the same reason.
  * <p>
  * {@code customersSince2020} was tried here too during alignment but dropped from the shared set:
- * {@code 03-ai-structured-filter}'s structured-output layer, against its default {@code llama3.1:8b},
- * omitted the upper date bound for a "since &lt;year&gt;" query (a single {@code -Pit-local-ollama}
- * run, 100% reproducible on retry), letting rows from later years leak into the grid — even though
- * this module's tool-calling layer passes it reliably.
+ * {@code 03-ai-structured-filter}'s structured-output layer, on the weaker {@code llama3.1:8b} (the
+ * module default at the time), omitted the upper date bound for a "since &lt;year&gt;" query (a
+ * single {@code -Pit-local-ollama} run, 100% reproducible on retry), letting rows from later years
+ * leak into the grid — even though this module's tool-calling layer passes it reliably.
  */
 @SpringBootTest
 @ViewPackages(classes = CustomerListView.class)
