@@ -114,4 +114,6 @@ output's single-shot JSON is simply less prone to that kind of drift than a free
   the natural home of tool calling — but budget for the extra hop's model-dependence.
 
 See the [capability matrix](capability-matrix.md) for the full per-query-type table with test
-citations.
+citations, and [extending-tool-calling-with-operators.md](extending-tool-calling-with-operators.md)
+for what it would take to give tool calling the same operator/negation flexibility (and why that is
+a question of delivery, not capability).
