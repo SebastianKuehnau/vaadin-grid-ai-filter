@@ -55,6 +55,10 @@ model `qwen3:8b`, plus the `-Pit-local-ollama` integration tests as the real-app
   `spring.ai.ollama.chat.model=qwen3:8b`, so the READMEs now name `qwen3:8b` as the configured default
   (pull command, `think=false` / capability notes) and keep `llama3.1:8b` only as a justified
   weaker-model comparison.
+- **`test(02,03)`** — bind `spring.ai.model.chat` to `${AI_TEST_PROFILE:ollama}` in both modules'
+  test `application.properties` so `-DAI_TEST_PROFILE=openai` actually selects the OpenAI `ChatModel`
+  (previously `03` hardcoded `ollama` and `02` left it unset, so the openai profile still ran against
+  Ollama). Enables the OpenAI cross-check below.
 
 The compact-output prompt experiment left **no trace** in the tree (reverted before commit).
 
@@ -64,17 +68,20 @@ The compact-output prompt experiment left **no trace** in the tree (reverted bef
   `03`, `02` green).
 - `03` `CustomerSearchAgentIT` vs native Ollama (`qwen3:8b`,
   `-Pit-local-ollama -DAI_TEST_PROFILE=ollama`): **18/18 green** with the shipped changes.
+- OpenAI cross-check (`-Pit-local-ollama -DAI_TEST_PROFILE=openai`, `gpt-5.4-mini`), after the
+  `test(02,03)` config fix: `CustomerSearchAgentIT` **16/16 green (02)** and **18/18 green (03)**;
+  BUILD SUCCESS for both.
 - `04` baseline eval report is a generated artifact (`benchmark-report-*`, gitignored) — cited above,
   not committed.
 
 ## Flagged for the maintainer (out of scope here)
 
-- **OpenAI cross-check via the ITs is not operable as configured.** `03`'s test
-  `src/test/resources/application.properties` pins `spring.ai.model.chat=ollama` unconditionally, so
-  `-DAI_TEST_PROFILE=openai` still binds the Ollama `ChatModel` (and hits `localhost:11434`). This is
-  the same profile-default inconsistency already tracked by `tasks/align-ai-integration-tests.md`;
-  fixing it (so the openai profile actually selects the OpenAI model in tests) belongs there, not in a
-  prompt task. The shipped `03` change is a behaviour-neutral no-op removal, already verified green on
-  the real Ollama path, so this gap does not affect it.
+- **OpenAI test-profile routing — fixed here (with maintainer go-ahead).** The test
+  `application.properties` bound `spring.ai.model.chat` to Ollama (`03` hardcoded it, `02` left it
+  unset), so `-DAI_TEST_PROFILE=openai` activated the openai profile but still ran against the Ollama
+  bean. Fixed by the `test(02,03)` commit above; the OpenAI cross-check is now green (see
+  Verification). This overlaps the profile-default inconsistency tracked by
+  `tasks/align-ai-integration-tests.md`; the wider default-profile question (pom comment vs
+  `${AI_TEST_PROFILE:ollama}`) still belongs there.
 - If speed is pursued later, do it via the non-prompt levers listed under Findings §3 — a separate,
   code-scoped task.
