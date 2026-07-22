@@ -112,6 +112,10 @@ public class BenchmarkLocalModels {
             return new EvalCase(name, query, Set.of(), true, List.of(expected));
         }
 
+        static EvalCase both(String name, String query, String tag, Expectation... expected) {
+            return new EvalCase(name, query, Set.of(tag), true, List.of(expected));
+        }
+
         static EvalCase structuredOnly(String name, String query, String tag, Expectation... expected) {
             return new EvalCase(name, query, Set.of(tag), false, List.of(expected));
         }
@@ -249,11 +253,14 @@ public class BenchmarkLocalModels {
                 TextExpectation.of("lastOrderDate", "GREATER_OR_EQUAL", "2024-01-01"),
                 TextExpectation.of("lastOrderDate", "LESS_OR_EQUAL", "2024-12-31")));
 
-        // --- robustness / anti-hallucination cases (03-only: 02's flat CustomerSearchCriteria was
-        // never verified against these, see tasks/harden-filter-test-assertions.md) ---
-        cases.add(EvalCase.structuredOnly("smalltalk_noCriteria", "Nice weather today, isn't it?",
+        // --- robustness / anti-hallucination cases ---
+        // The two no-criteria cases run against both approaches (empty-filter scoring works for
+        // tool-calling too, see showAllCustomers_noCriteria); revenueExact_notOverGenerated stays
+        // structured-only because EQUALS precision is not expressible in 02's flat
+        // CustomerSearchCriteria (see tasks/harden-filter-test-assertions.md).
+        cases.add(EvalCase.both("smalltalk_noCriteria", "Nice weather today, isn't it?",
                 "anti-hallucination"));
-        cases.add(EvalCase.structuredOnly("unrelatedRequest_noCriteria", "What's the capital of France?",
+        cases.add(EvalCase.both("unrelatedRequest_noCriteria", "What's the capital of France?",
                 "anti-hallucination"));
         cases.add(EvalCase.structuredOnly("revenueExact_notOverGenerated",
                 "customers with exactly 100000 in annual revenue", "anti-hallucination",

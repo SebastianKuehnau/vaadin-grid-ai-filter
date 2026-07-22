@@ -115,11 +115,13 @@ only to a genuinely exact query (`revenueExact_notOverGenerated`); the range-sty
 (`citiesAndRevenue_keepsEveryCondition`, `citiesWithRevenueRange`, the `notInCityWithRevenue...`
 cases) keep their deliberately headroom-tolerant `NumericAtLeast`/`NumericAtMost` matching.
 
-Three robustness/anti-hallucination cases exercise this (structured-only — never verified against
-`02`'s flat `CustomerSearchCriteria`): `smalltalk_noCriteria` and `unrelatedRequest_noCriteria`
-(small talk / an off-topic query must yield an empty filter, i.e. every field stays empty), and
-`revenueExact_notOverGenerated` ("exactly 100000 in annual revenue" — `EQUALS` on a numeric field,
-exact value, with every other field required to stay empty by the universal field-precision check).
+Three robustness/anti-hallucination cases exercise this: `smalltalk_noCriteria` and
+`unrelatedRequest_noCriteria` run against **both** approaches (small talk / an off-topic query must
+yield an empty filter, i.e. every field stays empty — verified for tool-calling and structured
+output alike), and `revenueExact_notOverGenerated` stays structured-only ("exactly 100000 in annual
+revenue" — `EQUALS` on a numeric field, exact value, with every other field required to stay empty
+by the universal field-precision check), since `EQUALS` precision is not expressible in `02`'s flat
+`CustomerSearchCriteria`.
 
 ## MLX Server backend
 

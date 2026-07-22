@@ -171,12 +171,21 @@ class CustomerSearchAgentIT {
     void resetTheFilter_German() {
         // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT, for direct comparability.
         CustomerSearchCriteria criteria = agent.requestCriteria("setze den Filter zurück");
-        assertThat(criteria).satisfiesAnyOf(
-                c -> assertThat(c).isNull(),
-                c -> assertThat(Arrays.asList(c.companyName(), c.contactName(), c.email(), c.phone(),
-                        c.customerSince(), c.lastOrderDate(), c.country(), c.city(), c.postalCode(),
-                        c.street(), c.houseNumber(), c.creditRating(), c.annualRevenue()))
-                        .allSatisfy(field -> assertThat(field).isNullOrEmpty()));
+        assertNoCriteria(criteria);
+    }
+
+    @Test
+    void smalltalk_noCriteria() {
+        // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerSearchCriteria criteria = agent.requestCriteria("Nice weather today, isn't it?");
+        assertNoCriteria(criteria);
+    }
+
+    @Test
+    void unrelatedRequest_noCriteria() {
+        // Same wording as 03-ai-structured-filter's CustomerSearchAgentIT, for direct comparability.
+        CustomerSearchCriteria criteria = agent.requestCriteria("What's the capital of France?");
+        assertNoCriteria(criteria);
     }
 
     @Test
@@ -195,6 +204,16 @@ class CustomerSearchAgentIT {
         // Javadoc), so this asserts on that same "null or empty" contract rather than requiring the
         // model to have produced literal nulls.
         CustomerSearchCriteria criteria = agent.requestCriteria("show all customers");
+        assertNoCriteria(criteria);
+    }
+
+    /**
+     * Asserts that no filter was produced: either the whole {@link CustomerSearchCriteria} is null, or
+     * every one of its (list-valued) fields is null or empty. A small model may emit an empty list
+     * rather than omitting a parameter entirely, and {@code CustomerSpecifications} treats both as "no
+     * filter" (see its class Javadoc), so both shapes are accepted.
+     */
+    static void assertNoCriteria(CustomerSearchCriteria criteria) {
         assertThat(criteria).satisfiesAnyOf(
                 c -> assertThat(c).isNull(),
                 c -> assertThat(Arrays.asList(c.companyName(), c.contactName(), c.email(), c.phone(),
