@@ -110,9 +110,9 @@ class CustomerSearchToolCallingService implements CustomerSearchAgent {
             the actual date.
             """)
     void searchCustomers(
-            @ToolParam(description = "company names, part of each to match, or null") List<String> companyName,
-            @ToolParam(description = "contact names, part of each to match, or null") List<String> contactName,
-            @ToolParam(description = "email addresses, part of each to match, or null") List<String> email,
+            @ToolParam(description = "company names") List<String> companyName,
+            @ToolParam(description = "contact names") List<String> contactName,
+            @ToolParam(description = "email addresses") List<String> email,
             @ToolParam(description = """
                     phone numbers, part of each to match, or null. Numbers are stored in E.164 format, so
                     normalize the user input to E.164 before passing it, e.g. '016057123456' or
@@ -127,11 +127,11 @@ class CustomerSearchToolCallingService implements CustomerSearchAgent {
                     falls anywhere in that entry's year. A JSON array of ISO yyyy-MM-dd dates; interpret
                     ambiguous user input as day-first (German format), e.g. '03.05.05' ->
                     ["2005-05-03"].""") List<LocalDate> lastOrderDate,
-            @ToolParam(description = "countries, part of each to match, or null") List<String> country,
-            @ToolParam(description = "cities, part of each to match, or null") List<String> city,
-            @ToolParam(description = "postal codes, part of each to match, or null") List<String> postalCode,
-            @ToolParam(description = "streets, part of each to match, or null") List<String> street,
-            @ToolParam(description = "house numbers, part of each to match, or null") List<String> houseNumber,
+            @ToolParam(description = "countries") List<String> country,
+            @ToolParam(description = "cities") List<String> city,
+            @ToolParam(description = "postal codes") List<String> postalCode,
+            @ToolParam(description = "streets") List<String> street,
+            @ToolParam(description = "house numbers") List<String> houseNumber,
             @ToolParam(description = """
                     credit ratings to match, or null. Each one of: GOOD (creditworthy),
                     MEDIUM (limited creditworthiness), POOR (at risk / not creditworthy).""") List<CreditRating> creditRating,
