@@ -635,7 +635,7 @@ public class BenchmarkLocalModels {
         if (!m.find()) {
             throw new IllegalStateException("Could not extract system prompt template from " + source);
         }
-        String template = m.group(1);
+        String template = dedentTextBlock(m.group(1));
 
         LocalDate yesterday = today.minusDays(1);
         LocalDate thisWeekMonday = today.minusDays(today.getDayOfWeek().getValue() - 1L);
@@ -678,7 +678,20 @@ public class BenchmarkLocalModels {
         if (!m.find()) {
             throw new IllegalStateException("Could not extract SYSTEM_PROMPT from CustomerSearchToolCallingService.java");
         }
-        return m.group(1).strip();
+        return dedentTextBlock(m.group(1));
+    }
+
+    /**
+     * Reproduces the Java text-block processing the app's compiler applies to a {@code """..."""}
+     * literal, so a prompt extracted verbatim from source matches the string the app actually sends.
+     * Drops the line terminator right after the opening delimiter, then removes incidental leading
+     * white space per line via {@link String#stripIndent()}. Without this the extracted prompt keeps
+     * the source-code indentation (~16 spaces per line), which measurably degrades some models — e.g.
+     * on {@code qwen3:8b} the indented structured prompt returned an empty filter for "creditworthy
+     * customers" where the real (dedented) prompt returns the correct {@code creditRating=GOOD}.
+     */
+    private static String dedentTextBlock(String rawBlock) {
+        return rawBlock.replaceFirst("^\\R", "").stripIndent();
     }
 
     private record ToolParamSpec(String name, String type, String description) {
