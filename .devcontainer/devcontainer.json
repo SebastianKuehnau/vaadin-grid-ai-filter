@@ -9,6 +9,9 @@
     "source=${localWorkspaceFolder}/.devcontainer/m2-cache,target=/home/node/.m2/repository,type=bind,consistency=cached"
   ],
   "remoteUser": "node",
+  "containerEnv": {
+    "OPENAI_API_KEY": "${localEnv:OPENAI_API_KEY}"
+  },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
   "postCreateCommand": "sudo chown -R node:node /home/node/.claude /home/node/.claude.json /home/node/.m2",
