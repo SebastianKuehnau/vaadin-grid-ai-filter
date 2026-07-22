@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
@@ -56,8 +55,8 @@ public class CustomerSearchStructuredOutputService implements CustomerSearchAgen
                     .advisors(SimpleLoggerAdvisor.builder().build())
                     .system(systemPrompt(LocalDate.now()))
                     .user(naturalLanguageQuery)
-                    // Low temperature → deterministic structure, fewer formatting slips.
-                    .options(ChatOptions.builder())
+                    // Temperature (0 for deterministic structure) is set per active profile in
+                    // application-<provider>.properties, not here.
                     .call()
                     .entity(CustomerFilter.class);
             logger.info("requestFilter('{}') -> {}", naturalLanguageQuery, filter);
