@@ -39,8 +39,9 @@ never share an instance, and within one instance the view only ever has one sear
 time (it disables the filter field for the duration of a search). `requestCriteria(...)` resets
 `criteria` to `null` at the start of every call, since — unlike a fresh per-call object — the field
 now outlives a single call. `CustomerSpecifications` combines fields with AND, same as
-`03-ai-structured-filter`'s tree at the top level, but stays flat (no OR/NOT across fields, no
-nesting) — the deliberate, demo-relevant contrast with that module's `FilterNode` tree.
+`03-ai-structured-filter`, but stays simpler still: no per-field operator or `negate` flag, and no
+OR/NOT across fields — the deliberate, demo-relevant contrast with that module's `CustomerFilter`
+conditions, which carry an explicit operator and negation (though it too is a flat list, not a tree).
 
 `CustomerSearchAgent.resolveFilter(...)` never throws: on any failure (bad model response,
 unreachable model, ...) it falls back to an unrestricted specification, so the UI never breaks.
@@ -127,32 +128,30 @@ block per tool call; a non-reasoning model like `llama3.1:8b` ignores the flag a
 
 ```bash
 ./mvnw -pl 02-ai-agent-filter test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
-./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=ollama   # CustomerSearchAgentIT + CustomerListViewBrowserlessIT vs native Ollama
-./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama                           # same suite, against the real OpenAI API (openai is the default test profile)
+./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama                            # CustomerSearchAgentIT + CustomerListViewBrowserlessIT vs native Ollama (ollama is the default test profile)
+./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API
 ```
 
 `-Pit-local-ollama` only controls which test classes run (it enables the Ollama-only ITs); which
-Spring profile the app itself uses is a separate choice that defaults to `openai`
-(`src/test/resources/application.properties`), so target a native Ollama instance with
-`-DAI_TEST_PROFILE=ollama` (or the `AI_TEST_PROFILE` environment variable) — the same flag also
-accepts `openai` (respecting `OPENAI_API_KEY`, same as the app itself) to run the identical test
-classes against the real OpenAI API instead.
+Spring profile they use is a separate choice that defaults to `ollama` in the test config
+(`src/test/resources/application.properties`), so the ITs target a native Ollama instance
+(`OLLAMA_BASE_URL`) out of the box. Pass `-DAI_TEST_PROFILE=openai` (or the `AI_TEST_PROFILE`
+environment variable, respecting `OPENAI_API_KEY` the same as the app itself) to run the identical
+test classes against the real OpenAI API instead. The app's *own* default profile is `openai`; only
+the test config overrides it to `ollama`.
 
 - **`CustomerSpecificationsTest`** (`@DataJpaTest`, no LLM) — one test per predicate/field against
   the seeded H2 data (single- and multi-value/OR cases, including `annualRevenue`'s open- and
   closed-ended ranges), plus AND-across-fields and null-matches-all.
 - **`CustomerSearchToolCallingServiceToolsTest`** (plain JUnit, no Spring context) — the extraction
   plumbing (single- and multi-value arguments) and the date tool, in isolation.
-- **`CustomerSearchAgentIT extends LocalOllamaTests`** — 18 natural-language queries against a
-  native Ollama instance (`LocalOllamaTests`/`OllamaTestSupport` duplicated from
-  `03-ai-structured-filter`, this repo's established per-module pattern for Ollama IT
-  infrastructure). Assertions are tolerant of LLM non-determinism (case-insensitive, substring).
-  Every case here uses the exact same wording/values as one of
+- **`CustomerSearchAgentIT`** — 18 natural-language queries against a native Ollama instance (a
+  plain `@SpringBootTest`, no shared base class). Assertions are tolerant of LLM non-determinism
+  (case-insensitive, substring). Every case here uses the exact same wording/values as one of
   `03-ai-structured-filter`'s `CustomerSearchAgentIT` cases, so the two modules' results and
   timings are directly comparable; that module has additional cases (tagged `negation`,
-  `operator-precision`, `relative-date`, `cross-field-or`, `nested-tree`) with no counterpart
-  here, because this module's flat `CustomerSearchCriteria` can't express NOT,
-  STARTS_WITH/ENDS_WITH, arbitrary date bounds, or OR/nesting across different fields.
+  `operator-precision`, `relative-date`) with no counterpart here, because this module's flat
+  `CustomerSearchCriteria` can't express NOT, STARTS_WITH/ENDS_WITH, or arbitrary date bounds.
 - **`CustomerListViewBrowserlessTest`** — [Vaadin Browserless
   testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake, deterministic
   `CustomerSearchAgent` bean, so it never calls a real model. Since the view applies results
@@ -161,13 +160,12 @@ classes against the real OpenAI API instead.
   `pollInSameThread()` loop (so the flush runs on the thread holding the UI `ThreadLocal`) —
   needed because a plain synchronous assertion races the background search thread.
 - **`CustomerListViewBrowserlessIT`** — same Browserless setup, but against a real native Ollama
-  instance instead of a fake agent bean (skips gracefully if unreachable, like
+  instance instead of a fake agent bean (it fails rather than skipping if unreachable, like
   `CustomerSearchAgentIT`), exercising the full `TextField` → tool-calling AI layer → `Grid`
   pipeline end to end. Since the real model's result size isn't known upfront, the wait condition
   is "the filter field is re-enabled" (it's disabled for the duration of a search) rather than a
-  fixed grid size. `03-ai-structured-filter` has an identical test with the same 8 queries, so the
-  two modules'
-  `-Pit-local-ollama` runs are directly comparable on speed (per-test elapsed time in
+  fixed grid size. `03-ai-structured-filter` has an identical test with the same 7 queries, so the
+  two modules' `-Pit-local-ollama` runs are directly comparable on speed (per-test elapsed time in
   `target/failsafe-reports/`) and result quality between tool calling and structured output.
 
 ## Sources

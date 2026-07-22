@@ -84,18 +84,6 @@
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
 			<plugin>
-				<!-- LocalOllamaTests (the Ollama IT infrastructure class) ends in *Tests, which
-				     surefire's default include pattern would otherwise pick up; keep it out of the
-				     plain unit-test run, it only runs via failsafe under the it-* profiles below. -->
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-surefire-plugin</artifactId>
-				<configuration>
-					<excludes>
-						<exclude>**/LocalOllamaTests.java</exclude>
-					</excludes>
-				</configuration>
-			</plugin>
-			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-failsafe-plugin</artifactId>
 				<executions>
@@ -119,9 +107,9 @@
 	<profiles>
 		<profile>
 			<!-- Enables CustomerSearchAgentIT + CustomerListViewBrowserlessIT. The default test
-			     Spring profile is openai (src/test/resources/application.properties); pass
-			     -DAI_TEST_PROFILE=ollama (or set it as an env var) to target a native Ollama
-			     instance (OLLAMA_BASE_URL) instead. -->
+			     Spring profile is ollama (src/test/resources/application.properties), targeting a
+			     native Ollama instance at OLLAMA_BASE_URL; pass -DAI_TEST_PROFILE=openai (or set it
+			     as an env var) to target the real OpenAI API instead. -->
 			<id>it-local-ollama</id>
 			<build>
 				<plugins>

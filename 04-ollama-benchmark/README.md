@@ -247,17 +247,19 @@ own `mlx_lm.server` and add a row/table if you'd like to include it).
 | `gemma4:e4b` | 29/32 | 1726 ms | 442 ms | 41.2 | 8.9 GB |
 | `gemma4:e4b-mlx` | 28/32 | 1664 ms | 3582 ms | 42.5 | 9.0 GB |
 | `gemma4:12b-mlx` | 30/32 | 2814 ms | 16431 ms | 20.2 | 6.3 GB |
-| `qwen3:8b` | 29/32 | 1796 ms | 291 ms | 30.3 | 4.9 GB |
+| `qwen3:8b` (module default) | 29/32 | 1796 ms | 291 ms | 30.3 | 4.9 GB |
 | `gemma4:26b-mlx` | 31/32 | 1571 ms | 6149 ms | 40.5 | 15.5 GB |
-| `llama3.1:8b` (module default) | 27/32 | 1561 ms | **290 ms** | 33.0 | 4.6 GB |
+| `llama3.1:8b` | 27/32 | 1561 ms | **290 ms** | 33.0 | 4.6 GB |
 
 Takeaways:
 
 - **`gemma4:26b-mlx` is the most accurate** (31/32), but at 15.5 GB it's the heaviest model tested.
-- **`llama3.1:8b`, the module's configured default, is not the most accurate** (27/32) — `qwen3:8b`,
-  `gemma4:e4b`, `qwen3.5:4b-mlx` (all 29/32) and `gemma4:12b-mlx` (30/32) score higher at a similar or
-  smaller size; it remains the default mainly for its fast, consistent time-to-first-token (290 ms).
-- **`llama3.2:1b` is unsuitable** (12/32) — too small to reliably nest AND/OR/NOT filter trees.
+- **`qwen3:8b`, the module's configured default, balances accuracy and responsiveness** (29/32 at a
+  fast, consistent 291 ms time-to-first-token and 4.9 GB) — only `gemma4:12b-mlx` (30/32) and
+  `gemma4:26b-mlx` (31/32) score higher, both larger and with far higher TTFT. `llama3.1:8b` (27/32)
+  was the earlier default and is kept here as the weaker-model reference point.
+- **`llama3.2:1b` is unsuitable** (12/32) — too small to reliably produce the structured
+  multi-condition filter.
 - **High TTFT hurts the "MLX" quantizations** despite otherwise-decent accuracy — `gemma4:12b-mlx`
   (16.4 s) and `qwen3.5:9b-mlx` (9.3 s) feel slow to first response even though their token throughput
   is fine once generation starts.

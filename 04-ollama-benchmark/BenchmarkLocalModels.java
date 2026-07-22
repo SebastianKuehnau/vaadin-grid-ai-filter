@@ -1747,6 +1747,8 @@ public class BenchmarkLocalModels {
         sb.append("\nGPU: ").append(results.isEmpty() ? "n/a" : results.get(0).gpuInfo())
           .append(" (nvidia-smi; \"n/a\" on hosts without an NVIDIA GPU, e.g. Apple Silicon)\n");
 
+        renderPairedComparison(sb, results);
+
         sb.append("\n## Per-case pass rate\n");
         for (ModelApproachResult r : results) {
             if (r.fatalError() != null) continue;
@@ -1793,6 +1795,64 @@ public class BenchmarkLocalModels {
             }
         }
         return sb.toString();
+    }
+
+    /**
+     * Paired tool-calling vs. structured-output view: for every model that ran both approaches, the
+     * two results are lined up on the same case so divergence is legible at a glance. The summary
+     * table and the per-approach sections elsewhere in the report list the approaches as separate
+     * rows/sections and never put the same case side by side; this section does. Tool-calling only
+     * runs the shared ("both") cases, so structured-only cases show "—" for tool-calling and are
+     * flagged {@code SO-only}. Emitted only when at least one model has a non-fatal result for both
+     * approaches (e.g. {@code --approach=both}).
+     */
+    private static void renderPairedComparison(StringBuilder sb, List<ModelApproachResult> results) {
+        List<String> models = results.stream().map(ModelApproachResult::model).distinct()
+                .collect(Collectors.toList());
+        StringBuilder body = new StringBuilder();
+        for (String model : models) {
+            ModelApproachResult tc = pick(results, model, Approach.TOOL_CALLING);
+            ModelApproachResult so = pick(results, model, Approach.STRUCTURED);
+            if (tc == null || so == null) continue; // need both approaches to pair
+            RowCells tcRow = buildRow(tc);
+            RowCells soRow = buildRow(so);
+            body.append("\n### ").append(model).append("\n\n");
+            body.append("| Metric | Tool-calling | Structured |\n|---|---|---|\n");
+            body.append("| Mean pass rate | ").append(tcRow.passRate()).append(" | ")
+                .append(soRow.passRate()).append(" |\n");
+            body.append("| Median latency | ").append(tcRow.medianLat()).append(" | ")
+                .append(soRow.medianLat()).append(" |\n");
+            body.append("| TTFT | ").append(tcRow.ttft()).append(" | ").append(soRow.ttft()).append(" |\n");
+            body.append("| Tokens/s | ").append(tcRow.tokS()).append(" | ").append(soRow.tokS()).append(" |\n\n");
+            body.append("| Case | Tool-calling | Structured | Δ |\n|---|---|---|---|\n");
+            for (CaseAggregate soCase : so.cases()) {
+                CaseAggregate tcCase = tc.cases().stream()
+                        .filter(x -> x.name().equals(soCase.name())).findFirst().orElse(null);
+                String tcCell = tcCase != null ? tcCase.passRateLabel() : "—";
+                String delta;
+                if (tcCase == null) {
+                    delta = "SO-only";
+                } else {
+                    double tcFrac = tcCase.runs() == 0 ? 0 : (double) tcCase.passes() / tcCase.runs();
+                    double soFrac = soCase.runs() == 0 ? 0 : (double) soCase.passes() / soCase.runs();
+                    delta = soFrac > tcFrac ? "▲ SO" : tcFrac > soFrac ? "▼ TC" : "=";
+                }
+                body.append("| ").append(soCase.name()).append(" | ").append(tcCell).append(" | ")
+                    .append(soCase.passRateLabel()).append(" | ").append(delta).append(" |\n");
+            }
+        }
+        if (body.length() == 0) return; // no model ran both approaches
+        sb.append("\n## Tool-calling vs. structured (paired)\n\n");
+        sb.append("Same model, both approaches, lined up per case. `▲ SO` = structured passed more ")
+          .append("often, `▼ TC` = tool-calling passed more often, `=` = tied, `SO-only` = case not ")
+          .append("expressible via tool calling (structured-only; tool-calling runs only the shared cases).\n");
+        sb.append(body);
+    }
+
+    private static ModelApproachResult pick(List<ModelApproachResult> results, String model, Approach approach) {
+        return results.stream()
+                .filter(r -> r.model().equals(model) && r.approach() == approach && r.fatalError() == null)
+                .findFirst().orElse(null);
     }
 
     private static final int RAW_BODY_REPORT_CAP = 4000;

@@ -37,10 +37,12 @@ its own port, so several can run at the same time. A fourth, non-Maven directory
   `02-ai-agent-filter/README.md` for details.
 - **`03-ai-structured-filter`** — The same natural-language idea, but the model returns a single
   `CustomerFilter` object as **structured output** (instead of calling a tool), which Java translates
-  into a `Specification`. This is more reliable for smaller, local models, and lets the LLM express any
-  AND/OR/NOT combination via a filter tree, not just a flat list of conditions. The module is layered
-  (`ui` / `ai` / `data`) so the AI layer is testable in isolation. See `03-ai-structured-filter/README.md`
-  for the filter tree structure and the Ollama integration test architecture.
+  into a `Specification`. This is more reliable for smaller, local models. The `CustomerFilter` is a
+  flat list of conditions — each with a field, operator, values, and a `negate` flag — deliberately
+  not a recursive AND/OR/NOT tree; that trade-off keeps the shape easy for a small model to produce
+  while still expressing negation and per-field operators. The module is layered (`ui` / `ai` / `data`)
+  so the AI layer is testable in isolation. See `03-ai-structured-filter/README.md` for the flat
+  filter schema and the Ollama integration test architecture.
 - **`04-ollama-benchmark`** — Not a Maven module: a standalone, dependency-free script that compares
   local Ollama models on `03-ai-structured-filter`'s natural-language-to-filter task. See
   `04-ollama-benchmark/README.md`.
@@ -75,7 +77,7 @@ the whole reactor at once:
   **OpenAI API** (needs `OPENAI_API_KEY`); `ollama` targets a local Ollama instance via Spring AI's
   native Ollama binding:
   ```bash
-  ollama pull llama3.1:8b
+  ollama pull qwen3:8b
   ```
   See either module's README for the full switching commands and trade-offs.
 
@@ -94,7 +96,7 @@ Both views are covered by BrowserlessTests — no browser or servlet container n
 
 ```bash
 ./mvnw -pl 02-ai-agent-filter test                        # unit tests + CustomerListViewBrowserlessTest (no LLM)
-./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama     # CustomerSearchAgentIT vs native Ollama (skips if unreachable)
+./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama     # CustomerSearchAgentIT vs native Ollama (fails if Ollama unreachable — no probe)
 ```
 
 See `02-ai-agent-filter/README.md` for details, including a known model-capability limitation
@@ -104,10 +106,10 @@ around relative-date queries.
 
 ```bash
 ./mvnw -pl 03-ai-structured-filter test                        # unit tests + CustomerListViewBrowserlessTest (no LLM)
-./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama     # CustomerSearchAgentIT + CustomerListViewBrowserlessIT vs native Ollama (skips if unreachable)
+./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama     # CustomerSearchAgentIT + CustomerListViewBrowserlessIT vs native Ollama (fails if Ollama unreachable — no probe)
 ```
 
-See `03-ai-structured-filter/README.md` for details, including the filter tree structure and the
+See `03-ai-structured-filter/README.md` for details, including the flat filter schema and the
 Ollama integration test architecture.
 
 ### 04-ollama-benchmark

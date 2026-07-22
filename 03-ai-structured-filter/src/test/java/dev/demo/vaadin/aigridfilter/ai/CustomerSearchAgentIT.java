@@ -47,14 +47,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  * (method name, query) pairs of both classes. Cases that need a capability {@code 02}'s flat
  * {@code CustomerSearchCriteria} model cannot express at all (negation, STARTS_WITH/ENDS_WITH/EQUALS
  * precision, arbitrary date bounds), plus {@code phoneNumberContains} (expressible in {@code 02} but
- * not reliably passing there against its default {@code llama3.1:8b} — the tool-calling model
- * hallucinated an unrelated phone number during alignment testing), have no counterpart there and
- * live separately in {@link CustomerSearchAgentExtraIT}.
+ * not reliably passing there on the weaker {@code llama3.1:8b} — the tool-calling model hallucinated
+ * an unrelated phone number during alignment testing), have no counterpart there and live separately
+ * in {@link CustomerSearchAgentExtraIT}.
  * <p>
  * Three cases that were tried here during alignment were dropped from the shared set (present in
- * neither module's suite now) because this module's structured-output layer, against its default
- * {@code llama3.1:8b}, could not pass them reliably (single {@code -Pit-local-ollama} run, 100%
- * reproducible on retry) even though {@code 02}'s tool-calling layer passes them every time:
+ * neither module's suite now) because this module's structured-output layer, on the weaker
+ * {@code llama3.1:8b} (the module default at the time; the default is now {@code qwen3:8b}), could
+ * not pass them reliably (single {@code -Pit-local-ollama} run, 100% reproducible on retry) even
+ * though {@code 02}'s tool-calling layer passes them every time:
  * {@code germanPhoneNumberNormalizedToE164} (the model echoed the raw, un-normalized phone string
  * instead of the expected E.164 digits), {@code multiValueCustomerSinceYears} (the model expressed
  * "2020 or 2021" as a single {@code [2020-01-01, 2021-12-31]} range instead of two disjoint
