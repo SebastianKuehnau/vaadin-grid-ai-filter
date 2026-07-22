@@ -173,9 +173,14 @@ at 100 % — only as readability, and it must be proven **behaviour-neutral**.
   commit `66e18d6`; phone E.164; day-first dates; credit-rating enum; revenue ranges) were left
   untouched. Verified neutral: tool-calling pass-rate 100 % on `qwen3:8b` **and** `llama3.1:8b`
   (eval, runs=5) and `CustomerSearchAgentIT` 16/16 on both Ollama and OpenAI.
-- **Remaining (optional, apply the same principle to `03` only if redundancy exists):** `03`'s
-  `systemPrompt` is mostly rules + few-shot examples rather than per-item repetition, so headroom is
-  smaller; de-duplicate only genuinely repeated guidance, never the reliability-motivated detail.
+- **`03` — attempted and reverted (no safe redundancy).** The one plausible candidate — the
+  `negate` re-explanation in the text-fields rule, seemingly duplicated by the "Building the conditions
+  list" bullet and the dedicated example — turned out to be **load-bearing**: removing it regressed
+  `contactNameAndCity`(+`_German`) to 0/5 on `qwen3:8b` and the `notInCityWithRevenueAndYear`
+  negation cases to 0/5 on `granite3.2:8b` (eval, `--approach=structured --runs=5`). That example
+  doubles as the canonical `field=city` / `CONTAINS` demonstration *and* as negation reinforcement for
+  weaker models. Reverted byte-exact, not committed. Lesson: `03`'s repetition is deliberate
+  reinforcement, not redundancy — do not retry shortening it.
 - **Guard for any such change:** it is a readability refactor, so verify it is behaviour-neutral the
   same way — eval pass-rate stays 100 % on `qwen3:8b` (both approaches) **and** on at least one weaker
   tool-capable model (so removed verbosity isn't silently propping up weak-model robustness), plus ITs
