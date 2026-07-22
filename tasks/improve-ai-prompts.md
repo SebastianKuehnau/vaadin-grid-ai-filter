@@ -43,7 +43,20 @@ model `qwen3:8b`, plus the `-Pit-local-ollama` integration tests as the real-app
    prompt-only scope. **Maintainer decision (recorded): leave speed as-is** — `qwen3:8b` is already
    fast and 100 % correct.
 
-## What shipped (branch `feature/improve-ai-prompts`, not pushed)
+4. **Readability: only mechanical redundancy is safely removable — reinforcement is not.** The one
+   clear redundancy, `02`'s eight text `@ToolParam` descriptions each repeating ", part of each to
+   match, or null", was de-duplicated (the shared rule stays once in the `@Tool` description) and
+   verified behaviour-neutral: tool-calling pass-rate 100 % on `qwen3:8b` **and** `llama3.1:8b` (eval,
+   runs=5) and `CustomerSearchAgentIT` 16/16 on both Ollama and OpenAI. The equivalent attempt in `03`
+   — dropping the `negate` re-explanation in the text-fields rule, seemingly duplicated by the
+   "Building the conditions list" bullet and the dedicated example — **regressed**
+   `contactNameAndCity`(+`_German`) to 0/5 on `qwen3:8b` and the `notInCityWithRevenueAndYear`
+   negation cases to 0/5 on `granite3.2:8b` (eval, `--approach=structured --runs=5`). That example was
+   **load-bearing**: it doubled as the canonical `field=city`/`CONTAINS` demonstration and as negation
+   reinforcement for weaker models. Reverted byte-exact, not committed. Lesson: `03`'s repetition is
+   deliberate reinforcement, not redundancy — do not shorten it.
+
+## What shipped (branch `feature/improve-ai-prompts`)
 
 - **`chore`** — allow `api.openai.com` through the project firewall (`.devcontainer/allowed-domains.conf`),
   so the `openai` profile can be reached at all.
@@ -59,6 +72,11 @@ model `qwen3:8b`, plus the `-Pit-local-ollama` integration tests as the real-app
   test `application.properties` so `-DAI_TEST_PROFILE=openai` actually selects the OpenAI `ChatModel`
   (previously `03` hardcoded `ollama` and `02` left it unset, so the openai profile still ran against
   Ollama). Enables the OpenAI cross-check below.
+- **`refactor(02)`** — de-duplicate the eight repeated text `@ToolParam` descriptions (Findings §4);
+  readability only, verified behaviour-neutral. The `03` counterpart was attempted and reverted (§4).
+- **`chore`** — forward the host `OPENAI_API_KEY` into the container via `devcontainer.json`
+  `containerEnv` (`${localEnv:OPENAI_API_KEY}`), so the key reaches every process without living in a
+  repo file (requires a container rebuild to take effect).
 
 The compact-output prompt experiment left **no trace** in the tree (reverted before commit).
 
