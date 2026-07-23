@@ -284,9 +284,9 @@ public class BenchmarkLocalModels {
 
     private static List<Approach> resolveApproaches(String flag) {
         return switch (flag) {
+            case "both" -> List.of(Approach.TOOL_CALLING, Approach.STRUCTURED);
             case "tool-calling" -> List.of(Approach.TOOL_CALLING);
             case "structured" -> List.of(Approach.STRUCTURED);
-            case "both" -> List.of(Approach.TOOL_CALLING, Approach.STRUCTURED);
             default -> throw new IllegalStateException("Unknown approach: " + flag);
         };
     }

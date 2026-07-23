@@ -4,10 +4,14 @@ import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.browserless.ViewPackages;
 import com.vaadin.browserless.internal.MockVaadin;
 import com.vaadin.flow.component.grid.GridTester;
+import dev.demo.vaadin.aigridfilter.ai.TokenUsageRecorder;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -48,10 +52,24 @@ import static org.awaitility.Awaitility.await;
  */
 @SpringBootTest
 @ViewPackages(classes = CustomerListView.class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
 
     @Autowired
     private CustomerRepository customerRepository;
+
+    @Autowired
+    private TokenUsageRecorder tokenUsageRecorder;
+
+    @BeforeAll
+    void resetTokenUsage() {
+        tokenUsageRecorder.reset();
+    }
+
+    @AfterAll
+    void logTokenSummary() {
+        tokenUsageRecorder.logSummary("CustomerListViewBrowserlessIT");
+    }
 
     @Test
     @Timeout(value = 120, unit = TimeUnit.SECONDS)

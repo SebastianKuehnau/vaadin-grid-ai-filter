@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.context.annotation.Scope;
@@ -52,11 +53,13 @@ class CustomerSearchToolCallingService implements CustomerSearchAgent {
             """;
 
     private final ChatClient chatClient;
+    private final TokenUsageRecorder tokenUsageRecorder;
 
     CustomerSearchCriteria criteria;
 
-    CustomerSearchToolCallingService(ChatModel chatModel) {
+    CustomerSearchToolCallingService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
         this.chatClient = ChatClient.builder(chatModel).build();
+        this.tokenUsageRecorder = tokenUsageRecorder;
     }
 
     /**
@@ -77,13 +80,19 @@ class CustomerSearchToolCallingService implements CustomerSearchAgent {
     CustomerSearchCriteria requestCriteria(String naturalLanguageQuery) {
         criteria = null;
         try {
-            chatClient.prompt()
+            // Capture the ChatResponse (instead of discarding .content()) to read its token usage.
+            // With tool calling the model does several round trips; both the OpenAI and Ollama chat
+            // models accumulate usage across them, so this final response's usage is the request total.
+            long start = System.nanoTime();
+            ChatResponse response = chatClient.prompt()
                     .system(SYSTEM_PROMPT)
                     .user(naturalLanguageQuery)
                     .tools(this)
                     .advisors(SimpleLoggerAdvisor.builder().build())
                     .call()
-                    .content();
+                    .chatResponse();
+            long durationMillis = (System.nanoTime() - start) / 1_000_000;
+            tokenUsageRecorder.record(naturalLanguageQuery, response.getMetadata().getUsage(), durationMillis);
         } catch (Exception e) {
             logger.warn("Could not turn query into search criteria; showing all customers. Query: '{}'",
                     naturalLanguageQuery, e);
