@@ -55,6 +55,7 @@ public class CustomerSearchStructuredOutputService implements CustomerSearchAgen
         try {
             // responseEntity(...) gives both the parsed entity and the ChatResponse, so we can read
             // the token usage alongside the structured result (plain .entity(...) would drop it).
+            long start = System.nanoTime();
             var responseEntity = chatClient.prompt()
                     .advisors(SimpleLoggerAdvisor.builder().build())
                     .system(systemPrompt(LocalDate.now()))
@@ -63,8 +64,10 @@ public class CustomerSearchStructuredOutputService implements CustomerSearchAgen
                     // application-<provider>.properties, not here.
                     .call()
                     .responseEntity(CustomerFilter.class);
+            long durationMillis = (System.nanoTime() - start) / 1_000_000;
             CustomerFilter filter = responseEntity.entity();
-            tokenUsageRecorder.record(naturalLanguageQuery, responseEntity.response().getMetadata().getUsage());
+            tokenUsageRecorder.record(naturalLanguageQuery, responseEntity.response().getMetadata().getUsage(),
+                    durationMillis);
             logger.info("requestFilter('{}') -> {}", naturalLanguageQuery, filter);
             return filter;
         } catch (Exception e) {

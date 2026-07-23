@@ -83,6 +83,7 @@ class CustomerSearchToolCallingService implements CustomerSearchAgent {
             // Capture the ChatResponse (instead of discarding .content()) to read its token usage.
             // With tool calling the model does several round trips; both the OpenAI and Ollama chat
             // models accumulate usage across them, so this final response's usage is the request total.
+            long start = System.nanoTime();
             ChatResponse response = chatClient.prompt()
                     .system(SYSTEM_PROMPT)
                     .user(naturalLanguageQuery)
@@ -90,7 +91,8 @@ class CustomerSearchToolCallingService implements CustomerSearchAgent {
                     .advisors(SimpleLoggerAdvisor.builder().build())
                     .call()
                     .chatResponse();
-            tokenUsageRecorder.record(naturalLanguageQuery, response.getMetadata().getUsage());
+            long durationMillis = (System.nanoTime() - start) / 1_000_000;
+            tokenUsageRecorder.record(naturalLanguageQuery, response.getMetadata().getUsage(), durationMillis);
         } catch (Exception e) {
             logger.warn("Could not turn query into search criteria; showing all customers. Query: '{}'",
                     naturalLanguageQuery, e);
