@@ -2,7 +2,10 @@ package dev.demo.vaadin.aigridfilter.ai;
 
 import dev.demo.vaadin.aigridfilter.ai.filter.CustomerSearchCriteria;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -54,10 +57,24 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.autoconfigure.exclude=com.vaadin.flow.spring.SpringBootAutoConfiguration"
 })
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class CustomerSearchAgentIT {
 
     @Autowired
     CustomerSearchToolCallingService agent;
+
+    @Autowired
+    TokenUsageRecorder tokenUsageRecorder;
+
+    @BeforeAll
+    void resetTokenUsage() {
+        tokenUsageRecorder.reset();
+    }
+
+    @AfterAll
+    void logTokenSummary() {
+        tokenUsageRecorder.logSummary("CustomerSearchAgentIT");
+    }
 
     @Test
     void singleCity() {

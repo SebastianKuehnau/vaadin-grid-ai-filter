@@ -21,13 +21,14 @@ import static org.mockito.Mockito.mock;
  * Plain JUnit test (no Spring context, no LLM) of the tools' own correctness, in isolation: calling
  * {@code searchCustomers} directly with fixed literal arguments must capture them, verbatim, into
  * {@link CustomerSearchToolCallingService#criteria}, and {@code currentLocalDateTime} must return the
- * actual current time. The {@link ChatModel} is mocked purely to satisfy the constructor — it is
- * never invoked.
+ * actual current time. The {@link ChatModel} and {@link TokenUsageRecorder} are mocked purely to
+ * satisfy the constructor — neither is invoked (the tools never call the model or record usage).
  */
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
 class CustomerSearchToolCallingServiceToolsTest {
 
-    private final CustomerSearchToolCallingService service = new CustomerSearchToolCallingService(mock(ChatModel.class));
+    private final CustomerSearchToolCallingService service =
+            new CustomerSearchToolCallingService(mock(ChatModel.class), mock(TokenUsageRecorder.class));
 
     @Test
     void capturesSingleValueArgumentsIntoResult() {
