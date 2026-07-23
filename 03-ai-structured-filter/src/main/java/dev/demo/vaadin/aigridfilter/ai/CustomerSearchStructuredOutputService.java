@@ -29,9 +29,11 @@ public class CustomerSearchStructuredOutputService implements CustomerSearchAgen
     private static final Logger logger = LoggerFactory.getLogger(CustomerSearchStructuredOutputService.class);
 
     private final ChatClient chatClient;
+    private final TokenUsageRecorder tokenUsageRecorder;
 
-    public CustomerSearchStructuredOutputService(ChatModel chatModel) {
+    public CustomerSearchStructuredOutputService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
         this.chatClient = ChatClient.builder(chatModel).build();
+        this.tokenUsageRecorder = tokenUsageRecorder;
     }
 
     /**
@@ -51,14 +53,18 @@ public class CustomerSearchStructuredOutputService implements CustomerSearchAgen
      */
     CustomerFilter requestFilter(String naturalLanguageQuery) {
         try {
-            CustomerFilter filter = chatClient.prompt()
+            // responseEntity(...) gives both the parsed entity and the ChatResponse, so we can read
+            // the token usage alongside the structured result (plain .entity(...) would drop it).
+            var responseEntity = chatClient.prompt()
                     .advisors(SimpleLoggerAdvisor.builder().build())
                     .system(systemPrompt(LocalDate.now()))
                     .user(naturalLanguageQuery)
                     // Temperature (0 for deterministic structure) is set per active profile in
                     // application-<provider>.properties, not here.
                     .call()
-                    .entity(CustomerFilter.class);
+                    .responseEntity(CustomerFilter.class);
+            CustomerFilter filter = responseEntity.entity();
+            tokenUsageRecorder.record(naturalLanguageQuery, responseEntity.response().getMetadata().getUsage());
             logger.info("requestFilter('{}') -> {}", naturalLanguageQuery, filter);
             return filter;
         } catch (Exception e) {
