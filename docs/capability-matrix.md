@@ -15,7 +15,10 @@ filter type. Every cell points at a test method (`Class#method`) or a benchmark 
 Configured default model for **both** modules: `qwen3:8b`, temperature 0
 (`src/main/resources/application-ollama.properties`). Reliability figures below are mean pass-rates
 from `04-ollama-benchmark` at `--approach=both --runs=5` (full 36-case set) on `qwen3:8b` and, to
-show the model-dependence, `llama3.1:8b`.
+show the model-dependence, `llama3.1:8b`. **Token-consumption and per-request duration** figures are
+*not* in this matrix (they do not change what a query type can express or how reliably); they are
+measured by the `TokenUsageRecorder` on the real application path and reported in
+[tool-calling-vs-structured-output.md § Token cost and request duration](tool-calling-vs-structured-output.md#token-cost-and-request-duration).
 
 ## Shared cases — both approaches express them
 

@@ -103,6 +103,45 @@ expressible in *both* filter types, yet 02's tool-calling layer hallucinated an 
 `llama3.1:8b`, so it lives only in 03's `CustomerSearchAgentExtraIT#phoneNumberContains`. Structured
 output's single-shot JSON is simply less prone to that kind of drift than a free-form tool call.
 
+## Token cost and request duration
+
+The `04-ollama-benchmark` figures above are *tokens/s* and *median latency* read straight from
+Ollama. A second, complementary lens comes from the **`TokenUsageRecorder`** (present in both
+modules): it reads Spring AI's `Usage` on the *real application path* and logs, per request, the
+prompt / completion / total tokens and the wall-clock time, then prints a per-IT-class summary. The
+numbers below are that summary for `CustomerSearchAgentIT` — the **18 shared cases**, identical
+wording in both modules, so 02 and 03 are directly comparable — from a single `-Pit-local-ollama`
+run per model (18 requests aggregated; averages rounded).
+
+| Model | Approach | Avg tokens/request (prompt + completion) | Avg duration/request |
+|---|---|---|---|
+| `qwen3:8b` (configured default) | tool calling (02) | 1454 (1427 + 27) | 2493 ms |
+| `qwen3:8b` | structured (03) | 2288 (2239 + 49) | 3731 ms |
+| `llama3.1:8b` (weaker) | tool calling (02) | 469 (347 + 122) | 7285 ms |
+| `llama3.1:8b` | structured (03) | 2161 (2105 + 57) | 3866 ms |
+
+Four things the numbers show:
+
+- **The bill is prompt-dominated.** Completion is a small fraction everywhere (27–122 tokens/request
+  — the filter object is compact). What you pay for is the system prompt plus the schema sent on
+  *every* request, which is roughly fixed regardless of how complex the query is.
+- **Structured output sends the larger prompt — on both models.** The `CustomerFilter` JSON schema
+  (`Condition` / `Operator` / `negate`) injected by `.responseEntity(CustomerFilter.class)` is
+  bulkier than 02's flat `@Tool searchCustomers(...)` signature: 2239 vs 1427 prompt tokens/request
+  on `qwen3:8b` (**≈ +57 %**), and far wider on `llama3.1:8b` (2105 vs 347). So the operator /
+  negation expressiveness that made structured output win the capability argument above carries a
+  measurable token price.
+- **Absolute counts are model-specific — compare within a model, not across.** The same tools and the
+  same schema cost 1454 vs 469 tokens/request on `qwen3:8b` vs `llama3.1:8b` for tool calling,
+  because each model's Ollama chat template encodes tool/JSON-schema definitions differently. Read
+  each row against the other approach *on the same model*.
+- **Duration does not track token count.** On `qwen3:8b` tool calling is the faster of the two (2493
+  vs 3731 ms/request); on `llama3.1:8b` it is by far the *slower* (7285 vs 3866 ms/request) despite
+  sending the fewest tokens. That is the latency face of tool calling's extra hop — the
+  `currentLocalDateTime()` round trip plus `llama3.1:8b`'s more verbose intermediate output (122
+  completion tokens/request vs 27 on `qwen3:8b`) — the same two-hop cost flagged under *Where tool
+  calling has (or had) an edge*.
+
 ## Takeaway for the talk
 
 - Need **negation, operator precision, or arbitrary date bounds**? Structured output — 02 cannot
@@ -112,6 +151,12 @@ output's single-shot JSON is simply less prone to that kind of drift than a free
   structured output on the weaker `llama3.1:8b` and mostly vanish on `qwen3:8b`.
 - Need a value the model can't know at prompt time (a **live clock**, an external lookup)? That is
   the natural home of tool calling — but budget for the extra hop's model-dependence.
+- Counting **tokens / cost**? Both approaches are prompt-dominated, so the schema + system prompt is
+  the whole bill; trimming *those* is the highest-leverage lever, not the (tiny) completion. Note the
+  trade: structured output's richer schema is the single biggest prompt item (≈ +57 % tokens/request
+  vs tool calling on `qwen3:8b`), while tool calling's smaller prompt can be paid back in round-trip
+  *latency* on a weaker model — see [Token cost and request duration](#token-cost-and-request-duration)
+  (measured by `TokenUsageRecorder`).
 
 See the [capability matrix](capability-matrix.md) for the full per-query-type table with test
 citations, and [extending-tool-calling-with-operators.md](extending-tool-calling-with-operators.md)
