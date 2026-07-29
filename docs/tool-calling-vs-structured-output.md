@@ -1,164 +1,214 @@
 # Tool calling vs. structured output
 
-Two ways to turn a natural-language query into a Vaadin-`Grid` filter, both implemented in this repo
-against the *same* domain and the *same* aligned tests, so the trade-off is concrete rather than
-theoretical. This document states the pros and cons; every claim points at a specific test method,
-an `CustomerSearchAgentExtraIT` case, or a `05-ollama-benchmark` figure. The per-query-type
-breakdown lives in the companion [capability matrix](capability-matrix.md).
+Four ways to turn a natural-language query into a Vaadin-`Grid` filter, all implemented in this repo
+against the *same* domain, the *same* eight queries and the *same* local model — so the trade-off is
+concrete rather than theoretical. This document states the pros and cons; every claim points at a test
+method, a measured figure, or both. The per-query-type breakdown lives in the companion
+[capability matrix](capability-matrix.md); the queries themselves are in
+[canonical-query-set.md](canonical-query-set.md).
 
-## The two approaches in one paragraph each
+The four are deliberately arranged so that each neighbouring pair differs in exactly one dimension:
 
-**Tool calling — `02-ai-agent-filter`.** `CustomerSearchToolCallingService` builds a `ChatClient`
-and exposes `@Tool searchCustomers(...)` with one flat `List` parameter per field plus a second
-tool, `@Tool currentLocalDateTime()`. The model *calls* the tool; the tool body fills a flat
-`CustomerSearchCriteria`, which `CustomerSpecifications.from(...)` turns into a JPA `Specification`.
-There is no operator or negation — each field's predicate builder bakes in its own semantics
-(substring match, whole-year date range, revenue bound).
+| | Filter type | Delivery |
+|---|---|---|
+| **02(a)** `02-ai-agent-filter`, route `/` | one scalar value per field | tool call, 13 parameters |
+| **02(b)** `02-ai-agent-filter`, route `/operator` | one value + `Operator` + `negate` per field | tool call, 39 parameters |
+| **03** `03-ai-structured-filter` | `CustomerFilter` = `List<Condition>` | structured output |
+| **04** `04-ai-hybrid-filter` | **the same** `List<Condition>` | tool call, 1 parameter |
 
-**Structured output — `03-ai-structured-filter`.** `CustomerSearchStructuredOutputService` calls
-`.call().entity(CustomerFilter.class)`: the model returns *one* JSON object — a `CustomerFilter`
-holding a flat `List<Condition>`, each condition a `(field, Operator, values, negate)` tuple —
-which `CustomerFilterSpecifications.from(...)` translates. "Today" is baked into the prompt via
+02(a) → 02(b) changes only how much a *field* can say. 03 → 04 changes only how the finished filter
+*travels*. That is what makes the comparison a measurement instead of an opinion.
+
+## The four approaches in one paragraph each
+
+**02(a) — scalar tool calling.** `ScalarToolCallingService` exposes
+`@Tool searchCustomers(companyName, contactName, …, annualRevenue)`: 13 scalar parameters, no operator,
+no negation, no second tool. The tool body fills a `ScalarCriteria`, which `ScalarSpecifications` turns
+into a `Specification`. Every field's meaning is hard-wired there: text = substring, date = the whole
+calendar year it falls in, revenue = a minimum.
+
+**02(b) — value + operator + negate tool calling.** `OperatorToolCallingService` keeps the same delivery
+and gives every field three parameters (`city`, `cityOperator`, `cityNegate`) — 39 in total — plus a
+second tool, `currentLocalDateTime()`, for relative dates. `OperatorSpecifications` chooses the predicate
+per field from its `Operator` and flips it when `negate` is set.
+
+**03 — structured output.** `CustomerSearchStructuredOutputService` calls
+`.call().responseEntity(CustomerFilter.class)`: the model returns *one* JSON object — a `CustomerFilter`
+holding a flat `List<Condition>`, each condition a `(field, Operator, values, negate)` tuple — which
+`CustomerFilterSpecifications` translates. "Today" is baked into the prompt via
 `systemPrompt(LocalDate today)`; there is no live date tool call.
 
-Both filter types are deliberately **flat** (no AND/OR/NOT tree). The essential difference is that a
-`Condition` carries an explicit `Operator` (`CONTAINS`, `EQUALS`, `GREATER_OR_EQUAL`,
-`LESS_OR_EQUAL`, `STARTS_WITH`, `ENDS_WITH`) and a `negate` flag, whereas `CustomerSearchCriteria`
-carries neither.
+**04 — hybrid.** `CustomerSearchHybridToolCallingService` exposes
+`@Tool searchCustomers(List<Condition> conditions)` — 03's `Condition`, `Operator`, `CustomerFilter` and
+`CustomerFilterSpecifications`, copied 1:1, Jackson annotations included. Spring AI derives the tool's
+parameter schema from those very annotations, so the model sees the same vocabulary as in 03. The prompt
+is 03's prompt with "call the searchCustomers tool" in place of "return a CustomerFilter".
+
+All four filter types are deliberately **flat** — no AND/OR/NOT tree. The essential difference is not
+tool calling versus structured output; it is whether a *field* can carry more than one thing.
 
 ## Where they agree
 
-For the 18 aligned cases in `CustomerSearchAgentIT` — single field, multi-field AND, multi-value OR,
-credit-rating labels, revenue thresholds/ranges, no-op/reset/smalltalk → empty filter — both
-approaches produce the right filter. In the recorded `-Pit-local-ollama` run on the configured
-default `qwen3:8b`, **both modules passed every IT**: 02 = 18 (`CustomerSearchAgentIT`) + 7
-(`CustomerListViewBrowserlessIT`); 03 = 18 + 18 (`CustomerSearchAgentExtraIT`) + 7. The paired
-benchmark (`--runs=5`) agrees: on all **18 shared cases both approaches scored 5/5** — on `qwen3:8b`
-*and* on `llama3.1:8b`.
+For a single-field query and an AND across fields — `C1_SINGLE_VALUE` ("customers in Berlin") and
+`C5_COMBINED_AND` ("creditworthy customers in Hamburg") — **all four produce the exact expected customer
+set** (18 and 9 rows respectively), verified on the resulting rows rather than on the filter's shape.
+Those are also the two categories a live demo shows first, and they are why 02(a) is a perfectly good
+teaching step rather than a strawman.
 
-So on a capable local model the two are interchangeable for the common cases. The differences show
-up at the edges.
+The differences show up as soon as one field has to say two things.
 
-## What only structured output can express
+## What only the condition-list type can express
 
-These are **architectural**, not reliability, differences: 02's `CustomerSearchCriteria` has no
-operator and no negation, so no prompt or model can make it produce them. All are covered by
-`CustomerSearchAgentExtraIT`, which passed 18/18 on `qwen3:8b`.
+These are **architectural**, not reliability, differences. 02(a) has one value slot per field, 02(b) has
+one value plus one operator per field; neither can hold a second value or a second bound, so no prompt
+and no model can make them produce these:
 
-- **Negation** — "customers except from Berlin", "email does not contain gmail".
-  `CustomerSearchAgentExtraIT#singleFalseCity`, `#emailNotContains`,
-  `#notInCityWithRevenueAndYear`. In 02 there is no `negate`; the query cannot be represented.
-- **Operator precision** — STARTS_WITH / ENDS_WITH / exact EQUALS: "name starts with M", "email ends
-  with .com", "name *is* Sofia". `#contactNameStartsWith`, `#emailEndsWith`, `#contactNameAndCity`,
-  `#companyNameStartsWith`. 02 only ever does case-insensitive CONTAINS.
-- **Arbitrary date bounds** — "last order before 2024-01-01", "ordered yesterday".
-  `#lastOrderBeforeDate`, `#orderedYesterday`. 02 interprets every date as the *whole year* it falls
-  in (`CustomerSpecifications` `addYearAnyOf`), so an open/closed day-level bound is inexpressible.
-- **Exact value + anti-hallucination guard** — "exactly 100000 in revenue", with a check that no
-  extra conditions were invented. `#revenueExact_notOverGenerated`.
+- **Multi-value OR** — "customers from Berlin or Hamburg" (`C2_MULTI_VALUE_OR`, 35 rows expected). 02(a)
+  returned 17 rows, 02(b) 18 — one city each, because the second has nowhere to go. In 03/04 it is one
+  condition with two `values`.
+- **A value range on one field** — "revenue between 100000 and 200000" (`C6_REVENUE_RANGE`, 37 rows) and
+  "last ordered between 2024-07-01 and 2025-03-31" (`C8_DATE_RANGE`, 4 rows). 02(a) returned 21 and 9
+  rows (its revenue parameter is a minimum, its dates mean whole calendar years), 02(b) 43 and 21 (one
+  operator per field means exactly one bound). In 03/04 a range is two sibling conditions on the same
+  field, AND-combined like everything else.
 
-This is the headline reason to prefer structured output when the filter vocabulary is rich.
+And two categories that 02(a) alone cannot reach, which is exactly what 02(b) was built to fix:
 
-## Where tool calling has (or had) an edge
+- **Negation** — "all customers except from Berlin" (`C3_NEGATION`, 82 rows). 02(a) returned the 18
+  Berlin customers; 02(b), 03 and 04 return 82.
+- **Operator precision** — "an 'm' as the first character in the contact name" (`C4_OPERATOR_PRECISION`,
+  6 rows). 02(a) substring-matches and returned 58 rows; the others return 6.
 
-- **Relative dates through a live clock.** 02 can resolve "yesterday"/"last week" by chaining
-  `currentLocalDateTime()` and computing an offset. It's a genuine capability, but a *two-hop* one,
-  and model-dependent: 02 deliberately ships **no** relative-date IT because a weaker model fails the
-  chain (documented in `CustomerSearchAgentIT`'s in-body comment). 03 avoids the chain by baking
-  "today" into the prompt and covers relative dates directly (`CustomerSearchAgentExtraIT`
-  `relative-date` cases). So this is less "02 wins" than "02 pays for a live clock with a fragile
-  extra hop that 03 doesn't need".
-- **Model-dependent wins during alignment.** Three cases were dropped from the shared IT set because
-  03 failed them on the then-default `llama3.1:8b` while 02 passed (recorded in both modules'
-  `CustomerSearchAgentIT` Javadocs): `germanPhoneNumberNormalizedToE164` (03 echoed the raw phone
-  string), `multiValueCustomerSinceYears` (03 collapsed "2020 or 2021" into one range), and
-  `citiesAndCreditRating_German` (03 returned `conditions=null`); plus `customersSince2020` at the
-  grid level (`CustomerListViewBrowserlessIT` Javadoc). These are model-dependent, not
-  approach-inherent — see reliability below.
-
-## Reliability and model dependence
-
-The "reliable vs. flaky" question is answered by the benchmark pass-rates (`--approach=both
---runs=5`, full 36-case set), not by single JUnit runs.
-
-Mean pass-rate is over each approach's full case set — tool calling runs the 18 shared cases,
-structured runs all 36 (18 shared + 18 structured-only).
-
-| Model | Tool calling (mean / median latency) | Structured (mean / median latency) |
-|---|---|---|
-| `qwen3:8b` (configured default) | 100% / 1083 ms | 100% / 1154 ms |
-| `llama3.1:8b` (weaker) | 100% / 937 ms | 97% / 1004 ms |
-
-On `qwen3:8b` both approaches score 100% across all 36 cases — no divergence at all. On
-`llama3.1:8b` tool calling is also 100% (over the 18 shared cases it runs) and structured output is
-97%: a **single** case, `notInCityWithRevenueAndYear` ("not from Berlin, ≥ 1000 revenue, last
-ordered in 2024"), failed 0/5 because the model emitted `lastOrderDate GREATER_OR_EQUAL 2024-01-01`
-but dropped the upper bound `LESS_OR_EQUAL 2024-12-31`, leaking later years in. That is exactly the
-"a weaker model occasionally drops one bound of a date range" behaviour documented in
-`03-ai-structured-filter/README.md`, now reproduced quantitatively (`--runs=5`, 0/5). The gap is
-model-dependent: it closes completely on `qwen3:8b` (5/5).
-
-The one case that reverses the direction — `phoneNumberContains` ("…5020000001 or similar") — is
-expressible in *both* filter types, yet 02's tool-calling layer hallucinated an unrelated number on
-`llama3.1:8b`, so it lives only in 03's `CustomerSearchAgentExtraIT#phoneNumberContains`. Structured
-output's single-shot JSON is simply less prone to that kind of drift than a free-form tool call.
+So the capability ladder is 2 → 5 → 8 → 8 of eight categories. The last step adds nothing, and that is
+the finding: 04 has 03's capabilities with 02's delivery mechanism.
 
 ## Token cost and request duration
 
-The `05-ollama-benchmark` figures above are *tokens/s* and *median latency* read straight from
-Ollama. A second, complementary lens comes from the **`TokenUsageRecorder`** (present in both
-modules): it reads Spring AI's `Usage` on the *real application path* and logs, per request, the
-prompt / completion / total tokens and the wall-clock time, then prints a per-IT-class summary. The
-numbers below are that summary for `CustomerSearchAgentIT` — the **18 shared cases**, identical
-wording in both modules, so 02 and 03 are directly comparable — from a single `-Pit-local-ollama`
-run per model (18 requests aggregated; averages rounded).
+Measured by the **`TokenUsageRecorder`** (present in all four modules) on the *real application path*: it
+reads Spring AI's `Usage` per request, logs prompt / completion / total tokens and the wall-clock time,
+and prints a per-IT-class summary. The figures below are that summary for each module's canonical-query
+IT — the **same eight queries** in every row — over **three consecutive `-Pit-local-ollama` runs** on the
+configured default `qwen3:8b`. Token counts came out identical in all three runs (temperature 0 makes each
+prompt deterministic), so only the duration column needs a median.
 
-| Model | Approach | Avg tokens/request (prompt + completion) | Avg duration/request |
-|---|---|---|---|
-| `qwen3:8b` (configured default) | tool calling (02) | 1454 (1427 + 27) | 2493 ms |
-| `qwen3:8b` | structured (03) | 2288 (2239 + 49) | 3731 ms |
-| `llama3.1:8b` (weaker) | tool calling (02) | 469 (347 + 122) | 7285 ms |
-| `llama3.1:8b` | structured (03) | 2161 (2105 + 57) | 3866 ms |
+| Approach | Tokens/request | prompt | completion | Duration/request | Categories reached |
+|---|---|---|---|---|---|
+| 02(a) scalar (13 parameters) | **1154** | 1120 | 34 | 2856 ms | 2 / 8 |
+| 02(b) value+operator+negate (39 parameters) | **3248** | 3154 | 94 | 6071 ms | 5 / 8 |
+| 03 structured output | **2307** | 2243 | 64 | 4089 ms | 8 / 8 |
+| 04 hybrid (1 parameter) | **2358** | 2288 | 70 | 5128 ms | 8 / 8 |
 
 Four things the numbers show:
 
-- **The bill is prompt-dominated.** Completion is a small fraction everywhere (27–122 tokens/request
-  — the filter object is compact). What you pay for is the system prompt plus the schema sent on
-  *every* request, which is roughly fixed regardless of how complex the query is.
-- **Structured output sends the larger prompt — on both models.** The `CustomerFilter` JSON schema
-  (`Condition` / `Operator` / `negate`) injected by `.responseEntity(CustomerFilter.class)` is
-  bulkier than 02's flat `@Tool searchCustomers(...)` signature: 2239 vs 1427 prompt tokens/request
-  on `qwen3:8b` (**≈ +57 %**), and far wider on `llama3.1:8b` (2105 vs 347). So the operator /
-  negation expressiveness that made structured output win the capability argument above carries a
-  measurable token price.
-- **Absolute counts are model-specific — compare within a model, not across.** The same tools and the
-  same schema cost 1454 vs 469 tokens/request on `qwen3:8b` vs `llama3.1:8b` for tool calling,
-  because each model's Ollama chat template encodes tool/JSON-schema definitions differently. Read
-  each row against the other approach *on the same model*.
-- **Duration does not track token count.** On `qwen3:8b` tool calling is the faster of the two (2493
-  vs 3731 ms/request); on `llama3.1:8b` it is by far the *slower* (7285 vs 3866 ms/request) despite
-  sending the fewest tokens. That is the latency face of tool calling's extra hop — the
-  `currentLocalDateTime()` round trip plus `llama3.1:8b`'s more verbose intermediate output (122
-  completion tokens/request vs 27 on `qwen3:8b`) — the same two-hop cost flagged under *Where tool
-  calling has (or had) an edge*.
+- **The bill is prompt-dominated.** Completion is 34–94 tokens/request on average — the filter object is
+  compact. What you pay for is the system prompt plus the schema sent on *every* request, which is
+  roughly fixed regardless of how complex the query is.
+- **Delivery is close to token-neutral.** 03 and 04 send **2243 vs 2288 prompt tokens (+2.0 %)** for the
+  same `Condition` type — a response-format schema and a tool-parameter schema cost the same order of
+  tokens, and the remaining 45 tokens are prompt wording (04 additionally tells the model to call the tool
+  exactly once), not the mechanism. If you were choosing between structured output and tool calling for
+  cost reasons: don't.
+- **Per-field operator plumbing is the expensive option.** 02(b) sends **3248** tokens/request — 41 % more
+  than 03 — and reaches five categories instead of eight. Tripling 02(a)'s parameter count
+  (1154 → 3248, **+181 %**) buys negation and operator precision and stops short of OR and ranges. The
+  condition list is both cheaper *and* more expressive.
+- **Duration is dominated by how much the model *says*, not by what it is asked.** 02(a) is fastest
+  (2856 ms) because it sends and receives the least. 04 (5128 ms) trails 03 (4089 ms) despite an almost
+  identical prompt, for a reason visible in the per-query table below: after a tool call the model tends to
+  add a natural-language epilogue that nobody reads.
+
+Per-query detail, median of the three runs, duration in ms (total tokens in brackets):
+
+| Query | 02(a) | 02(b) | 03 | 04 |
+|---|---|---|---|---|
+| C1 single value | 1960 (1119) | 3119 (3155) | 3477 (2283) | **14976 (2639)** |
+| C2 multi-value OR | 2946 (1155) | **18093 (3591)** | 3461 (2284) | 2919 (2290) |
+| C3 negation | 1635 (1111) | 2860 (3151) | 3304 (2280) | 2814 (2288) |
+| C4 operator precision | 2411 (1145) | 2878 (3166) | 3494 (2292) | 2932 (2302) |
+| C5 combined AND | 2724 (1141) | 3044 (3159) | 4490 (2313) | 3782 (2307) |
+| C6 revenue range | 3530 (1180) | 6694 (3251) | 5070 (2340) | 4501 (2342) |
+| C7 relative date | 2720 (1151) | 4037 (3229) | 3947 (2301) | 3533 (2315) |
+| C8 date range | 4756 (1228) | 7921 (3280) | 5458 (2359) | 5733 (2377) |
+
+The two bold cells are the two lessons hiding in this table, and both are about the *tool-calling*
+mechanism rather than about any filter type:
+
+- **02(b), C2 (18.1 s, 3591 tokens).** This is the query 02(b) cannot express. The model does not fail
+  fast on it — it produces the maximum answer length it is allowed (`num-predict=512`, visible as the
+  completion jumping from ~30 to 512 tokens) trying to place the second city somewhere. Before that cap
+  was configured, the same query took **107 seconds and 3064 completion tokens**, and in one run it hit a
+  300 s test timeout. An architectural limit costs 5× a normal query even when bounded.
+- **04, C1 (15.0 s, 2639 tokens).** After the tool call succeeds, the model writes a summary sentence
+  nobody consumes — ~350 completion tokens for "customers in Berlin". It is deterministic at temperature 0
+  (identical in all three runs) and it is pure waste: the filter was already applied by the tool. 03 cannot
+  do this, because its answer *is* the filter. This is the one place where the delivery mechanism costs
+  real time, and it is a prompt-tuning problem, not an architectural one.
+
+The C6 and C8 rows show the same effect more mildly: for both 02 variants, the queries they cannot express
+are their slowest. The practical consequence is a configuration one — **cap the answer length**. All three
+AI modules now set `spring.ai.ollama.chat.num-predict=512` (the value the benchmark script has always
+used); without it the model generates until it decides to stop, and the numbers above turn into 107
+seconds and 3064 completion tokens for a single query. Both 02 prompts additionally end with "call the tool
+once, then stop", which reduces the retrying but does not remove it.
+
+## Reliability and model dependence
+
+"Reliable vs. flaky" is a different question from "expressible vs. not", and it is per model. It is
+answered by the benchmark's pass-rates (`--approach=all --runs=5`), not by single JUnit runs.
+
+> **Not yet re-measured for the four-approach setup.** The harness runs all four approaches (verified
+> with `--quick --runs=1` on `qwen3:8b`), but the two-model reliability table that used to stand here
+> described the old two-approach setup, and stale numbers are worse than none. Reproduce with:
+>
+> ```bash
+> cd 05-ollama-benchmark
+> java BenchmarkLocalModels.java --approach=all --runs=5 qwen3:8b llama3.1:8b
+> ```
+
+What is measured today, on `qwen3:8b`: every expressible canonical query produced the exact expected
+customer set in all four approaches, and every inexpressible one failed in the documented way. Older,
+model-dependent divergences (recorded on the weaker `llama3.1:8b`, when 02 still had a single list-based
+tool call) are summarised at the end of the [capability matrix](capability-matrix.md).
+
+## Where tool calling has (or had) an edge
+
+- **A value the model cannot know at prompt time.** 02(b) resolves "yesterday" / "in the last 12 months"
+  by chaining `currentLocalDateTime()` and computing an offset — a genuine capability, and the one thing
+  the per-field variants have that 03/04 do not. But it is a *two-hop* capability and model-dependent: a
+  weaker model such as `llama3.1:8b` reliably fails the chain (see `02-ai-agent-filter/README.md`). 03
+  and 04 sidestep it by putting "today" into the prompt, which is why they pass `C7` without any extra
+  round trip. So this is less "tool calling wins" than "tool calling can fetch things, and pays a hop
+  for it".
+- **A tool call *does* something.** Structured output ends with an object; a tool call ends with your code
+  having run. In this demo the tool only stores a filter, but that is the axis on which tool calling is
+  the natural fit — the model triggers behaviour instead of describing it.
+
+And three costs that come with the mechanism, all observed on `qwen3:8b` during this work:
+
+1. **An operator without its value.** For "customers whose company name contains data", 02(b) called
+   `searchCustomers(companyNameOperator="CONTAINS")` and filtered nothing. More parameters mean more ways
+   to fill them incompletely; the prompt and tool description now state that the value is mandatory.
+2. **The same tool called twice.** A `void` tool is answered with a bare `"Done"`, and the model may read
+   that as "nothing happened" and call it again — in 04's case with an empty condition list, wiping the
+   filter it had just built. All three tool-calling variants now refuse to let a later empty call
+   overwrite a filter they already have.
+3. **Expensive failure on inexpressible queries** — see the per-query table above.
+
+None of the three has an equivalent in structured output: one response, one filter, no repetition.
 
 ## Takeaway for the talk
 
-- Need **negation, operator precision, or arbitrary date bounds**? Structured output — 02 cannot
-  express them at all (`CustomerSearchAgentExtraIT`).
-- Running a **small/local model**? Structured output's one-JSON-object contract is easier to produce
-  reliably than a multi-step tool call; the divergence cases above all bit tool calling *or*
-  structured output on the weaker `llama3.1:8b` and mostly vanish on `qwen3:8b`.
-- Need a value the model can't know at prompt time (a **live clock**, an external lookup)? That is
-  the natural home of tool calling — but budget for the extra hop's model-dependence.
-- Counting **tokens / cost**? Both approaches are prompt-dominated, so the schema + system prompt is
-  the whole bill; trimming *those* is the highest-leverage lever, not the (tiny) completion. Note the
-  trade: structured output's richer schema is the single biggest prompt item (≈ +57 % tokens/request
-  vs tool calling on `qwen3:8b`), while tool calling's smaller prompt can be paid back in round-trip
-  *latency* on a weaker model — see [Token cost and request duration](#token-cost-and-request-duration)
-  (measured by `TokenUsageRecorder`).
+- Need **negation, operator precision, OR, or ranges**? That is a property of the **filter type**: use a
+  condition list. Both deliveries carry it equally well (03 and 04: 2243 vs 2288 prompt tokens/request).
+- Tempted to add operators **field by field** to an existing flat tool? 02(b) is that idea, finished: 39
+  parameters, 3248 tokens/request, five of eight categories — more expensive than the condition list and
+  less capable. It is the most useful negative result in the repository.
+- Running a **small/local model**? All four work on `qwen3:8b`; the differences that used to bite on
+  weaker models were reliability, not capability — re-measure with the benchmark before assuming.
+- Need a **live value** (clock, lookup) at request time? Tool calling, with a budget for the extra hop.
+- Counting **tokens**? Everything is prompt-dominated, so the schema plus system prompt *is* the bill.
+  Trimming those is the highest-leverage lever; picking a delivery mechanism is not.
 
-See the [capability matrix](capability-matrix.md) for the full per-query-type table with test
-citations, and [extending-tool-calling-with-operators.md](extending-tool-calling-with-operators.md)
-for what it would take to give tool calling the same operator/negation flexibility (and why that is
-a question of delivery, not capability).
+See the [capability matrix](capability-matrix.md) for the per-query-type table with test citations, and
+[extending-tool-calling-with-operators.md](extending-tool-calling-with-operators.md) for how module 04
+came to exist — it is the change that document used to analyse without making.

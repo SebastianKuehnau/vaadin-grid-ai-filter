@@ -1,10 +1,18 @@
 # 05-ollama-benchmark
 
 A standalone **prompt-reliability eval** comparing local models — Ollama (default) or an MLX
-Server — for accuracy and speed on the natural-language-to-filter task, covering **both** AI
-approaches this project demos: `02-ai-agent-filter`'s tool calling and `03-ai-structured-filter`'s
-structured output. Every case runs `--runs` times, so per-case **pass-rate** (not just a single
-pass/fail) is measurable — the point being to answer, after editing a system prompt or a
+Server — for accuracy and speed on the natural-language-to-filter task, covering **all four** AI
+approaches this project demos:
+
+| `--approach=` | Module | Filter type | Delivery |
+| --- | --- | --- | --- |
+| `02a` | `02-ai-agent-filter`, scalar variant | one scalar value per field | tool call, 13 parameters |
+| `02b` | `02-ai-agent-filter`, operator variant | value + `Operator` + `negate` per field | tool call, 39 parameters |
+| `03` | `03-ai-structured-filter` | `CustomerFilter` = `List<Condition>` | structured output |
+| `04` | `04-ai-hybrid-filter` | the same `List<Condition>` | tool call, 1 parameter |
+
+Every case runs `--runs` times, so per-case **pass-rate** (not just a single pass/fail) is measurable —
+the point being to answer, after editing a system prompt or a
 `@ToolParam`/`@JsonPropertyDescription`, "does this still produce the correct filter with high
 probability, and did any case regress?" on a fast inner loop (`--quick`).
 
@@ -19,9 +27,9 @@ context.
 cd 05-ollama-benchmark
 java BenchmarkLocalModels.java                                    # auto-discovers tool-capable models from Ollama
 java BenchmarkLocalModels.java llama3.1:8b qwen3:8b                # or benchmark specific models
-java BenchmarkLocalModels.java --approach=both --runs=5            # both AI approaches, 5 runs/case, full set
-java BenchmarkLocalModels.java --approach=tool-calling --runs=3     # only 02's tool-calling approach
-java BenchmarkLocalModels.java --quick --runs=3                    # fast edit-loop subset (5 cases)
+java BenchmarkLocalModels.java --runs=5                            # all four approaches (default), 5 runs/case
+java BenchmarkLocalModels.java --approach=02b,04 --runs=3          # only 02(b) and 04
+java BenchmarkLocalModels.java --quick --runs=3                    # fast edit-loop subset (4 canonical cases)
 java BenchmarkLocalModels.java --min-pass-rate=0.8 --runs=5         # exit non-zero if any pass rate < 0.8
 java BenchmarkLocalModels.java --backend=mlx                       # benchmark the model loaded in mlx_lm.server
 java BenchmarkLocalModels.java --backend=mlx --base-url=http://localhost:9000
@@ -37,36 +45,52 @@ Ollama and pull the models to compare first. With `--backend=mlx`, it talks to a
 base URL can be overridden with `--base-url=<url>`. Results are printed to the console and written
 as `benchmark-report-<timestamp>.md`/`.txt` in the current directory.
 
-### Both AI approaches, no drift
+### Four AI approaches, no drift
 
-`--approach=tool-calling|structured|both` (default `structured`, unchanged from before) selects
-which of the two production AI layers to evaluate, each driven by the **real** system prompt (and,
-for tool calling, the real `searchCustomers` tool/argument schema) extracted at runtime from that
-module's production source — never hard-coded, so the eval cannot drift from what the app does:
+`--approach=all` (the default) or a comma-separated list of `02a,02b,03,04` selects which production AI
+layers to evaluate. Each one is driven by the **real** system prompt — and, for the three tool-calling
+approaches, the real `searchCustomers` tool/argument schema — extracted at runtime from that module's
+production source, never hard-coded, so the eval cannot drift from what the apps do:
 
-- **`structured`**: extracted from
-  `../03-ai-structured-filter/src/main/java/dev/demo/vaadin/aigridfilter/ai/CustomerSearchStructuredOutputService.java`
-  (the `CustomerFilter`/flat-conditions-list shape).
-- **`tool-calling`**: extracted from
-  `../02-ai-agent-filter/src/main/java/dev/demo/vaadin/aigridfilter/ai/CustomerSearchToolCallingService.java`
-  — the `SYSTEM_PROMPT` constant plus the `searchCustomers` `@Tool`/`@ToolParam` descriptions, from
-  which the tool's JSON Schema is built at runtime (the JSON-Schema *structure* per Java type —
-  `List<String>` → array of strings, `List<CreditRating>` → enum, `List<RevenueRange>` → object with
-  `atLeast`/`atMost` — is inherent Java-type-to-schema plumbing, not "the prompt"). Talks to
-  Ollama's/the OpenAI-compatible API's native tool-calling (`tools`/`tool_calls`), single round trip
-  — it does not implement the two-hop `currentLocalDateTime()` chain relative-date queries need,
-  matching the same capability gap already documented in `02`'s own `CustomerSearchAgentIT`.
+- **`02a`**: `SYSTEM_PROMPT` plus the 13 scalar `@ToolParam`s of
+  `../02-ai-agent-filter/.../ai/scalar/ScalarToolCallingService.java`.
+- **`02b`**: `SYSTEM_PROMPT` plus the 39 `@ToolParam`s of
+  `../02-ai-agent-filter/.../ai/operator/OperatorToolCallingService.java`. Its operator/negate
+  descriptions are shared `static final String` constants in that class (13 fields would otherwise repeat
+  them); the extractor resolves those constants, so the model sees exactly the app's text. This is also
+  the only approach that gets the second tool, `currentLocalDateTime()` — offered only because the source
+  declares it.
+- **`03`**: the `systemPrompt(LocalDate)` text block of
+  `../03-ai-structured-filter/.../ai/CustomerSearchStructuredOutputService.java`, with the relative dates
+  resolved the same way the module resolves them, plus the response-shape reminder Spring AI adds for
+  structured output.
+- **`04`**: the `systemPrompt(LocalDate)` text block of
+  `../04-ai-hybrid-filter/.../ai/CustomerSearchHybridToolCallingService.java` (no JSON-shape tail — it
+  calls a tool), and a `List<Condition>` parameter schema built from `Condition.java`'s own
+  `@JsonClassDescription`/`@JsonPropertyDescription` texts, i.e. from the same annotations Spring AI reads
+  when it generates that tool's schema at runtime.
 
-Each run's console line and report row is labeled with its approach, and a log line names the
-source file each prompt was extracted from (proving no hard-coded copy).
+The JSON-Schema *structure* per Java type (`String` → string, `CreditRating`/`Operator` → enum,
+`BigDecimal` → number, `List<Condition>` → array of condition objects) is inherent
+Java-type-to-schema plumbing, not "the prompt". Each run's console line and report row is labeled with its
+approach, and a log line names the source file each prompt was extracted from (proving no hard-coded
+copy).
 
-The case list mirrors the aligned `CustomerSearchAgentIT` suites (see
-`tasks/align-ai-integration-tests.md`) exactly — 16 cases shared by both approaches (same method
-names/wording as `02`'s and `03`'s `CustomerSearchAgentIT`), plus 20 structured-only cases mirroring
-`03`'s `CustomerSearchAgentExtraIT` (negation, operator precision, relative dates — capabilities
-tool calling's flat `CustomerSearchCriteria` can't express — plus 3 anti-hallucination cases from
-`tasks/harden-filter-test-assertions.md`, never verified against tool calling either).
-`--approach=tool-calling` therefore runs 16 cases; `structured` and `both` run all 36.
+#### Two case groups
+
+- **Canonical query set** (primary): the eight queries of `../docs/canonical-query-set.md`, the same ones
+  all four modules' canonical-query ITs run. Their wording lives verbatim in this script, and every
+  module's `CanonicalQuerySetConsistencyTest` fails the build if it drifts from the document — which is
+  what makes these token/latency figures comparable query-for-query with the ITs' pass/fail results.
+  Each canonical case names the approaches whose filter type can express it at all; for the others the
+  case is reported as `n/a` (and listed on stdout), because an architectural limit is not a reliability
+  problem. The report's "Canonical query set" section is the resulting matrix: one row per query, one
+  column per approach.
+- **Legacy set**: the older prompt-regression cases mirroring `03-ai-structured-filter`'s
+  `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`. They run against the two condition-list
+  approaches (`03`, `04`) only — they were written for that filter type, and the per-field variants would
+  fail most of them by construction rather than by unreliability. They are kept because they are the
+  accumulated prompt-tuning safety net.
 
 ### Pass-rate over K runs (`--runs`)
 
@@ -89,12 +113,11 @@ readout — it localizes exactly which `@ToolParam`/`@JsonPropertyDescription` i
 
 ### Fast edit-loop subset (`--quick`)
 
-`--quick` runs 5 representative cases instead of the full 36/16: `singleCity` (plain text),
-`companyNameContains` (a cross-field-leak risk case — company name could leak into
-`email`/`contactName`), `annualRevenueOverThreshold` (numeric-tolerant revenue threshold),
-`citiesAndRevenue_keepsEveryCondition` (multi-field AND), and `singleFalseCity` (structured-only
-negation, so `--approach=both --quick` still exercises the capability gap). This is the loop to run
-after every prompt edit; the full set is the considered verdict before committing.
+`--quick` runs four canonical cases instead of the full set: `C1_SINGLE_VALUE` (plain text),
+`C5_COMBINED_AND` (multi-field AND) and the two cases only the condition-list approaches can express,
+`C2_MULTI_VALUE_OR` and `C6_REVENUE_RANGE` — so a quick run exercises both the shared ground and the
+capability gap. This is the loop to run after every prompt edit; the full set is the considered verdict
+before committing.
 
 ### Scriptable gate (`--min-pass-rate`)
 
@@ -115,13 +138,11 @@ only to a genuinely exact query (`revenueExact_notOverGenerated`); the range-sty
 (`citiesAndRevenue_keepsEveryCondition`, `citiesWithRevenueRange`, the `notInCityWithRevenue...`
 cases) keep their deliberately headroom-tolerant `NumericAtLeast`/`NumericAtMost` matching.
 
-Three robustness/anti-hallucination cases exercise this: `smalltalk_noCriteria` and
-`unrelatedRequest_noCriteria` run against **both** approaches (small talk / an off-topic query must
-yield an empty filter, i.e. every field stays empty — verified for tool-calling and structured
-output alike), and `revenueExact_notOverGenerated` stays structured-only ("exactly 100000 in annual
-revenue" — `EQUALS` on a numeric field, exact value, with every other field required to stay empty
-by the universal field-precision check), since `EQUALS` precision is not expressible in `02`'s flat
-`CustomerSearchCriteria`.
+Three robustness/anti-hallucination cases in the legacy group exercise this: `smalltalk_noCriteria` and
+`unrelatedRequest_noCriteria` (small talk / an off-topic query must yield an empty filter, i.e. every
+field stays empty) and `revenueExact_notOverGenerated` ("exactly 100000 in annual revenue" — `EQUALS` on a
+numeric field, exact value, with every other field required to stay empty by the universal
+field-precision check).
 
 ## MLX Server backend
 
@@ -224,13 +245,18 @@ correctly every time; see `03-ai-structured-filter`'s README for that model-capa
 
 ## Recorded results
 
-**Predates both the flat-schema migration and the case-set alignment with `02`/`03`'s ITs** (32
-cases, old recursive `FilterNode` tree, `--mode=freeform`, single-shot accuracy — no `--runs`/
-`--approach` yet) — see "Flat schema migration: before/after" above for the directly-comparable
-old-tree-vs-new-flat numbers. Kept here as a multi-model accuracy/speed comparison; re-run with the
-current case set (36 for `--approach=structured`, 16 for `tool-calling`; see "Both AI approaches, no
-drift" above) if
-you want up-to-date numbers for a model not covered above.
+**Predates the flat-schema migration, the canonical query set and the four-approach setup** (32 cases,
+old recursive `FilterNode` tree, `--mode=freeform`, single-shot accuracy — no `--runs`/`--approach` yet)
+— see "Flat schema migration: before/after" above for the directly-comparable old-tree-vs-new-flat
+numbers. Kept here as a multi-model accuracy/speed comparison of the *models*, which is still what it is
+useful for. For up-to-date, per-approach figures run:
+
+```bash
+java BenchmarkLocalModels.java --approach=all --runs=5 qwen3:8b llama3.1:8b
+```
+
+and paste the report's "Canonical query set" matrix into `../docs/capability-matrix.md`, which currently
+marks that table as pending for exactly this reason.
 
 **Test system:** MacBook Pro, Apple **M2 Pro** (12 cores: 8 performance + 4 efficiency), 32 GB
 unified memory, macOS 26.5.1 (build 25F80), Ollama 0.30.11. Apple-Silicon-optimized `mlx` variants

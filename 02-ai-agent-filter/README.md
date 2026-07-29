@@ -187,6 +187,9 @@ the test config overrides it to `ollama`.
 
 Without an LLM (`test`), per variant:
 
+- **`CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring) — fails the build if either variant's
+  canonical-query IT, or the benchmark script, stops matching `docs/canonical-query-set.md` verbatim, in
+  wording or order.
 - **`ScalarSpecificationsTest` / `OperatorSpecificationsTest`** (`@DataJpaTest`) — the filter
   translation against the seeded H2 data: one test per field group, AND-across-fields, and
   null-matches-all. Each also **asserts the variant's ceiling** (02(a): a date is always a whole year,
@@ -206,6 +209,14 @@ Without an LLM (`test`), per variant:
 
 Against a real model (`verify -Pit-local-ollama`):
 
+- **`ScalarCanonicalQueryIT` / `OperatorCanonicalQueryIT`** — the eight queries of
+  `docs/canonical-query-set.md`, each scored on the **resulting customer set**: the variant's
+  `Specification` is executed against the seeded database and the matching customer ids are compared with
+  those of a reference predicate. Queries the variant cannot express are marked `FAILS_BY_DESIGN` and
+  asserted to produce a *different* set — so 02(a)'s two reachable categories and 02(b)'s five are pinned
+  down by tests, and an accidental pass fails the build instead of going unnoticed. `03-ai-structured-filter`
+  and `04-ai-hybrid-filter` run the identical queries, which is what makes the capability matrix a
+  measurement.
 - **`ScalarCustomerListViewBrowserlessIT` / `OperatorCustomerListViewBrowserlessIT`** — the same
   Browserless setup, but against a real native Ollama instance instead of a fake agent bean (they fail
   rather than skipping if unreachable), exercising the full `TextField` → tool-calling AI layer → `Grid`
