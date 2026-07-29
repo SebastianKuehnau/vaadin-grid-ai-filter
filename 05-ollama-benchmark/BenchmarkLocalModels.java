@@ -25,15 +25,28 @@ import java.util.stream.Collectors;
 
 /**
  * Standalone Java prompt-reliability eval comparing local models — Ollama (default) or an
- * OpenAI-compatible MLX server ({@code mlx_lm.server}) — on the natural-language -&gt; filter task,
- * for <b>both</b> AI approaches this project demos: {@code 02-ai-agent-filter}'s tool calling and
- * {@code 03-ai-structured-filter}'s structured output. Replicates the aligned
- * {@code CustomerSearchAgentIT}/{@code CustomerSearchAgentExtraIT} test cases (see
- * {@code tasks/align-ai-integration-tests.md}) as raw HTTP calls (no Maven/JUnit, no Spring
- * context), each case run {@code --runs} times so per-case pass-rate (not just single-shot
- * pass/fail) becomes measurable — the point being to answer, quantitatively, "does this prompt
- * produce the correct filter with high probability, and did any case regress?" after editing a
- * system prompt or a {@code @ToolParam}/{@code @JsonPropertyDescription}.
+ * OpenAI-compatible MLX server ({@code mlx_lm.server}) — on the natural-language -&gt; filter task, for
+ * <b>all four</b> AI approaches this project demos:
+ * <ol>
+ *   <li>{@code 02-ai-agent-filter} 02(a): a tool call with one scalar value per field,</li>
+ *   <li>{@code 02-ai-agent-filter} 02(b): a tool call with a value, an operator and a negate flag per
+ *       field (39 flat parameters),</li>
+ *   <li>{@code 03-ai-structured-filter}: one {@code CustomerFilter} returned as structured output,</li>
+ *   <li>{@code 04-ai-hybrid-filter}: that same condition list, delivered as a tool call.</li>
+ * </ol>
+ * Every approach's system prompt — and, for the tool-calling ones, its tool/argument schema — is
+ * extracted from that module's production source at runtime, never hard-coded, so the eval cannot drift
+ * from the running apps.
+ *
+ * <p>The primary case list is the canonical query set ({@code docs/canonical-query-set.md}), the same
+ * eight queries all four modules' canonical-query ITs run — so the token and latency figures here line up
+ * query-for-query with those suites' pass/fail results. A second, legacy case list mirrors
+ * {@code 03-ai-structured-filter}'s {@code CustomerSearchAgentIT}/{@code CustomerSearchAgentExtraIT} and
+ * runs against the two condition-list approaches only. Everything is plain HTTP (no Maven/JUnit, no
+ * Spring context), each case run {@code --runs} times so per-case pass-rate (not just single-shot
+ * pass/fail) becomes measurable — the point being to answer, quantitatively, "does this prompt produce
+ * the correct filter with high probability, and did any case regress?" after editing a system prompt or a
+ * {@code @ToolParam}/{@code @JsonPropertyDescription}.
  *
  * <p>Run directly with Java's single-file source launcher (no external dependencies, JDK stdlib only):
  * <pre>
@@ -98,171 +111,234 @@ public class BenchmarkLocalModels {
     record NumericExact(String field, BigDecimal value) implements Expectation {
     }
 
+    /** Whether a case belongs to the canonical query set or to the older prompt-regression set. */
+    enum CaseGroup {
+        CANONICAL, LEGACY
+    }
+
     /**
-     * One eval case. {@code bothApproaches} cases mirror the shared {@code CustomerSearchAgentIT} set
-     * in both {@code 02}/{@code 03} exactly (method name, query, source order — see
-     * {@link #buildCases}); cases with {@code bothApproaches=false} mirror
-     * {@code 03-ai-structured-filter}'s {@code CustomerSearchAgentExtraIT} and only run under
-     * {@code --approach=structured} (tool calling's flat {@code CustomerSearchCriteria} cannot
-     * express negation, operator precision, or arbitrary date bounds).
+     * One eval case, together with the approaches it is run against.
+     * <p>
+     * {@link CaseGroup#CANONICAL} cases are the queries of {@code docs/canonical-query-set.md}, the
+     * single source of truth shared with all four modules' canonical-query ITs. Their wording here must
+     * stay verbatim — {@code CanonicalQuerySetConsistencyTest} fails the build otherwise — so the token
+     * and latency figures measured here line up query-for-query with those suites' pass/fail results.
+     * Each canonical case names the approaches whose filter type can express it at all; for the others it
+     * is reported as {@code n/a} rather than as a failure, because an architectural limit is not a
+     * reliability problem (the ITs are where those expected failures are asserted).
+     * <p>
+     * {@link CaseGroup#LEGACY} cases are the older set mirroring {@code 03-ai-structured-filter}'s
+     * {@code CustomerSearchAgentIT}/{@code CustomerSearchAgentExtraIT}. They run against the two
+     * condition-list approaches (03 and 04) only: they were written for that filter type, and the
+     * per-field variants 02(a)/02(b) would fail most of them by construction rather than by
+     * unreliability. They are kept because they are the accumulated prompt-tuning safety net.
      */
-    record EvalCase(String name, String query, Set<String> tags, boolean bothApproaches,
-                     List<Expectation> expected) {
-        static EvalCase both(String name, String query, Expectation... expected) {
-            return new EvalCase(name, query, Set.of(), true, List.of(expected));
+    record EvalCase(String name, String query, Set<String> tags, CaseGroup group,
+                     Set<Approach> approaches, List<Expectation> expected) {
+
+        /**
+         * A canonical query. The first two arguments are read verbatim out of this source by
+         * {@code CanonicalQuerySetConsistencyTest} — keep them literal, never build them from constants.
+         */
+        static EvalCase canonical(String name, String query, Set<Approach> approaches, Expectation... expected) {
+            return new EvalCase(name, query, Set.of("canonical"), CaseGroup.CANONICAL, approaches,
+                    List.of(expected));
         }
 
-        static EvalCase both(String name, String query, String tag, Expectation... expected) {
-            return new EvalCase(name, query, Set.of(tag), true, List.of(expected));
+        static EvalCase legacy(String name, String query, Expectation... expected) {
+            return new EvalCase(name, query, Set.of(), CaseGroup.LEGACY, CONDITION_LIST_APPROACHES,
+                    List.of(expected));
         }
 
-        static EvalCase structuredOnly(String name, String query, String tag, Expectation... expected) {
-            return new EvalCase(name, query, Set.of(tag), false, List.of(expected));
+        static EvalCase legacy(String name, String query, String tag, Expectation... expected) {
+            return new EvalCase(name, query, Set.of(tag), CaseGroup.LEGACY, CONDITION_LIST_APPROACHES,
+                    List.of(expected));
         }
     }
 
-    /** The 13 fields both approaches can express (mirrors {@code CustomerSearchCriteria}'s record
-     * components / {@code searchCustomers}'s parameters, and the subset of {@code 03}'s {@code
-     * Condition.field} enum that has a {@code 02} counterpart — {@code state}/{@code countryCode}
-     * are {@code 03}-only and touched by no case here, so they're excluded from the "must stay
-     * empty" check rather than always counted as a trivial pass). */
+    /** Every approach — used by the canonical cases that no filter type struggles with. */
+    private static final Set<Approach> ALL_APPROACHES = Set.of(Approach.values());
+
+    /** 03 and 04: the two approaches sharing the {@code CustomerFilter}/{@code Condition} type. */
+    private static final Set<Approach> CONDITION_LIST_APPROACHES =
+            Set.of(Approach.STRUCTURED, Approach.CONDITION_TOOL_CALLING);
+
+    /** Everything except 02(a), whose scalar-only tool has neither an operator nor a negate flag. */
+    private static final Set<Approach> EXCEPT_SCALAR = Set.of(Approach.OPERATOR_TOOL_CALLING,
+            Approach.STRUCTURED, Approach.CONDITION_TOOL_CALLING);
+
+    /** The 13 fields every approach can express (the per-field variants' tool parameters, and the subset
+     * of the condition-list approaches' {@code Condition.field} vocabulary that has a per-field
+     * counterpart — {@code state}/{@code countryCode} exist only there and are touched by no case here,
+     * so they're excluded from the "must stay empty" check rather than always counted as a trivial
+     * pass). */
     private static final List<String> CANONICAL_FIELDS = List.of(
             "companyName", "contactName", "email", "phone", "customerSince", "lastOrderDate",
             "country", "city", "postalCode", "street", "houseNumber", "creditRating", "annualRevenue");
 
-    /** Representative subset for {@code --quick}: one plain text case, one case with a plausible
-     * cross-field leak risk (a company-name query that could leak into email/contactName — see the
-     * field-precise scoring example in the README), one numeric-tolerant revenue case, one
-     * multi-field AND case, and one structured-only (negation) case so {@code --approach=both
-     * --quick} still exercises the capability gap. */
+    /** Representative subset for {@code --quick}: canonical cases only, covering one query every
+     * approach can express (C1), one multi-field AND (C5), one that needs a second value for a field
+     * (C2) and one that needs two bounds (C6) — so a quick run still exercises both the shared ground
+     * and the capability gap between the per-field and condition-list approaches. */
     private static final Set<String> QUICK_CASE_NAMES = Set.of(
-            "singleCity", "companyNameContains", "annualRevenueOverThreshold",
-            "citiesAndRevenue_keepsEveryCondition", "singleFalseCity");
+            "C1_SINGLE_VALUE", "C2_MULTI_VALUE_OR", "C5_COMBINED_AND", "C6_REVENUE_RANGE");
 
     private static List<EvalCase> buildCases(LocalDate today) {
         List<EvalCase> cases = new ArrayList<>();
 
-        // --- shared with both approaches (mirrors 02/03's aligned CustomerSearchAgentIT, 16 cases,
-        // same method names/wording/order — see tasks/align-ai-integration-tests.md) ---
-        cases.add(EvalCase.both("singleCity", "show me all customers in Berlin",
-                TextExpectation.of("city", "CONTAINS", "berlin")));
-        cases.add(EvalCase.both("creditworthyCustomers", "show me all creditworthy customers",
+        // --- the canonical query set: docs/canonical-query-set.md is the single source of truth for
+        // every query string below, and the same eight queries drive all four modules' canonical-query
+        // ITs. Keep wording, order and case names in sync with that document — the modules'
+        // CanonicalQuerySetConsistencyTest fails the build on any drift. ---
+        cases.add(EvalCase.canonical("C1_SINGLE_VALUE", "show me all customers in Berlin",
+                ALL_APPROACHES,
+                TextExpectation.of("city", new String[]{"CONTAINS", "EQUALS"}, "berlin")));
+        cases.add(EvalCase.canonical("C2_MULTI_VALUE_OR", "show me customers from Berlin or Hamburg",
+                CONDITION_LIST_APPROACHES,
+                TextExpectation.of("city", new String[]{"CONTAINS", "EQUALS"}, "berlin"),
+                TextExpectation.of("city", new String[]{"CONTAINS", "EQUALS"}, "hamburg")));
+        cases.add(EvalCase.canonical("C3_NEGATION", "show me all customers except from Berlin",
+                EXCEPT_SCALAR,
+                TextExpectation.of("city", new String[]{"NOT_CONTAINS", "NOT_EQUALS"}, "berlin")));
+        cases.add(EvalCase.canonical("C4_OPERATOR_PRECISION",
+                "show me all customers with an \"m\" as the first character in the contact name",
+                EXCEPT_SCALAR,
+                TextExpectation.of("contactName", "STARTS_WITH", "m")));
+        cases.add(EvalCase.canonical("C5_COMBINED_AND", "creditworthy customers in Hamburg",
+                ALL_APPROACHES,
+                TextExpectation.of("city", new String[]{"CONTAINS", "EQUALS"}, "hamburg"),
                 TextExpectation.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "good", "creditworthy")));
-        cases.add(EvalCase.both("atRiskCustomers", "show me all customers that are at risk",
+        cases.add(EvalCase.canonical("C6_REVENUE_RANGE", "customers with revenue between 100000 and 200000",
+                CONDITION_LIST_APPROACHES,
+                new NumericAtLeast("annualRevenue", BigDecimal.valueOf(75_000)),
+                new NumericAtMost("annualRevenue", BigDecimal.valueOf(250_000))));
+        cases.add(EvalCase.canonical("C7_RELATIVE_DATE",
+                "show me all customers who placed an order in the last 12 months",
+                EXCEPT_SCALAR,
+                TextExpectation.of("lastOrderDate", "GREATER_OR_EQUAL", "")));
+        cases.add(EvalCase.canonical("C8_DATE_RANGE",
+                "customers who last ordered between 2024-07-01 and 2025-03-31",
+                CONDITION_LIST_APPROACHES,
+                TextExpectation.of("lastOrderDate", "GREATER_OR_EQUAL", "2024-07-01"),
+                TextExpectation.of("lastOrderDate", "LESS_OR_EQUAL", "2025-03-31")));
+
+        // --- legacy prompt-regression set, condition-list approaches (03/04) only: mirrors
+        // 03-ai-structured-filter's CustomerSearchAgentIT ... ---
+        cases.add(EvalCase.legacy("singleCity", "show me all customers in Berlin",
+                TextExpectation.of("city", "CONTAINS", "berlin")));
+        cases.add(EvalCase.legacy("creditworthyCustomers", "show me all creditworthy customers",
+                TextExpectation.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "good", "creditworthy")));
+        cases.add(EvalCase.legacy("atRiskCustomers", "show me all customers that are at risk",
                 TextExpectation.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "poor", "risk")));
-        cases.add(EvalCase.both("creditworthyInCity", "creditworthy customers in Hamburg",
+        cases.add(EvalCase.legacy("creditworthyInCity", "creditworthy customers in Hamburg",
                 TextExpectation.of("city", "CONTAINS", "hamburg"),
                 TextExpectation.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "good", "creditworthy")));
-        cases.add(EvalCase.both("contactNameContains", "show me all customers with \"meyer\" in the contact name",
+        cases.add(EvalCase.legacy("contactNameContains", "show me all customers with \"meyer\" in the contact name",
                 TextExpectation.of("contactName", "CONTAINS", "meyer")));
-        cases.add(EvalCase.both("companyNameContains", "customers whose company name contains data",
+        cases.add(EvalCase.legacy("companyNameContains", "customers whose company name contains data",
                 TextExpectation.of("companyName", "CONTAINS", "data")));
-        cases.add(EvalCase.both("customerSinceYear", "customers since 2020",
+        cases.add(EvalCase.legacy("customerSinceYear", "customers since 2020",
                 TextExpectation.of("customerSince", "GREATER_OR_EQUAL", "2020")));
-        cases.add(EvalCase.both("multiValueCities", "show me customers from Berlin or Hamburg",
+        cases.add(EvalCase.legacy("multiValueCities", "show me customers from Berlin or Hamburg",
                 TextExpectation.of("city", "CONTAINS", "berlin"),
                 TextExpectation.of("city", "CONTAINS", "hamburg")));
-        cases.add(EvalCase.both("multiValueCreditRating", "show me customers with GOOD or MEDIUM credit rating",
+        cases.add(EvalCase.legacy("multiValueCreditRating", "show me customers with GOOD or MEDIUM credit rating",
                 TextExpectation.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "good", "creditworthy"),
                 TextExpectation.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "medium", "moderate")));
-        cases.add(EvalCase.both("annualRevenueOverThreshold", "show me customers with annual revenue over 200000",
+        cases.add(EvalCase.legacy("annualRevenueOverThreshold", "show me customers with annual revenue over 200000",
                 new NumericAtLeast("annualRevenue", BigDecimal.valueOf(150_000))));
-        cases.add(EvalCase.both("citiesAndRevenue_keepsEveryCondition",
+        cases.add(EvalCase.legacy("citiesAndRevenue_keepsEveryCondition",
                 "show me all customers in Berlin or Hamburg with a minimal revenue of 100000",
                 TextExpectation.of("city", "CONTAINS", "berlin"),
                 TextExpectation.of("city", "CONTAINS", "hamburg"),
                 new NumericAtLeast("annualRevenue", BigDecimal.valueOf(75_000))));
-        cases.add(EvalCase.both("citiesWithRevenueRange", "Berlin or Hamburg with revenue between 100000 and 500000",
+        cases.add(EvalCase.legacy("citiesWithRevenueRange", "Berlin or Hamburg with revenue between 100000 and 500000",
                 TextExpectation.of("city", "CONTAINS", "berlin"),
                 TextExpectation.of("city", "CONTAINS", "hamburg"),
                 new NumericAtLeast("annualRevenue", BigDecimal.valueOf(75_000)),
                 new NumericAtMost("annualRevenue", BigDecimal.valueOf(550_000))));
-        cases.add(EvalCase.both("country", "customers in Germany",
+        cases.add(EvalCase.legacy("country", "customers in Germany",
                 TextExpectation.of("country", new String[]{"CONTAINS", "EQUALS"}, "germany")));
-        cases.add(EvalCase.both("resetTheFilter_German", "setze den Filter zurück"));
-        cases.add(EvalCase.both("contactNameAndCity_German",
+        cases.add(EvalCase.legacy("resetTheFilter_German", "setze den Filter zurück"));
+        cases.add(EvalCase.legacy("contactNameAndCity_German",
                 "Zeigen mir Kunden deren Kontaktname Julia ist und die in Berlin sind.",
                 TextExpectation.of("contactName", new String[]{"EQUALS", "CONTAINS"}, "julia"),
                 TextExpectation.of("city", "CONTAINS", "berlin")));
-        cases.add(EvalCase.both("showAllCustomers_noCriteria", "show all customers"));
+        cases.add(EvalCase.legacy("showAllCustomers_noCriteria", "show all customers"));
 
-        // --- structured-output only (mirrors 03's CustomerSearchAgentExtraIT, 20 cases; tool calling's
-        // flat CustomerSearchCriteria can't express NOT/STARTS_WITH/ENDS_WITH/arbitrary dates, and the
-        // 3 anti-hallucination cases were never verified against it either) ---
-        cases.add(EvalCase.structuredOnly("phoneNumberContains",
+        // --- ... and its CustomerSearchAgentExtraIT (negation, operator precision, arbitrary date
+        // bounds, anti-hallucination). Same group, same two approaches. ---
+        cases.add(EvalCase.legacy("phoneNumberContains",
                 "show me the customer with the phone number 5020000001 or similar", "fuzzy-match",
                 TextExpectation.of("phone", "CONTAINS", "5020000001")));
-        cases.add(EvalCase.structuredOnly("singleFalseCity", "show me all customers except from Berlin", "negation",
+        cases.add(EvalCase.legacy("singleFalseCity", "show me all customers except from Berlin", "negation",
                 TextExpectation.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "berlin")));
-        cases.add(EvalCase.structuredOnly("contactNameStartsWith",
+        cases.add(EvalCase.legacy("contactNameStartsWith",
                 "show me all customers with an \"m\" as the first character in the contact name", "operator-precision",
                 TextExpectation.of("contactName", "STARTS_WITH", "m")));
-        cases.add(EvalCase.structuredOnly("contactNameEndsWith",
+        cases.add(EvalCase.legacy("contactNameEndsWith",
                 "show me all customers their contact name ends with \"schmidt\"", "operator-precision",
                 TextExpectation.of("contactName", "ENDS_WITH", "schmidt")));
-        cases.add(EvalCase.structuredOnly("contactNameAndCity",
+        cases.add(EvalCase.legacy("contactNameAndCity",
                 "customers whose contact name is Sofia and who are from Berlin", "operator-precision",
                 TextExpectation.of("contactName", "EQUALS", "sofia"),
                 TextExpectation.of("city", "CONTAINS", "berlin")));
-        cases.add(EvalCase.structuredOnly("orderedInTheLastWeek",
+        cases.add(EvalCase.legacy("orderedInTheLastWeek",
                 "Show me all customers who placed an order in the last week", "relative-date",
                 TextExpectation.of("lastOrderDate", "GREATER_OR_EQUAL", "")));
-        cases.add(EvalCase.structuredOnly("orderedYesterday",
+        cases.add(EvalCase.legacy("orderedYesterday",
                 "show me all customers who made an order yesterday", "relative-date",
                 TextExpectation.of("lastOrderDate", "EQUALS", today.minusDays(1).toString())));
-        cases.add(EvalCase.structuredOnly("customerSinceThisYear",
+        cases.add(EvalCase.legacy("customerSinceThisYear",
                 "customers who became customers this year", "relative-date",
                 TextExpectation.of("customerSince", "GREATER_OR_EQUAL", "")));
-        cases.add(EvalCase.structuredOnly("lastOrderBeforeDate",
+        cases.add(EvalCase.legacy("lastOrderBeforeDate",
                 "customers whose last order was before 2024-01-01", "relative-date",
                 TextExpectation.of("lastOrderDate", new String[]{"LESS_OR_EQUAL"}, "2024-01-01", "2023-12-31")));
-        cases.add(EvalCase.structuredOnly("notInCityWithRevenueRange_keepsEveryCondition",
+        cases.add(EvalCase.legacy("notInCityWithRevenueRange_keepsEveryCondition",
                 "companies not in Munich with revenue between 100000 and 500000", "negation",
                 TextExpectation.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "munich"),
                 TextExpectation.of("annualRevenue", "GREATER_OR_EQUAL", "100000"),
                 TextExpectation.of("annualRevenue", "LESS_OR_EQUAL", "500000")));
-        cases.add(EvalCase.structuredOnly("emailEndsWith",
+        cases.add(EvalCase.legacy("emailEndsWith",
                 "customers whose email ends with .com", "operator-precision",
                 TextExpectation.of("email", "ENDS_WITH", ".com")));
-        cases.add(EvalCase.structuredOnly("emailNotContains",
+        cases.add(EvalCase.legacy("emailNotContains",
                 "customers whose email does not contain gmail", "negation",
                 TextExpectation.of("email", new String[]{"NOT_CONTAINS", "NOT_EQUALS"}, "gmail")));
-        cases.add(EvalCase.structuredOnly("companyNameStartsWith",
+        cases.add(EvalCase.legacy("companyNameStartsWith",
                 "customers whose company name starts with A", "operator-precision",
                 TextExpectation.of("companyName", "STARTS_WITH", "a")));
-        cases.add(EvalCase.structuredOnly("creditRatingTwoValues_staySeparateCriteria",
+        cases.add(EvalCase.legacy("creditRatingTwoValues_staySeparateCriteria",
                 "show me all customers in Berlin with a good and an at-risk credit rating", "operator-precision",
                 TextExpectation.of("city", "CONTAINS", "berlin"),
                 TextExpectation.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "good", "creditworthy"),
                 TextExpectation.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "poor", "risk")));
-        cases.add(EvalCase.structuredOnly("notInCityWithRevenueRange_keepsEveryCondition_German",
+        cases.add(EvalCase.legacy("notInCityWithRevenueRange_keepsEveryCondition_German",
                 "Alle Kunden ausser aus Hamburg mit einem Umsatz von 500000 bis 1000000", "negation",
                 TextExpectation.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "hamburg"),
                 TextExpectation.of("annualRevenue", "GREATER_OR_EQUAL", "500000"),
                 TextExpectation.of("annualRevenue", "LESS_OR_EQUAL", "1000000")));
-        cases.add(EvalCase.structuredOnly("notInCityWithRevenueAndYear",
+        cases.add(EvalCase.legacy("notInCityWithRevenueAndYear",
                 "customers who are not from Berlin, have at least 1000 in revenue, and last ordered in 2024", "negation",
                 TextExpectation.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "berlin"),
                 TextExpectation.of("annualRevenue", "GREATER_OR_EQUAL", "1000"),
                 TextExpectation.of("lastOrderDate", "GREATER_OR_EQUAL", "2024-01-01"),
                 TextExpectation.of("lastOrderDate", "LESS_OR_EQUAL", "2024-12-31")));
-        cases.add(EvalCase.structuredOnly("notInCityWithRevenueAndYear_German",
+        cases.add(EvalCase.legacy("notInCityWithRevenueAndYear_German",
                 "Kunden, die nicht aus Berlin kommen und mind. 1000 € Umsatz haben und 2024 zuletzt gekauft haben", "negation",
                 TextExpectation.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "berlin"),
                 TextExpectation.of("annualRevenue", "GREATER_OR_EQUAL", "1000"),
                 TextExpectation.of("lastOrderDate", "GREATER_OR_EQUAL", "2024-01-01"),
                 TextExpectation.of("lastOrderDate", "LESS_OR_EQUAL", "2024-12-31")));
 
-        // --- robustness / anti-hallucination cases ---
-        // The two no-criteria cases run against both approaches (empty-filter scoring works for
-        // tool-calling too, see showAllCustomers_noCriteria); revenueExact_notOverGenerated stays
-        // structured-only because EQUALS precision is not expressible in 02's flat
-        // CustomerSearchCriteria (see tasks/harden-filter-test-assertions.md).
-        cases.add(EvalCase.both("smalltalk_noCriteria", "Nice weather today, isn't it?",
+        // --- robustness / anti-hallucination cases (same group and approaches as the rest of the
+        // legacy set) ---
+        cases.add(EvalCase.legacy("smalltalk_noCriteria", "Nice weather today, isn't it?",
                 "anti-hallucination"));
-        cases.add(EvalCase.both("unrelatedRequest_noCriteria", "What's the capital of France?",
+        cases.add(EvalCase.legacy("unrelatedRequest_noCriteria", "What's the capital of France?",
                 "anti-hallucination"));
-        cases.add(EvalCase.structuredOnly("revenueExact_notOverGenerated",
+        cases.add(EvalCase.legacy("revenueExact_notOverGenerated",
                 "customers with exactly 100000 in annual revenue", "anti-hallucination",
                 new NumericExact("annualRevenue", BigDecimal.valueOf(100000))));
         return cases;
@@ -272,23 +348,56 @@ public class BenchmarkLocalModels {
     // Approach abstraction
     // ---------------------------------------------------------------------------------------------
 
+    /**
+     * The four AI approaches of this repository, in escalation-ladder order. {@code module} and
+     * {@code serviceSource} say where each one's real system prompt (and, for the tool-calling ones, its
+     * tool schema) is extracted from at runtime, so the eval can never drift from the running apps.
+     */
     enum Approach {
-        TOOL_CALLING("tool-calling"), STRUCTURED("structured");
+        SCALAR_TOOL_CALLING("02a-scalar", "02-ai-agent-filter", "scalar/ScalarToolCallingService.java"),
+        OPERATOR_TOOL_CALLING("02b-operator", "02-ai-agent-filter", "operator/OperatorToolCallingService.java"),
+        STRUCTURED("03-structured", "03-ai-structured-filter", "CustomerSearchStructuredOutputService.java"),
+        CONDITION_TOOL_CALLING("04-hybrid", "04-ai-hybrid-filter", "CustomerSearchHybridToolCallingService.java");
 
         final String label;
+        final String module;
+        final String serviceSource;
 
-        Approach(String label) {
+        Approach(String label, String module, String serviceSource) {
             this.label = label;
+            this.module = module;
+            this.serviceSource = serviceSource;
+        }
+
+        /** Everything except 03 delivers the filter through a tool call. */
+        boolean isToolCalling() {
+            return this != STRUCTURED;
+        }
+
+        static Approach byFlag(String flag) {
+            for (Approach approach : values()) {
+                if (approach.label.startsWith(flag) || approach.label.equals(flag)) {
+                    return approach;
+                }
+            }
+            return null;
         }
     }
 
+    /** {@code --approach=all} or a comma-separated list of {@code 02a,02b,03,04}. */
     private static List<Approach> resolveApproaches(String flag) {
-        return switch (flag) {
-            case "both" -> List.of(Approach.TOOL_CALLING, Approach.STRUCTURED);
-            case "tool-calling" -> List.of(Approach.TOOL_CALLING);
-            case "structured" -> List.of(Approach.STRUCTURED);
-            default -> throw new IllegalStateException("Unknown approach: " + flag);
-        };
+        if (flag.equals("all")) {
+            return List.of(Approach.values());
+        }
+        List<Approach> approaches = new ArrayList<>();
+        for (String part : flag.split(",")) {
+            Approach approach = Approach.byFlag(part.strip());
+            if (approach == null) {
+                throw new IllegalStateException("Unknown approach: " + part);
+            }
+            approaches.add(approach);
+        }
+        return approaches;
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -299,8 +408,9 @@ public class BenchmarkLocalModels {
                           List<Leaf> actual, Map<String, Boolean> fieldCorrect) {
     }
 
-    record CaseAggregate(String name, String query, int passes, int runs, double medianDurationMs,
-                          double medianTokS, List<String> sampleErrors, List<String> sampleRawBodies) {
+    record CaseAggregate(String name, String query, CaseGroup group, int passes, int runs,
+                          double medianDurationMs, double medianTokS, List<String> sampleErrors,
+                          List<String> sampleRawBodies) {
         String passRateLabel() {
             return passes + "/" + runs;
         }
@@ -311,6 +421,15 @@ public class BenchmarkLocalModels {
                                 double avgCpuLoadPercent, long heapUsedBeforeBytes, long heapUsedAfterBytes,
                                 String gpuInfo, Long ttftMs, String fatalError) {
         double meanPassRate() {
+            return meanPassRate(cases);
+        }
+
+        /** Mean pass rate over one case group only, or 0 if this approach ran none of them. */
+        double meanPassRate(CaseGroup group) {
+            return meanPassRate(cases.stream().filter(c -> c.group() == group).toList());
+        }
+
+        private static double meanPassRate(List<CaseAggregate> cases) {
             if (cases.isEmpty()) return 0;
             return cases.stream().mapToDouble(c -> c.runs() == 0 ? 0 : (double) c.passes() / c.runs()).average()
                     .orElse(0);
@@ -387,16 +506,26 @@ public class BenchmarkLocalModels {
         Map<Approach, String> toolsJsonByApproach = new EnumMap<>(Approach.class);
         Map<Approach, String> promptSources = new EnumMap<>(Approach.class);
         for (Approach approach : approaches) {
-            if (approach == Approach.STRUCTURED) {
-                Path source = locateSource("03-ai-structured-filter", "CustomerSearchStructuredOutputService.java");
-                systemPrompts.put(approach, buildStructuredSystemPrompt(source, today));
-                promptSources.put(approach, source.toString());
-            } else {
-                Path source = locateSource("02-ai-agent-filter", "CustomerSearchToolCallingService.java");
-                String src = Files.readString(source, StandardCharsets.UTF_8);
-                systemPrompts.put(approach, extractToolCallingSystemPrompt(src));
-                toolsJsonByApproach.put(approach, buildSearchCustomersToolJson(src));
-                promptSources.put(approach, source.toString());
+            Path source = locateSource(approach.module, approach.serviceSource);
+            String src = Files.readString(source, StandardCharsets.UTF_8);
+            promptSources.put(approach, source.toString());
+            switch (approach) {
+                // 03 and 04 share one prompt shape: a systemPrompt(LocalDate) text block with the
+                // resolved dates spliced in. Only 03 needs the "respond with JSON" tail, because only
+                // 03 has the model return the filter instead of calling a tool with it.
+                case STRUCTURED -> systemPrompts.put(approach,
+                        formattedSystemPrompt(src, source, today) + STRUCTURED_OUTPUT_SHAPE_INSTRUCTION);
+                case CONDITION_TOOL_CALLING -> {
+                    systemPrompts.put(approach, formattedSystemPrompt(src, source, today));
+                    toolsJsonByApproach.put(approach, buildSearchCustomersToolJson(src,
+                            Files.readString(locateSource(approach.module, "filter/Condition.java"),
+                                    StandardCharsets.UTF_8)));
+                }
+                // 02(a)/02(b): a constant SYSTEM_PROMPT plus a flat, per-field tool signature.
+                default -> {
+                    systemPrompts.put(approach, extractToolCallingSystemPrompt(src));
+                    toolsJsonByApproach.put(approach, buildSearchCustomersToolJson(src, null));
+                }
             }
             System.out.println("Extracted " + approach.label + " prompt/schema from: " + promptSources.get(approach));
         }
@@ -412,11 +541,14 @@ public class BenchmarkLocalModels {
         List<ModelApproachResult> results = new ArrayList<>();
         for (String model : models) {
             for (Approach approach : approaches) {
-                List<EvalCase> casesForApproach = approach == Approach.STRUCTURED
-                        ? selectedCases
-                        : selectedCases.stream().filter(EvalCase::bothApproaches).toList();
+                List<EvalCase> casesForApproach = selectedCases.stream()
+                        .filter(c -> c.approaches().contains(approach)).toList();
                 if (casesForApproach.isEmpty()) continue;
-                System.out.println("=== " + model + " [" + approach.label + "] ===");
+                List<String> skipped = selectedCases.stream()
+                        .filter(c -> !c.approaches().contains(approach)).map(EvalCase::name).toList();
+                System.out.println("=== " + model + " [" + approach.label + "] === "
+                        + casesForApproach.size() + " cases"
+                        + (skipped.isEmpty() ? "" : ", not expressible by this approach: " + skipped));
                 ModelApproachResult result = runModelApproach(client, model, approach, systemPrompts.get(approach),
                         toolsJsonByApproach.get(approach), casesForApproach, cli.runs());
                 results.add(result);
@@ -472,7 +604,7 @@ public class BenchmarkLocalModels {
         boolean debugRaw = false;
         String mode = "freeform";
         int runs = 1;
-        String approach = "structured";
+        String approach = "all";
         boolean quick = false;
         Double minPassRate = null;
         for (String arg : args) {
@@ -522,9 +654,11 @@ public class BenchmarkLocalModels {
             System.err.println("Unknown --mode value: " + mode + " (expected 'freeform' or 'schema')");
             System.exit(1);
         }
-        if (!approach.equals("tool-calling") && !approach.equals("structured") && !approach.equals("both")) {
+        try {
+            resolveApproaches(approach);
+        } catch (IllegalStateException e) {
             System.err.println("Unknown --approach value: " + approach
-                    + " (expected 'tool-calling', 'structured', or 'both')");
+                    + " (expected 'all' or a comma-separated list of 02a,02b,03,04)");
             System.exit(1);
         }
         return new CliArgs(backend, baseUrlOverride, models, thinkDisabled, debugRaw, mode, runs, approach, quick,
@@ -536,21 +670,23 @@ public class BenchmarkLocalModels {
                 Usage: java BenchmarkLocalModels.java [options] [model1] [model2] ...
 
                 Options:
-                  --approach=tool-calling|structured|both
-                                         Which AI approach(es) to evaluate (default: structured).
-                                         tool-calling replicates 02-ai-agent-filter's searchCustomers
-                                         tool call; structured replicates 03-ai-structured-filter's
-                                         CustomerFilter JSON completion. Both approaches' system
-                                         prompt (and, for tool-calling, its tool/argument schema) is
-                                         extracted from that module's production source at runtime —
-                                         never hard-coded — so the eval cannot drift from the app.
+                  --approach=all|02a,02b,03,04
+                                         Which AI approach(es) to evaluate (default: all four).
+                                           02a = 02-ai-agent-filter, one scalar value per field
+                                           02b = 02-ai-agent-filter, value + operator + negate per field
+                                           03  = 03-ai-structured-filter, CustomerFilter as structured output
+                                           04  = 04-ai-hybrid-filter, the same condition list as a tool call
+                                         Every approach's system prompt (and, for the tool-calling ones,
+                                         its tool/argument schema) is extracted from that module's
+                                         production source at runtime — never hard-coded — so the eval
+                                         cannot drift from the apps.
                   --runs=N               Run every case N times and report a per-case pass-rate
                                          (passes/N) plus an aggregate mean, instead of a single
                                          pass/fail (default: 1, i.e. today's single-shot behavior).
-                  --quick                Evaluate only a small representative case subset (one plain
-                                         text case, one case with a plausible cross-field leak risk,
-                                         one numeric-tolerant revenue case, one multi-field AND case,
-                                         one structured-only negation case) for a fast edit-loop check.
+                  --quick                Evaluate only a small representative subset of the canonical
+                                         query set (a single-value case, a multi-field AND case, and
+                                         the two cases only the condition-list approaches can express)
+                                         for a fast edit-loop check.
                   --min-pass-rate=<X>    Exit non-zero if any model/approach's aggregate mean pass
                                          rate falls below X (0..1); exit zero otherwise. Meant for
                                          scripting a regression gate on top of this eval.
@@ -578,7 +714,7 @@ public class BenchmarkLocalModels {
 
                 Examples:
                   java BenchmarkLocalModels.java
-                  java BenchmarkLocalModels.java --approach=both --runs=5 llama3.1:8b
+                  java BenchmarkLocalModels.java --approach=all --runs=5 llama3.1:8b
                   java BenchmarkLocalModels.java --quick --runs=3 llama3.1:8b
                   java BenchmarkLocalModels.java --min-pass-rate=0.8 --runs=5 llama3.1:8b
                   java BenchmarkLocalModels.java --backend=mlx --think=off mlx-community/Qwen3-14B-4bit""");
@@ -636,8 +772,23 @@ public class BenchmarkLocalModels {
     // CustomerSearchStructuredOutputService.java so the eval cannot drift from production behaviour.
     // ---------------------------------------------------------------------------------------------
 
-    private static String buildStructuredSystemPrompt(Path source, LocalDate today) throws IOException {
-        String src = Files.readString(source, StandardCharsets.UTF_8);
+    /**
+     * The response-shape reminder that only the structured-output approach needs: 03 asks the model to
+     * <em>return</em> the filter, and Spring AI appends an equivalent instruction plus the generated JSON
+     * schema to the prompt at runtime. The tool-calling approaches get the shape from their tool schema
+     * instead, so they must not receive this.
+     */
+    private static final String STRUCTURED_OUTPUT_SHAPE_INSTRUCTION =
+            "\n\nRespond ONLY with a JSON object of this exact shape, nothing else:\n"
+                    + "{\"conditions\": [ {\"field\":\"...\",\"operator\":\"...\",\"values\":[\"...\"],"
+                    + "\"negate\":true|false}, ... ]}";
+
+    /**
+     * Extracts a {@code systemPrompt(LocalDate)} text block and resolves its relative dates against
+     * {@code today}, exactly as the module does at runtime. Used for 03 and 04, whose prompts share this
+     * shape (04's is 03's prompt with tool-call framing).
+     */
+    private static String formattedSystemPrompt(String src, Path source, LocalDate today) {
         Matcher m = Pattern.compile("return\\s*\"\"\"(.*?)\"\"\"\\s*\\.formatted", Pattern.DOTALL).matcher(src);
         if (!m.find()) {
             throw new IllegalStateException("Could not extract system prompt template from " + source);
@@ -648,13 +799,9 @@ public class BenchmarkLocalModels {
         LocalDate thisWeekMonday = today.minusDays(today.getDayOfWeek().getValue() - 1L);
         LocalDate lastWeekMonday = thisWeekMonday.minusWeeks(1);
         LocalDate lastMonthStart = today.withDayOfMonth(1).minusMonths(1);
-        // Same argument order as CustomerSearchStructuredOutputService.systemPrompt(...).formatted(...).
-        String prompt = template.formatted(today, today, yesterday, today, today, today, thisWeekMonday,
+        // Same argument order as the module's systemPrompt(...).formatted(...) call.
+        return template.formatted(today, today, yesterday, today, today, today, thisWeekMonday,
                 lastWeekMonday, today, lastMonthStart);
-
-        return prompt + "\n\nRespond ONLY with a JSON object of this exact shape, nothing else:\n"
-                + "{\"conditions\": [ {\"field\":\"...\",\"operator\":\"...\",\"values\":[\"...\"],"
-                + "\"negate\":true|false}, ... ]}";
     }
 
     private static Path locateSource(String module, String fileRelativeToMainJava) {
@@ -704,31 +851,43 @@ public class BenchmarkLocalModels {
     private record ToolParamSpec(String name, String type, String description) {
     }
 
-    private static String buildSearchCustomersToolJson(String src) {
+    /**
+     * Builds the {@code tools} array for a tool-calling approach out of its real {@code searchCustomers}
+     * signature: the {@code @Tool}/{@code @ToolParam} description texts are literally what the model sees
+     * in production, and the JSON-Schema structure per Java type is the inherent Java-type -&gt;
+     * JSON-Schema plumbing Spring AI performs (verified against the schema Spring AI generates for
+     * {@code List<Condition>}).
+     * <p>
+     * {@code conditionSrc} is the source of {@code Condition.java} for the one approach whose parameter is
+     * a {@code List<Condition>} (04); {@code null} for the per-field variants. The second tool,
+     * {@code currentLocalDateTime}, is only offered if the service actually declares it — 02(b) does,
+     * 02(a) and 04 do not.
+     */
+    private static String buildSearchCustomersToolJson(String src, String conditionSrc) {
         int methodIdx = src.indexOf("void searchCustomers(");
         if (methodIdx < 0) {
-            throw new IllegalStateException("Could not locate searchCustomers(...) in CustomerSearchToolCallingService.java");
+            throw new IllegalStateException("Could not locate searchCustomers(...) in the service source");
         }
         String toolDescription = extractPrecedingToolDescription(src, methodIdx);
         String paramsBlock = extractBalancedParens(src, methodIdx);
-        List<ToolParamSpec> params = extractToolParams(paramsBlock);
+        List<ToolParamSpec> params = extractToolParams(paramsBlock, src);
 
         StringBuilder properties = new StringBuilder();
-        StringBuilder required = new StringBuilder();
         for (int i = 0; i < params.size(); i++) {
             ToolParamSpec p = params.get(i);
             if (i > 0) {
                 properties.append(",");
-                required.append(",");
             }
-            properties.append(jsonString(p.name())).append(":").append(jsonSchemaForListParam(p));
-            required.append(jsonString(p.name()));
+            properties.append(jsonString(p.name())).append(":").append(jsonSchemaForParam(p, conditionSrc));
         }
 
         String searchCustomersFunction = """
                 {"type":"function","function":{"name":"searchCustomers","description":%s,
                 "parameters":{"type":"object","properties":{%s},"required":[]}}}
                 """.formatted(jsonString(toolDescription), properties);
+        if (!src.contains("LocalDateTime currentLocalDateTime()")) {
+            return "[" + searchCustomersFunction.strip() + "]";
+        }
         String currentDateTimeFunction = """
                 {"type":"function","function":{"name":"currentLocalDateTime",
                 "description":"Current date and time","parameters":{"type":"object","properties":{}}}}
@@ -766,16 +925,28 @@ public class BenchmarkLocalModels {
         return src.substring(open + 1, i - 1);
     }
 
-    private static List<ToolParamSpec> extractToolParams(String paramsBlock) {
+    /**
+     * Extracts every {@code @ToolParam}-annotated parameter of the signature: its description (a text
+     * block, a plain literal, or the name of a {@code static final String} constant — 02(b) shares the
+     * operator/negate descriptions across its 13 fields that way), its type and its name.
+     */
+    private static List<ToolParamSpec> extractToolParams(String paramsBlock, String src) {
         Pattern p = Pattern.compile(
-                "@ToolParam\\(description\\s*=\\s*(?:\"\"\"(.*?)\"\"\"|\"((?:[^\"\\\\]|\\\\.)*)\")\\)\\s*"
-                        + "List<([\\w.]+)>\\s+(\\w+)",
+                "@ToolParam\\(description\\s*=\\s*(?:\"\"\"(.*?)\"\"\"|\"((?:[^\"\\\\]|\\\\.)*)\"|([A-Z][A-Z0-9_]*))\\)\\s*"
+                        + "((?:List<[\\w.]+>)|[\\w.]+)\\s+(\\w+)",
                 Pattern.DOTALL);
         Matcher m = p.matcher(paramsBlock);
         List<ToolParamSpec> params = new ArrayList<>();
         while (m.find()) {
-            String desc = m.group(1) != null ? m.group(1).strip() : unescapeJavaString(m.group(2));
-            params.add(new ToolParamSpec(m.group(4), m.group(3), desc));
+            String desc;
+            if (m.group(1) != null) {
+                desc = m.group(1).strip();
+            } else if (m.group(2) != null) {
+                desc = unescapeJavaString(m.group(2));
+            } else {
+                desc = resolveStringConstant(src, m.group(3));
+            }
+            params.add(new ToolParamSpec(m.group(5), m.group(4), desc));
         }
         if (params.isEmpty()) {
             throw new IllegalStateException("Found searchCustomers(...) but no @ToolParam entries in it");
@@ -783,20 +954,74 @@ public class BenchmarkLocalModels {
         return params;
     }
 
+    /** Resolves {@code private static final String NAME = "..."} (text block or literal) in the source. */
+    private static String resolveStringConstant(String src, String name) {
+        Matcher m = Pattern.compile("static\\s+final\\s+String\\s+" + Pattern.quote(name)
+                + "\\s*=\\s*(?:\"\"\"(.*?)\"\"\"|\"((?:[^\"\\\\]|\\\\.)*)\")\\s*;", Pattern.DOTALL).matcher(src);
+        if (!m.find()) {
+            throw new IllegalStateException("Could not resolve @ToolParam description constant: " + name);
+        }
+        return m.group(1) != null ? dedentTextBlock(m.group(1)).strip() : unescapeJavaString(m.group(2));
+    }
+
     private static String unescapeJavaString(String s) {
         return s.replace("\\\"", "\"").replace("\\\\", "\\").replace("\\n", "\n").replace("\\t", "\t");
     }
 
-    private static String jsonSchemaForListParam(ToolParamSpec p) {
-        String itemSchema = switch (p.type()) {
-            case "String" -> "{\"type\":\"string\"}";
-            case "LocalDate" -> "{\"type\":\"string\"}";
-            case "CreditRating" -> "{\"type\":\"string\",\"enum\":[\"GOOD\",\"MEDIUM\",\"POOR\"]}";
-            case "RevenueRange" -> "{\"type\":\"object\",\"properties\":{"
-                    + "\"atLeast\":{\"type\":\"number\"},\"atMost\":{\"type\":\"number\"}}}";
-            default -> throw new IllegalStateException("Unknown @ToolParam list item type: " + p.type());
+    /** The six {@code Operator} values, mirrored from the modules' enum (type plumbing, not prompt text). */
+    private static final String OPERATOR_ENUM_JSON =
+            "\"enum\":[\"CONTAINS\",\"EQUALS\",\"GREATER_OR_EQUAL\",\"LESS_OR_EQUAL\",\"STARTS_WITH\",\"ENDS_WITH\"]";
+
+    /** Java type -&gt; JSON Schema for one tool parameter, with its description attached. */
+    private static String jsonSchemaForParam(ToolParamSpec p, String conditionSrc) {
+        String withoutDescription = switch (p.type()) {
+            case "String", "LocalDate" -> "{\"type\":\"string\"";
+            case "BigDecimal" -> "{\"type\":\"number\"";
+            case "Boolean", "boolean" -> "{\"type\":\"boolean\"";
+            case "Operator" -> "{\"type\":\"string\"," + OPERATOR_ENUM_JSON;
+            case "CreditRating" -> "{\"type\":\"string\",\"enum\":[\"GOOD\",\"MEDIUM\",\"POOR\"]";
+            case "List<String>", "List<LocalDate>" -> "{\"type\":\"array\",\"items\":{\"type\":\"string\"}";
+            case "List<Condition>" -> "{\"type\":\"array\",\"items\":" + conditionItemSchema(conditionSrc);
+            default -> throw new IllegalStateException("Unknown @ToolParam type: " + p.type());
         };
-        return "{\"type\":\"array\",\"items\":" + itemSchema + ",\"description\":" + jsonString(p.description()) + "}";
+        return withoutDescription + ",\"description\":" + jsonString(p.description()) + "}";
+    }
+
+    /**
+     * The {@code Condition} object schema, built from {@code Condition.java}'s own
+     * {@code @JsonPropertyDescription}/{@code @JsonClassDescription} texts — the same annotations Spring
+     * AI reads when it generates this approach's tool schema at runtime, so the eval sees what the app
+     * sends rather than a hand-written copy of it.
+     */
+    private static String conditionItemSchema(String conditionSrc) {
+        if (conditionSrc == null) {
+            throw new IllegalStateException("A List<Condition> parameter needs Condition.java's source");
+        }
+        Map<String, String> descriptions = new LinkedHashMap<>();
+        Matcher m = Pattern.compile("@JsonPropertyDescription\\(\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*\\)\\s*"
+                + "(?:[\\w<>., ]+?)\\s+(\\w+)[,)]", Pattern.DOTALL).matcher(conditionSrc);
+        while (m.find()) {
+            descriptions.put(m.group(2), unescapeJavaString(m.group(1)));
+        }
+        for (String component : List.of("field", "operator", "values", "negate")) {
+            if (!descriptions.containsKey(component)) {
+                throw new IllegalStateException("Condition.java has no @JsonPropertyDescription for: " + component);
+            }
+        }
+        Matcher classDescription = Pattern.compile("@JsonClassDescription\\(\\s*\"((?:[^\"\\\\]|\\\\.)*)\"\\s*\\)",
+                Pattern.DOTALL).matcher(conditionSrc);
+        String description = classDescription.find() ? unescapeJavaString(classDescription.group(1)) : "One condition";
+
+        return "{\"type\":\"object\",\"description\":" + jsonString(description) + ","
+                + "\"required\":[\"field\",\"operator\",\"values\",\"negate\"],\"additionalProperties\":false,"
+                + "\"properties\":{"
+                + "\"field\":{\"type\":\"string\",\"description\":" + jsonString(descriptions.get("field")) + "},"
+                + "\"operator\":{\"type\":\"string\"," + OPERATOR_ENUM_JSON + ",\"description\":"
+                + jsonString(descriptions.get("operator")) + "},"
+                + "\"values\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},\"description\":"
+                + jsonString(descriptions.get("values")) + "},"
+                + "\"negate\":{\"type\":\"boolean\",\"description\":" + jsonString(descriptions.get("negate")) + "}"
+                + "}}";
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -806,7 +1031,7 @@ public class BenchmarkLocalModels {
     private static ModelApproachResult runModelApproach(ApiClient client, String model, Approach approach,
             String systemPrompt, String toolsJson, List<EvalCase> cases, int runs) throws Exception {
         try {
-            if (approach == Approach.TOOL_CALLING) {
+            if (approach.isToolCalling()) {
                 client.chatTools(model, systemPrompt, toolsJson, "warm up");
             } else {
                 client.chat(model, systemPrompt, "warm up");
@@ -839,9 +1064,9 @@ public class BenchmarkLocalModels {
                     }
                     List<Leaf> actual;
                     ChatResult chatResult;
-                    if (approach == Approach.TOOL_CALLING) {
+                    if (approach.isToolCalling()) {
                         chatResult = client.chatTools(model, systemPrompt, toolsJson, tc.query());
-                        actual = normalizeToolCallArgs(chatResult.content());
+                        actual = normalizeToolCallArgs(approach, chatResult.content());
                     } else {
                         chatResult = client.chat(model, systemPrompt, tc.query());
                         actual = normalizeStructuredResponse(chatResult.content());
@@ -878,7 +1103,7 @@ public class BenchmarkLocalModels {
                     }
                 }
             }
-            aggregates.add(new CaseAggregate(tc.name(), tc.query(), passes, runs, median(durations),
+            aggregates.add(new CaseAggregate(tc.name(), tc.query(), tc.group(), passes, runs, median(durations),
                     median(tokRates.stream().mapToDouble(Double::doubleValue).boxed().collect(Collectors.toList())),
                     sampleErrors, sampleRawBodies));
         }
@@ -1005,50 +1230,79 @@ public class BenchmarkLocalModels {
     // scoring above is written once.
     // ---------------------------------------------------------------------------------------------
 
-    /** Tool-calling: {@code content} is a JSON object of searchCustomers' arguments (already parsed
-     * server-side by Ollama; for OpenAI-compatible backends it arrives as a JSON-encoded string and
-     * is re-parsed by the client before reaching here). No operator/negate dimension exists, except
-     * annualRevenue's RevenueRange objects, which expand into synthetic GREATER_OR_EQUAL/
-     * LESS_OR_EQUAL leaves so the same numeric scoring as the structured approach applies unchanged.
-     * A parameter value is tolerantly re-parsed if the model emits a JSON-encoded string instead of a
-     * proper nested array for a list-of-objects parameter (observed with {@code annualRevenue} on
-     * llama3.1:8b) — value placement/emptiness is scored exactly, but this kind of formatting quirk
-     * is not conflated with the model not having populated the field at all. */
-    @SuppressWarnings("unchecked")
-    private static List<Leaf> normalizeToolCallArgs(String content) {
-        List<Leaf> leaves = new ArrayList<>();
-        if (content == null || content.isBlank()) return leaves;
+    /**
+     * Tool calling: {@code content} is the JSON object of {@code searchCustomers}' arguments (already
+     * parsed server-side by Ollama; for OpenAI-compatible backends it arrives as a JSON-encoded string and
+     * is re-parsed by the client before reaching here). Each approach shapes those arguments differently,
+     * so each gets its own reduction to the shared {@link Leaf} form the scoring works on.
+     */
+    private static List<Leaf> normalizeToolCallArgs(Approach approach, String content) {
+        if (content == null || content.isBlank()) return List.of();
         Object parsed;
         try {
             parsed = Json.parse(content);
         } catch (Exception e) {
-            return leaves;
+            return List.of();
         }
-        if (!(parsed instanceof Map<?, ?> args)) return leaves;
+        if (!(parsed instanceof Map<?, ?> args)) return List.of();
+        return switch (approach) {
+            case SCALAR_TOOL_CALLING -> scalarLeaves(args);
+            case OPERATOR_TOOL_CALLING -> operatorLeaves(args);
+            case CONDITION_TOOL_CALLING -> conditionLeaves(args);
+            case STRUCTURED -> throw new IllegalStateException("Structured output does not call a tool");
+        };
+    }
+
+    /** 02(a): one scalar value per field, no operator and no negate flag anywhere. */
+    private static List<Leaf> scalarLeaves(Map<?, ?> args) {
+        List<Leaf> leaves = new ArrayList<>();
         for (Map.Entry<?, ?> entry : args.entrySet()) {
-            String field = String.valueOf(entry.getKey());
-            Object value = entry.getValue();
-            if (value instanceof String s && !s.isBlank() && (s.strip().startsWith("[") || s.strip().startsWith("{"))) {
-                try {
-                    value = Json.parse(s);
-                } catch (Exception ignored) {
-                    // leave as the original String; falls through to the no-op branch below
-                }
+            if (entry.getValue() == null) continue;
+            String value = String.valueOf(entry.getValue());
+            if (value.isBlank() || value.equals("null")) continue;
+            leaves.add(new Leaf(String.valueOf(entry.getKey()), null, value));
+        }
+        return leaves;
+    }
+
+    /**
+     * 02(b): three flat parameters per field — {@code city}, {@code cityOperator}, {@code cityNegate} —
+     * which collapse into one leaf per field, with {@code negate} folded into a synthetic {@code NOT_}
+     * operator prefix exactly as for the condition-list approaches. A parameter without its value
+     * ({@code cityOperator} alone) contributes nothing, mirroring what the module itself does with it.
+     */
+    private static List<Leaf> operatorLeaves(Map<?, ?> args) {
+        Map<String, String> byKey = new LinkedHashMap<>();
+        args.forEach((key, value) -> {
+            if (value != null) byKey.put(String.valueOf(key), String.valueOf(value));
+        });
+        List<Leaf> leaves = new ArrayList<>();
+        for (Map.Entry<String, String> entry : byKey.entrySet()) {
+            String field = entry.getKey();
+            if (field.endsWith("Operator") || field.endsWith("Negate")) continue;
+            String value = entry.getValue();
+            if (value.isBlank() || value.equals("null")) continue;
+            String operator = byKey.get(field + "Operator");
+            if (operator != null && (operator.isBlank() || operator.equals("null"))) {
+                operator = null;
             }
-            if (!(value instanceof List<?> list) || list.isEmpty()) continue;
-            if (field.equalsIgnoreCase("annualRevenue")) {
-                for (Object o : list) {
-                    if (o instanceof Map<?, ?> range) {
-                        Object atLeast = range.get("atLeast");
-                        Object atMost = range.get("atMost");
-                        if (atLeast != null) leaves.add(new Leaf(field, "GREATER_OR_EQUAL", String.valueOf(atLeast)));
-                        if (atMost != null) leaves.add(new Leaf(field, "LESS_OR_EQUAL", String.valueOf(atMost)));
-                    }
-                }
-            } else {
-                for (Object o : list) {
-                    if (o != null) leaves.add(new Leaf(field, null, String.valueOf(o)));
-                }
+            boolean negate = "true".equalsIgnoreCase(byKey.getOrDefault(field + "Negate", "false"));
+            if (negate) {
+                operator = "NOT_" + (operator == null ? "CONTAINS" : operator);
+            }
+            leaves.add(new Leaf(field, operator, value));
+        }
+        return leaves;
+    }
+
+    /** 04: the single {@code conditions} parameter — the same payload 03 returns, so the same expansion. */
+    @SuppressWarnings("unchecked")
+    private static List<Leaf> conditionLeaves(Map<?, ?> args) {
+        List<Leaf> leaves = new ArrayList<>();
+        if (!(args.get("conditions") instanceof List<?> conditions)) return leaves;
+        for (Object condition : conditions) {
+            if (condition instanceof Map<?, ?> m) {
+                expandCondition((Map<String, Object>) m, leaves);
             }
         }
         return leaves;
@@ -1644,13 +1898,20 @@ public class BenchmarkLocalModels {
         }
     }
 
-    /** Per-case pass-rate breakdown, one table per model/approach. */
+    /** Per-case pass-rate breakdown, one table per model/approach, canonical cases first. */
     private static void printPerCaseTable(StringBuilder sb, ModelApproachResult r) {
         sb.append("\n### ").append(r.model()).append(" [").append(r.approach().label).append("]\n\n");
-        sb.append("| Case | Pass rate | Query |\n|---|---|---|\n");
-        for (CaseAggregate c : r.cases()) {
-            sb.append("| ").append(c.name()).append(" | ").append(c.passRateLabel()).append(" | `")
-              .append(c.query()).append("` |\n");
+        for (CaseGroup group : CaseGroup.values()) {
+            List<CaseAggregate> cases = r.cases().stream().filter(c -> c.group() == group).toList();
+            if (cases.isEmpty()) continue;
+            sb.append("**").append(group == CaseGroup.CANONICAL ? "Canonical query set" : "Legacy set")
+              .append("** — mean ").append("%.0f%%".formatted(r.meanPassRate(group) * 100)).append("\n\n");
+            sb.append("| Case | Pass rate | Query |\n|---|---|---|\n");
+            for (CaseAggregate c : cases) {
+                sb.append("| ").append(c.name()).append(" | ").append(c.passRateLabel()).append(" | `")
+                  .append(c.query()).append("` |\n");
+            }
+            sb.append("\n");
         }
     }
 
@@ -1722,8 +1983,11 @@ public class BenchmarkLocalModels {
             sb.append("Thinking: disabled (--think=off; /no_think appended to MLX queries)\n\n");
         }
         sb.append("Not a CI gate — for model comparison and prompt-tuning during development. ")
-          .append("Cases mirror the aligned `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT` ")
-          .append("(see `tasks/align-ai-integration-tests.md`).\n\n");
+          .append("The canonical cases are the eight queries of `docs/canonical-query-set.md`, the same ")
+          .append("ones all four modules' canonical-query ITs run, so these figures line up ")
+          .append("query-for-query with those suites' pass/fail results; the legacy cases mirror ")
+          .append("`03-ai-structured-filter`'s `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT` and ")
+          .append("run against the two condition-list approaches only.\n\n");
         sb.append("| Model | Approach | Pass rate | Median Latency | TTFT | Tokens/s | RAM (JVM) | CPU | Model Size |\n");
         sb.append("|---|---|---|---|---|---|---|---|---|\n");
         for (ModelApproachResult r : results) {
@@ -1747,7 +2011,7 @@ public class BenchmarkLocalModels {
         sb.append("\nGPU: ").append(results.isEmpty() ? "n/a" : results.get(0).gpuInfo())
           .append(" (nvidia-smi; \"n/a\" on hosts without an NVIDIA GPU, e.g. Apple Silicon)\n");
 
-        renderPairedComparison(sb, results);
+        renderCanonicalMatrix(sb, results);
 
         sb.append("\n## Per-case pass rate\n");
         for (ModelApproachResult r : results) {
@@ -1798,55 +2062,71 @@ public class BenchmarkLocalModels {
     }
 
     /**
-     * Paired tool-calling vs. structured-output view: for every model that ran both approaches, the
-     * two results are lined up on the same case so divergence is legible at a glance. The summary
-     * table and the per-approach sections elsewhere in the report list the approaches as separate
-     * rows/sections and never put the same case side by side; this section does. Tool-calling only
-     * runs the shared ("both") cases, so structured-only cases show "—" for tool-calling and are
-     * flagged {@code SO-only}. Emitted only when at least one model has a non-fatal result for both
-     * approaches (e.g. {@code --approach=both}).
+     * The canonical query set as a matrix: one row per query, one column per approach, for every model —
+     * the view the repository's documentation is built on. It makes two different things legible side by
+     * side: where an approach's filter type cannot express a query at all ({@code n/a}, an architectural
+     * limit) and where it can but the model gets it wrong (a pass rate below the run count, a reliability
+     * limit). The per-approach sections elsewhere in this report never put the same query side by side.
      */
-    private static void renderPairedComparison(StringBuilder sb, List<ModelApproachResult> results) {
-        List<String> models = results.stream().map(ModelApproachResult::model).distinct()
-                .collect(Collectors.toList());
-        StringBuilder body = new StringBuilder();
-        for (String model : models) {
-            ModelApproachResult tc = pick(results, model, Approach.TOOL_CALLING);
-            ModelApproachResult so = pick(results, model, Approach.STRUCTURED);
-            if (tc == null || so == null) continue; // need both approaches to pair
-            RowCells tcRow = buildRow(tc);
-            RowCells soRow = buildRow(so);
-            body.append("\n### ").append(model).append("\n\n");
-            body.append("| Metric | Tool-calling | Structured |\n|---|---|---|\n");
-            body.append("| Mean pass rate | ").append(tcRow.passRate()).append(" | ")
-                .append(soRow.passRate()).append(" |\n");
-            body.append("| Median latency | ").append(tcRow.medianLat()).append(" | ")
-                .append(soRow.medianLat()).append(" |\n");
-            body.append("| TTFT | ").append(tcRow.ttft()).append(" | ").append(soRow.ttft()).append(" |\n");
-            body.append("| Tokens/s | ").append(tcRow.tokS()).append(" | ").append(soRow.tokS()).append(" |\n\n");
-            body.append("| Case | Tool-calling | Structured | Δ |\n|---|---|---|---|\n");
-            for (CaseAggregate soCase : so.cases()) {
-                CaseAggregate tcCase = tc.cases().stream()
-                        .filter(x -> x.name().equals(soCase.name())).findFirst().orElse(null);
-                String tcCell = tcCase != null ? tcCase.passRateLabel() : "—";
-                String delta;
-                if (tcCase == null) {
-                    delta = "SO-only";
-                } else {
-                    double tcFrac = tcCase.runs() == 0 ? 0 : (double) tcCase.passes() / tcCase.runs();
-                    double soFrac = soCase.runs() == 0 ? 0 : (double) soCase.passes() / soCase.runs();
-                    delta = soFrac > tcFrac ? "▲ SO" : tcFrac > soFrac ? "▼ TC" : "=";
+    private static void renderCanonicalMatrix(StringBuilder sb, List<ModelApproachResult> results) {
+        List<ModelApproachResult> canonicalResults = results.stream()
+                .filter(r -> r.fatalError() == null)
+                .filter(r -> r.cases().stream().anyMatch(c -> c.group() == CaseGroup.CANONICAL))
+                .toList();
+        if (canonicalResults.isEmpty()) return;
+
+        sb.append("\n## Canonical query set\n\n");
+        sb.append("The eight queries of `docs/canonical-query-set.md`, run against every selected ")
+          .append("approach. `n/a` = the approach's filter type cannot express that query at all, so it ")
+          .append("is not run (the modules' canonical-query ITs assert those expected failures against ")
+          .append("the resulting customer set instead).\n");
+
+        for (String model : canonicalResults.stream().map(ModelApproachResult::model).distinct().toList()) {
+            List<ModelApproachResult> perApproach = canonicalResults.stream()
+                    .filter(r -> r.model().equals(model)).toList();
+            if (perApproach.isEmpty()) continue;
+
+            List<String> caseNames = new ArrayList<>();
+            for (ModelApproachResult r : perApproach) {
+                for (CaseAggregate c : r.cases()) {
+                    if (c.group() == CaseGroup.CANONICAL && !caseNames.contains(c.name())) {
+                        caseNames.add(c.name());
+                    }
                 }
-                body.append("| ").append(soCase.name()).append(" | ").append(tcCell).append(" | ")
-                    .append(soCase.passRateLabel()).append(" | ").append(delta).append(" |\n");
             }
+
+            sb.append("\n### ").append(model).append("\n\n| Case |");
+            for (ModelApproachResult r : perApproach) {
+                sb.append(" ").append(r.approach().label).append(" |");
+            }
+            sb.append("\n|---|").append("---|".repeat(perApproach.size())).append("\n");
+            for (String caseName : caseNames) {
+                sb.append("| ").append(caseName).append(" |");
+                for (ModelApproachResult r : perApproach) {
+                    sb.append(" ").append(r.cases().stream().filter(c -> c.name().equals(caseName))
+                            .findFirst().map(CaseAggregate::passRateLabel).orElse("n/a")).append(" |");
+                }
+                sb.append("\n");
+            }
+            sb.append("| **Mean (expressible cases)** |");
+            for (ModelApproachResult r : perApproach) {
+                sb.append(" **").append("%.0f%%".formatted(r.meanPassRate(CaseGroup.CANONICAL) * 100))
+                  .append("** |");
+            }
+            sb.append("\n| **Median latency** |");
+            for (ModelApproachResult r : perApproach) {
+                sb.append(" ").append("%.0f ms".formatted(median(r.cases().stream()
+                        .filter(c -> c.group() == CaseGroup.CANONICAL)
+                        .map(c -> (long) c.medianDurationMs()).collect(Collectors.toList())))).append(" |");
+            }
+            sb.append("\n| **Median tokens/s** |");
+            for (ModelApproachResult r : perApproach) {
+                sb.append(" ").append("%.1f".formatted(median(r.cases().stream()
+                        .filter(c -> c.group() == CaseGroup.CANONICAL)
+                        .map(CaseAggregate::medianTokS).collect(Collectors.toList())))).append(" |");
+            }
+            sb.append("\n");
         }
-        if (body.length() == 0) return; // no model ran both approaches
-        sb.append("\n## Tool-calling vs. structured (paired)\n\n");
-        sb.append("Same model, both approaches, lined up per case. `▲ SO` = structured passed more ")
-          .append("often, `▼ TC` = tool-calling passed more often, `=` = tied, `SO-only` = case not ")
-          .append("expressible via tool calling (structured-only; tool-calling runs only the shared cases).\n");
-        sb.append(body);
     }
 
     private static ModelApproachResult pick(List<ModelApproachResult> results, String model, Approach approach) {
