@@ -820,17 +820,17 @@ public class BenchmarkLocalModels {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Tool-calling approach: system prompt + searchCustomers tool/argument schema extracted from the
-    // real CustomerSearchToolCallingService.java (the @Tool/@ToolParam descriptions are literally
-    // what the model sees in production; the JSON-Schema *structure* per Java type is inherent
-    // Java-type -> JSON-Schema plumbing, not "the prompt" — same spirit as the hand-rolled
+    // Tool-calling approaches: system prompt + searchCustomers tool/argument schema extracted from the
+    // real service source of 02(a), 02(b) or 04 (the @Tool/@ToolParam descriptions are literally what the
+    // model sees in production; the JSON-Schema *structure* per Java type is inherent Java-type ->
+    // JSON-Schema plumbing, not "the prompt" — same spirit as the hand-rolled
     // FLAT_CONDITIONS_SCHEMA_JSON below for the structured approach's shape).
     // ---------------------------------------------------------------------------------------------
 
     private static String extractToolCallingSystemPrompt(String src) {
         Matcher m = Pattern.compile("SYSTEM_PROMPT\\s*=\\s*\"\"\"(.*?)\"\"\"", Pattern.DOTALL).matcher(src);
         if (!m.find()) {
-            throw new IllegalStateException("Could not extract SYSTEM_PROMPT from CustomerSearchToolCallingService.java");
+            throw new IllegalStateException("Could not extract SYSTEM_PROMPT from the service source");
         }
         return dedentTextBlock(m.group(1));
     }

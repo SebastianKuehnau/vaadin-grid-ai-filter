@@ -47,9 +47,11 @@ class ScalarToolCallingService implements CustomerSearchAgent {
             country, city, postal code, street, house number, annual revenue, and credit
             rating. The credit rating is one of: creditworthy (GOOD), limited (MEDIUM), or
             at risk / not creditworthy (POOR).
-            Call the searchCustomers tool to filter the grid. Every parameter takes exactly ONE
-            value - there is no way to pass a second value for the same field. If a request
-            mentions several values for one field (e.g. two cities), pass the first one only.
+            Call the searchCustomers tool ONCE to filter the grid, then stop - it has already been
+            applied, so never call it a second time. Every parameter takes exactly ONE value; there is
+            no way to pass a second value for the same field. If a request mentions several values for
+            one field (e.g. two cities), pass the first one and accept that the rest cannot be
+            expressed - do not call the tool again for them.
             """;
 
     private final ChatClient chatClient;

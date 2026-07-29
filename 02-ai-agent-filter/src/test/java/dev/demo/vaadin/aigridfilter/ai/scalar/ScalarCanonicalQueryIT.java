@@ -48,7 +48,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
         "spring.autoconfigure.exclude=com.vaadin.flow.spring.SpringBootAutoConfiguration"
 })
-@Timeout(value = 120, unit = TimeUnit.SECONDS)
+// Generous on purpose: a query a variant cannot express is also its slowest (the model keeps trying to
+// place the part it had to drop), and a cold model load costs another few seconds. Answer length is
+// bounded by num-predict in application-ollama.properties, so this timeout only has to absorb the round
+// trips — the suite should fail on wrong results, not on slowness.
+@Timeout(value = 300, unit = TimeUnit.SECONDS)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ScalarCanonicalQueryIT {
 

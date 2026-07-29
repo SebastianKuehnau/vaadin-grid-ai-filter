@@ -70,7 +70,10 @@ class OperatorToolCallingService implements CustomerSearchAgent {
 
             Each field takes exactly ONE value, ONE operator and ONE negate flag, so a field can only
             ever carry a single condition. If a request needs two values or two bounds for the same
-            field, pass the single closest condition you can and ignore the rest.
+            field, pass the single closest condition you can and ignore the rest - that limitation
+            cannot be worked around, so do not retry the call for the part you had to drop.
+
+            Call searchCustomers exactly ONCE and then stop; it has already been applied.
 
             For a relative date ("yesterday", "last week", "in the last 12 months") call the
             currentLocalDateTime tool first and compute the date from its result.
