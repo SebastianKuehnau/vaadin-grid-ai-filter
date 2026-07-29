@@ -110,7 +110,18 @@ same canonical queries as the ITs plus its own legacy prompt-regression set.
 > column per approach, with mean pass rate, median latency and median tokens/s per column.
 
 What *is* measured, from the recorded IT runs on `qwen3:8b`: every ✅ above passed and every ❌ failed in
-the way the table describes.
+the way the table describes — in **three consecutive runs**, with identical results each time.
+
+When comparing those results with a benchmark report, note that the two harnesses score different things,
+which shows up in exactly two places on the canonical set:
+
+- The ITs score the **resulting customer set**; the benchmark scores the **extracted filter**, and counts a
+  field the query did not ask for as a failure even when it changes nothing. In a recorded run 02(b) added
+  `country=Germany` to "creditworthy customers in Hamburg" — harmless for the rows (every Hamburg customer
+  in the seed data is German), so the IT passes and the benchmark does not.
+- The benchmark performs a **single round trip** and does not execute chained tool calls, so 02(b)'s
+  `C7_RELATIVE_DATE` — which needs its `currentLocalDateTime()` hop — fails there by construction. The IT,
+  running the real Spring AI tool loop, passes it. That is why C7 is ✅ for 02(b) above.
 
 ## Where tool calling has an edge, and what it costs
 

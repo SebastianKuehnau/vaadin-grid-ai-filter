@@ -76,6 +76,12 @@ Java-type-to-schema plumbing, not "the prompt". Each run's console line and repo
 approach, and a log line names the source file each prompt was extracted from (proving no hard-coded
 copy).
 
+**One deliberate limitation:** this harness talks to the backend's native tool-calling API in a *single*
+round trip — it reads the first `searchCustomers` call and stops. It therefore does not execute a chained
+tool call, so `02b` cannot pass `C7_RELATIVE_DATE` here (that query needs its `currentLocalDateTime()` hop
+first); the module's canonical-query IT, which runs the real Spring AI tool loop, does. The generated
+report repeats this caveat next to the matrix, so a `0/1` there is never mistaken for a model failure.
+
 #### Two case groups
 
 - **Canonical query set** (primary): the eight queries of `../docs/canonical-query-set.md`, the same ones

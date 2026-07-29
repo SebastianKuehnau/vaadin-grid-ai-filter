@@ -472,7 +472,8 @@ public class BenchmarkLocalModels {
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
     record CliArgs(String backend, String baseUrlOverride, List<String> modelNames, boolean thinkDisabled,
-                   boolean debugRaw, String mode, int runs, String approach, boolean quick, Double minPassRate) {
+                   boolean debugRaw, String mode, int runs, String approach, boolean quick, Double minPassRate,
+                   String cases) {
     }
 
     public static void main(String[] args) throws Exception {
@@ -489,9 +490,14 @@ public class BenchmarkLocalModels {
 
         LocalDate today = LocalDate.now();
         List<EvalCase> allCases = buildCases(today);
-        List<EvalCase> selectedCases = cli.quick()
-                ? allCases.stream().filter(c -> QUICK_CASE_NAMES.contains(c.name())).toList()
-                : allCases;
+        List<EvalCase> selectedCases = allCases.stream()
+                .filter(c -> switch (cli.cases()) {
+                    case "canonical" -> c.group() == CaseGroup.CANONICAL;
+                    case "legacy" -> c.group() == CaseGroup.LEGACY;
+                    default -> true;
+                })
+                .filter(c -> !cli.quick() || QUICK_CASE_NAMES.contains(c.name()))
+                .toList();
         List<Approach> approaches = resolveApproaches(cli.approach());
 
         List<String> models = resolveModels(client, cli.modelNames());
@@ -534,7 +540,8 @@ public class BenchmarkLocalModels {
         System.out.println("Models: " + String.join(", ", models));
         System.out.println("Approaches: " + approaches.stream().map(a -> a.label).collect(Collectors.joining(", ")));
         System.out.println("Runs per case: " + cli.runs());
-        System.out.println("Cases: " + selectedCases.size() + (cli.quick() ? " (--quick subset)" : " (full set)"));
+        System.out.println("Cases: " + selectedCases.size() + " (" + cli.cases()
+                + (cli.quick() ? ", --quick subset" : "") + ")");
         System.out.println();
 
         long wallClockStart = System.nanoTime();
@@ -607,6 +614,7 @@ public class BenchmarkLocalModels {
         String approach = "all";
         boolean quick = false;
         Double minPassRate = null;
+        String cases = "all";
         for (String arg : args) {
             if (arg.equals("--help") || arg.equals("-h")) {
                 printUsage();
@@ -634,6 +642,8 @@ public class BenchmarkLocalModels {
                 }
             } else if (arg.startsWith("--approach=")) {
                 approach = arg.substring("--approach=".length());
+            } else if (arg.startsWith("--cases=")) {
+                cases = arg.substring("--cases=".length());
             } else if (arg.equals("--quick")) {
                 quick = true;
             } else if (arg.startsWith("--min-pass-rate=")) {
@@ -661,8 +671,12 @@ public class BenchmarkLocalModels {
                     + " (expected 'all' or a comma-separated list of 02a,02b,03,04)");
             System.exit(1);
         }
+        if (!cases.equals("all") && !cases.equals("canonical") && !cases.equals("legacy")) {
+            System.err.println("Unknown --cases value: " + cases + " (expected 'all', 'canonical' or 'legacy')");
+            System.exit(1);
+        }
         return new CliArgs(backend, baseUrlOverride, models, thinkDisabled, debugRaw, mode, runs, approach, quick,
-                minPassRate);
+                minPassRate, cases);
     }
 
     private static void printUsage() {
@@ -683,6 +697,11 @@ public class BenchmarkLocalModels {
                   --runs=N               Run every case N times and report a per-case pass-rate
                                          (passes/N) plus an aggregate mean, instead of a single
                                          pass/fail (default: 1, i.e. today's single-shot behavior).
+                  --cases=all|canonical|legacy
+                                         Which case group to run (default: all). 'canonical' is the
+                                         eight queries of docs/canonical-query-set.md that all four
+                                         approaches share; 'legacy' is the older prompt-regression set,
+                                         which only the two condition-list approaches (03, 04) run.
                   --quick                Evaluate only a small representative subset of the canonical
                                          query set (a single-value case, a multi-field AND case, and
                                          the two cases only the condition-list approaches can express)
@@ -715,6 +734,7 @@ public class BenchmarkLocalModels {
                 Examples:
                   java BenchmarkLocalModels.java
                   java BenchmarkLocalModels.java --approach=all --runs=5 llama3.1:8b
+                  java BenchmarkLocalModels.java --cases=canonical --runs=3 qwen3:8b
                   java BenchmarkLocalModels.java --quick --runs=3 llama3.1:8b
                   java BenchmarkLocalModels.java --min-pass-rate=0.8 --runs=5 llama3.1:8b
                   java BenchmarkLocalModels.java --backend=mlx --think=off mlx-community/Qwen3-14B-4bit""");
@@ -1977,7 +1997,8 @@ public class BenchmarkLocalModels {
         sb.append("Backend: ").append(backendLabel(backendName)).append(", Base URL: ").append(baseUrl)
           .append("\n\n");
         sb.append("Runs per case: ").append(cli.runs())
-          .append(", Cases: ").append(caseCount).append(cli.quick() ? " (--quick)" : " (full set)")
+          .append(", Cases: ").append(caseCount).append(" (").append(cli.cases())
+          .append(cli.quick() ? ", --quick" : "").append(")")
           .append(", Wall clock: ").append(wallClockMs).append(" ms\n\n");
         if (cli.thinkDisabled()) {
             sb.append("Thinking: disabled (--think=off; /no_think appended to MLX queries)\n\n");
@@ -2079,7 +2100,18 @@ public class BenchmarkLocalModels {
         sb.append("The eight queries of `docs/canonical-query-set.md`, run against every selected ")
           .append("approach. `n/a` = the approach's filter type cannot express that query at all, so it ")
           .append("is not run (the modules' canonical-query ITs assert those expected failures against ")
-          .append("the resulting customer set instead).\n");
+          .append("the resulting customer set instead).\n\n");
+        sb.append("Two things this harness measures differently from those ITs, both worth knowing before ")
+          .append("reading a cell as a verdict on the approach:\n\n")
+          .append("- **Single round trip.** It reads the first `searchCustomers` tool call and does not ")
+          .append("execute chained tool calls, so `02b-operator` cannot pass `C7_RELATIVE_DATE` here: that ")
+          .append("query needs its `currentLocalDateTime()` hop first. Its canonical-query IT, which runs ")
+          .append("the real Spring AI tool loop, does pass it.\n")
+          .append("- **Field-precise scoring.** A case fails if the model populates a field the query did ")
+          .append("not ask for, even when the extra condition does not change the resulting rows (e.g. ")
+          .append("adding `country=Germany` to \"creditworthy customers in Hamburg\"). The ITs score the ")
+          .append("customer set, so they accept that. Neither view is wrong — this one is stricter about ")
+          .append("the filter, the ITs are stricter about the answer.\n");
 
         for (String model : canonicalResults.stream().map(ModelApproachResult::model).distinct().toList()) {
             List<ModelApproachResult> perApproach = canonicalResults.stream()
