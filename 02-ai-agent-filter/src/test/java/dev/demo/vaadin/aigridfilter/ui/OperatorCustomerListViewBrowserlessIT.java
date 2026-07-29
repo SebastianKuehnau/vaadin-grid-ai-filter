@@ -5,8 +5,8 @@ import com.vaadin.browserless.ViewPackages;
 import com.vaadin.browserless.internal.MockVaadin;
 import com.vaadin.flow.component.grid.GridTester;
 import dev.demo.vaadin.aigridfilter.ai.TokenUsageRecorder;
-import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
+import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -24,36 +24,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 /**
- * Browserless UI integration test against a real AI backend — no fake {@code CustomerSearchAgent}
- * bean. Verifies the full pipeline end to end: typing a natural-language query, the real
- * tool-calling AI layer resolving it, and the grid showing the right rows. Complements
- * {@link CustomerListViewBrowserlessTest} (fast, fake agent, no LLM) and {@code CustomerSearchAgentIT}
- * (real backend, but bypasses the UI).
+ * Browserless UI integration test of variant <b>02(b)</b> against a real AI backend — the sibling of
+ * {@link ScalarCustomerListViewBrowserlessIT}, for the value/operator/negate tool call. On top of the
+ * queries both variants can express, it covers the two capabilities 02(b) adds: negation and operator
+ * precision, both asserted on the resulting grid rows.
  * <p>
- * Runs standalone rather than sharing a base class with {@code CustomerSearchAgentIT}: browserless
- * testing needs the default {@code MOCK} web environment and Vaadin's Spring Boot autoconfiguration,
- * so the backend wiring is duplicated here rather than inherited. Which Spring profile
- * {@code AI_TEST_PROFILE} selects comes from {@code src/test/resources/application.properties}'s
- * {@code spring.profiles.active=${AI_TEST_PROFILE:ollama}}, so the ITs target a native Ollama
- * instance by default (the app's own default profile is {@code openai}; only the test config
- * overrides it to {@code ollama}). There is no reachability probe — if the backend isn't reachable,
- * the run fails rather than skipping, same as {@code CustomerSearchAgentIT}.
- * <p>
- * No relative-date case (e.g. "customers who ordered yesterday"): it needs a two-hop tool-call chain
- * that a weaker model like {@code llama3.1:8b} reliably fails, while the configured default
- * {@code qwen3:8b} handles it — see the module README's "Known limitation" section, and
- * {@code CustomerSearchAgentIT} which excludes it for the same reason.
- * <p>
- * {@code customersSince2020} was tried here too during alignment but dropped from the shared set:
- * {@code 03-ai-structured-filter}'s structured-output layer, on the weaker {@code llama3.1:8b} (the
- * module default at the time), omitted the upper date bound for a "since &lt;year&gt;" query (a
- * single {@code -Pit-local-ollama} run, 100% reproducible on retry), letting rows from later years
- * leak into the grid — even though this module's tool-calling layer passes it reliably.
+ * Deliberately absent: multi-value OR and range queries. 02(b) cannot express them (one value and one
+ * operator per field), so their expected failures are recorded per canonical query in
+ * {@code OperatorCanonicalQueryIT} rather than being asserted here.
  */
 @SpringBootTest
-@ViewPackages(classes = CustomerListView.class)
+@ViewPackages(classes = OperatorCustomerListView.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
+class OperatorCustomerListViewBrowserlessIT extends SpringBrowserlessTest {
 
     @Autowired
     private CustomerRepository customerRepository;
@@ -68,7 +51,7 @@ class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
 
     @AfterAll
     void logTokenSummary() {
-        tokenUsageRecorder.logSummary("CustomerListViewBrowserlessIT");
+        tokenUsageRecorder.logSummary("OperatorCustomerListViewBrowserlessIT");
     }
 
     @Test
@@ -117,17 +100,6 @@ class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
 
     @Test
     @Timeout(value = 120, unit = TimeUnit.SECONDS)
-    void multiValueCities() {
-        GridTester<?, Customer> grid = search("show me customers from Berlin or Hamburg");
-
-        assertThat(grid.size()).isGreaterThan(0);
-        for (int i = 0; i < grid.size(); i++) {
-            assertThat(grid.getRow(i).getAddress().getCity()).containsAnyOf("Berlin", "Hamburg");
-        }
-    }
-
-    @Test
-    @Timeout(value = 120, unit = TimeUnit.SECONDS)
     void annualRevenueOverThreshold() {
         GridTester<?, Customer> grid = search("show me customers with annual revenue over 200000");
 
@@ -139,27 +111,45 @@ class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
 
     @Test
     @Timeout(value = 120, unit = TimeUnit.SECONDS)
-    void citiesWithGoodRatingAndRevenueAboveThreshold() {
-        GridTester<?, Customer> grid = search(
-                "show all customer from Berlin and Cologne with a positive creditrating and a revenue over 100000");
+    void creditworthyCustomersInCity() {
+        GridTester<?, Customer> grid = search("creditworthy customers in Hamburg");
 
         assertThat(grid.size()).isGreaterThan(0);
         for (int i = 0; i < grid.size(); i++) {
             Customer row = grid.getRow(i);
-            assertThat(row.getAddress().getCity()).containsAnyOf("Berlin", "Cologne");
-            assertThat(row.getCreditRating()).isIn(CreditRating.GOOD, CreditRating.MEDIUM);
-            assertThat(row.getAnnualRevenue()).isGreaterThanOrEqualTo(BigDecimal.valueOf(75_000));
+            assertThat(row.getAddress().getCity()).containsIgnoringCase("hamburg");
+            assertThat(row.getCreditRating()).isEqualTo(CreditRating.GOOD);
         }
     }
 
-    /**
-     * Types the query into the filter field and waits for the async search to finish — the field
-     * is disabled for the duration of a search ({@code CustomerListView.onFilter}) and re-enabled
-     * once the {@code ui.access(...)} completion callback has run, regardless of how many rows the
-     * (non-deterministic) real model's answer ends up matching.
-     */
+    @Test
+    @Timeout(value = 120, unit = TimeUnit.SECONDS)
+    void customersExceptFromBerlin() {
+        // 02(b)'s added capability #1: negation, asserted on the grid rows.
+        GridTester<?, Customer> grid = search("show me all customers except from Berlin");
+
+        assertThat(grid.size()).isGreaterThan(0).isLessThan(Math.toIntExact(customerRepository.count()));
+        for (int i = 0; i < grid.size(); i++) {
+            assertThat(grid.getRow(i).getAddress().getCity()).doesNotContainIgnoringCase("berlin");
+        }
+    }
+
+    @Test
+    @Timeout(value = 120, unit = TimeUnit.SECONDS)
+    void contactNameStartsWithM() {
+        // 02(b)'s added capability #2: operator precision (STARTS_WITH instead of CONTAINS).
+        GridTester<?, Customer> grid = search(
+                "show me all customers with an \"m\" as the first character in the contact name");
+
+        assertThat(grid.size()).isGreaterThan(0);
+        for (int i = 0; i < grid.size(); i++) {
+            assertThat(grid.getRow(i).getContactName().toLowerCase()).startsWith("m");
+        }
+    }
+
+    /** See {@link ScalarCustomerListViewBrowserlessIT#search} — same async-search handshake. */
     private GridTester<?, Customer> search(String query) {
-        CustomerListView view = navigate(CustomerListView.class);
+        OperatorCustomerListView view = navigate(OperatorCustomerListView.class);
         test(view.filterField).setValue(query);
 
         await().pollInSameThread().atMost(Duration.ofSeconds(90)).untilAsserted(() -> {

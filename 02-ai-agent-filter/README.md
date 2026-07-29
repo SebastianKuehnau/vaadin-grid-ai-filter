@@ -1,87 +1,132 @@
 # 02-ai-agent-filter
 
-Natural-language filtering of a Vaadin `Grid` of `Customer` records via **AI tool calling**: the
-LLM parses the request and calls a `searchCustomers` tool, passing one argument per field; Java
-turns those arguments into a JPA `Specification`. First step in this tutorial towards filtering
-data with natural language — compare with the non-AI baselines in `01-non-ai-filter` and the
-structured-output approach in `03-ai-structured-filter`.
+Natural-language filtering of a Vaadin `Grid` of `Customer` records via **AI tool calling**: the LLM
+parses the request and calls a `searchCustomers` tool, passing the filter values as tool arguments;
+Java turns those arguments into a JPA `Specification`.
 
-## View
+This module holds **two variants of the same mechanism**, steps 2 and 3 of the tutorial's escalation
+ladder — both live in one running application behind their own route, so a talk can switch between
+them without a restart:
 
-- **`/`** — `CustomerListView`: a single natural-language `TextField` above the grid. Typing a
-  query (and blurring/pressing enter) sends it to the AI layer; a blank query resets to all rows.
-  The view has zero Spring AI imports — it only knows `CustomerSearchAgent` and applies the
-  `Specification` it returns.
+| Variant | Route | Tool signature | Adds | Still out of reach |
+|---|---|---|---|---|
+| **02(a)** scalar | `/` (alias `/scalar`) | 13 parameters — one scalar value per field | nothing (the simplest possible tool call) | negation, operator precision, multi-value OR, ranges, date bounds |
+| **02(b)** value + operator + negate | `/operator` | **39** parameters — value, `Operator`, `negate` per field | negation, operator precision, day-level date bounds | multi-value OR, any range (revenue or date) |
+
+The interesting part is 02(b)'s bill: **three times** the tool parameters of 02(a) buys exactly two
+capability categories, and still not general-purpose expressiveness. Multi-value OR and ranges need
+more than one condition per field, which no per-field parameter list can carry. `03-ai-structured-filter`
+and `04-ai-hybrid-filter` drop the per-field shape for a flat *condition list* instead — 03 delivers it
+as structured output, 04 as a tool call. Compare with the non-AI baselines in `01-non-ai-filter`.
+
+## Views
+
+- **`/`** (alias `/scalar`) — `ScalarCustomerListView`, variant 02(a).
+- **`/operator`** — `OperatorCustomerListView`, variant 02(b).
+- **`AbstractCustomerListView`** — everything the two share: one natural-language `TextField` above the
+  grid, the async search (`CompletableFuture` + `ui.access(...)`), the error notification, and a
+  variant switcher linking to the other view. The subclasses only differ in their heading and in which
+  `CustomerSearchAgent` bean Spring injects. Neither has a single Spring AI import — they only know
+  `CustomerSearchAgent` and apply the `Specification` it returns.
 - **`CustomerGrid`** — the `Grid<Customer>` itself (column config, backend sort configuration, and
   responsive show/hide), extracted out of the view. Unlike `01-non-ai-filter`'s
   `CustomerGrid`/`FilterableCustomerGrid` split, this module has a single fixed sort strategy and no
   per-column filter fields (filtering is the one AI `TextField` above), so sort config lives inside
   `CustomerGrid` rather than being applied by the view afterward.
 
-## AI layer (`ai` / `ai/filter`)
+Both agents implement the same `CustomerSearchAgent` interface, so they are interchangeable from the
+view's point of view. Because there are two implementations, each view injects its own by **bean name**
+(`@Qualifier("scalarSearchAgent")` / `@Qualifier("operatorSearchAgent")`) instead of by type.
+
+## AI layer (`ai`)
 
 ```
 ai/
-├── CustomerSearchAgent.java              (public interface — the view's only dependency, the testability seam)
-├── CustomerSearchToolCallingService.java (@Service @Scope("prototype") — ChatClient, system prompt, both @Tool methods)
-└── filter/
-    ├── CustomerSearchCriteria.java      (public record — the flat extracted filter values, one List per field)
-    ├── CustomerSpecifications.java      (public final utility — OR-within-field, AND-across-fields -> Specification<Customer>)
-    └── RevenueRange.java                (public record — one annualRevenue bound, atLeast/atMost)
+├── CustomerSearchAgent.java            (public interface — the views' only dependency, the testability seam)
+├── TokenUsageRecorder.java             (@Component — per-request token usage and duration)
+├── scalar/                             ← variant 02(a)
+│   ├── ScalarToolCallingService.java   (@Service("scalarSearchAgent") @Scope("prototype") — ChatClient, system prompt, the @Tool method)
+│   ├── ScalarCriteria.java             (public record — one scalar value per field)
+│   └── ScalarSpecifications.java       (public final utility — AND-across-fields -> Specification<Customer>)
+└── operator/                           ← variant 02(b)
+    ├── OperatorToolCallingService.java (@Service("operatorSearchAgent") @Scope("prototype") — 39 flat @ToolParams + the date tool)
+    ├── Operator.java                   (public enum — CONTAINS, EQUALS, GREATER_OR_EQUAL, LESS_OR_EQUAL, STARTS_WITH, ENDS_WITH)
+    ├── FieldCriterion.java             (public record — one field's value + operator + negate)
+    ├── OperatorCriteria.java           (public record — one FieldCriterion per field)
+    └── OperatorSpecifications.java     (public final utility — operator-driven predicates, negate via cb.not)
 ```
 
-`CustomerSearchToolCallingService` is `@Scope("prototype")`, not the default singleton — because
-`CustomerListView` (the only place a `CustomerSearchAgent` is injected) isn't a singleton either
-(Vaadin creates a fresh view instance per navigation), each view gets its own service instance. That
-makes it safe for the two `@Tool` methods (`searchCustomers`, `currentLocalDateTime`) and the
-`criteria` field they extract into to live directly on the bean: different browser tabs/sessions
-never share an instance, and within one instance the view only ever has one search in flight at a
-time (it disables the filter field for the duration of a search). `requestCriteria(...)` resets
-`criteria` to `null` at the start of every call, since — unlike a fresh per-call object — the field
-now outlives a single call. `CustomerSpecifications` combines fields with AND, same as
-`03-ai-structured-filter`, but stays simpler still: no per-field operator or `negate` flag, and no
-OR/NOT across fields — the deliberate, demo-relevant contrast with that module's `CustomerFilter`
-conditions, which carry an explicit operator and negation (though it too is a flat list, not a tree).
+Both services are `@Scope("prototype")`, not the default singleton — because the views aren't singletons
+either (Vaadin creates a fresh view instance per navigation), each view gets its own service instance.
+That makes it safe for the `@Tool` methods and the `criteria` field they extract into to live directly on
+the bean: different browser tabs/sessions never share an instance, and within one instance the view only
+ever has one search in flight at a time (it disables the filter field for the duration of a search).
+`requestCriteria(...)` resets `criteria` to `null` at the start of every call, since — unlike a fresh
+per-call object — the field now outlives a single call.
 
-`CustomerSearchAgent.resolveFilter(...)` never throws: on any failure (bad model response,
-unreachable model, ...) it falls back to an unrestricted specification, so the UI never breaks.
+`CustomerSearchAgent.resolveFilter(...)` never throws: on any failure (bad model response, unreachable
+model, ...) it falls back to an unrestricted specification, so the UI never breaks.
 
-### Multi-value filtering
+### Variant 02(a) — one scalar value per field
 
-Every `CustomerSearchCriteria` field is a `List` rather than a single value, so a query like
-"customers from Berlin or Hamburg" extracts two cities, matched with OR; different fields still
-combine with AND, e.g. "from Berlin or Hamburg with GOOD or MEDIUM credit rating" is `(city='Berlin'
-OR city='Hamburg') AND (creditRating='GOOD' OR creditRating='MEDIUM')`. A single-value query still
-works exactly as before — it's just a one-element list.
+The simplest tool call that can still filter: `searchCustomers(companyName, contactName, …, annualRevenue)`,
+one scalar parameter per field, no `List` anywhere, no second tool. Because `ScalarCriteria` carries no
+operator, every field's meaning is hard-wired in `ScalarSpecifications`:
 
-`customerSince`/`lastOrderDate` values are each interpreted as the full year they fall in (Jan 1 -
-Dec 31), so "since 2020 or 2021" OR-combines two year ranges rather than two single days.
+- text fields — case-insensitive substring match,
+- `customerSince` / `lastOrderDate` — the **whole calendar year** the given date falls in,
+- `annualRevenue` — a **minimum** (`>=`), the most common phrasing ("revenue over X"),
+- `creditRating` — the credit-score band of that rating.
 
-`annualRevenue` is modeled differently from the other fields: it's a continuous `BigDecimal`, not a
-discrete value like `city` or `creditRating`, so "multi-value" means a list of `RevenueRange(atLeast,
-atMost)` bounds rather than a list of exact numbers. Either bound may be omitted for an open-ended
-range ("over 500000" -> `{atLeast: 500000}`), and multiple ranges are OR-combined ("over 500000 or
-under 50000" -> two ranges). The fields are named `atLeast`/`atMost` rather than `min`/`max`
-deliberately: with a small local model driving the tool call, `llama3.1:8b` consistently swapped
-`min`/`max` for "over X" queries during testing — a self-describing field name fixed it, since the
-model no longer needs the tool description prose to carry the "over" vs. "under" direction.
+So "customers from Berlin or Hamburg" loses one city, "except from Berlin" cannot be said at all, and
+"revenue between 100000 and 500000" degrades to "at least 100000". Those are the queries variant 02(b)
+partly fixes — and the ones it still can't.
 
-### Known limitation: relative dates need two chained tool calls
+### Variant 02(b) — value + operator + negate per field
 
-For a relative date ("yesterday", "last week") the model must call `currentLocalDateTime()`, then
-compute an offset from its result and pass that computed date into `searchCustomers`. This
-two-hop chain is harder than a single tool call: a weaker model like `llama3.1:8b` reliably fails
-it — it either passes a literal placeholder string instead of a computed date, or skips the tool
-call and hallucinates a stale one — while the configured default `qwen3:8b` handles it correctly. This is
-a genuine model-capability gap in the tool-calling approach, not a bug in the tool wiring, and is
-why `CustomerSearchAgentIT` (below) does not include a relative-date case. `03-ai-structured-filter`
-avoids the issue entirely by putting "today" directly into its prompt text instead of requiring a
-live tool call — a good illustration of the trade-off between the two approaches.
+Every field grows from one parameter to three: the value, `<field>Operator`, and `<field>Negate`. 13
+fields × 3 = **39 flat tool parameters** on one `searchCustomers` tool, grouped internally into one
+`FieldCriterion(value, operator, negate)` per field. What that buys:
+
+- **negation** — "customers except from Berlin" → `city="Berlin"`, `cityNegate=true`, applied as
+  `cb.not(...)`. There is no `NOT_CONTAINS` operator; negation is a flag, exactly as in
+  `03-ai-structured-filter`'s `Condition`.
+- **operator precision** — `CONTAINS` / `EQUALS` / `STARTS_WITH` / `ENDS_WITH` on text instead of always
+  substring-matching, `EQUALS` / `GREATER_OR_EQUAL` / `LESS_OR_EQUAL` on numbers and dates.
+- **real day-level date bounds** — "last ordered since 2024-07-01" is a genuine `>=` comparison, not
+  02(a)'s whole-year match.
+
+What it deliberately still cannot express — its **ceiling**, and the reason the ladder continues:
+
+- **multi-value OR within a field.** One value parameter per field means "Berlin or Hamburg" has no
+  second slot to go into.
+- **any range.** A range needs a lower *and* an upper bound on the same field, i.e. two conditions;
+  02(b) has one operator per field. This is true for `annualRevenue` ("between 100000 and 500000") and
+  for dates ("last ordered in 2024") alike. There is deliberately no range-shaped value type — that
+  would smuggle a second bound back in through the value.
+
+The system prompt therefore never teaches range phrasing: the model has no parameter to put it in, and
+pretending otherwise only produces invented values (e.g. `"100000-500000"` in a numeric field).
+
+### Relative dates need two chained tool calls (02(b) only)
+
+Variant 02(b) keeps a second tool, `currentLocalDateTime()`. For a relative date ("yesterday",
+"in the last 12 months") the model must call it first, then compute an offset and pass that computed
+date into `searchCustomers`. This two-hop chain is harder than a single tool call: a weaker model like
+`llama3.1:8b` reliably fails it — it either passes a literal placeholder string instead of a computed
+date, or skips the tool call and hallucinates a stale one — while the configured default `qwen3:8b`
+handles it correctly. That is a genuine model-capability gap of the tool-calling approach, not a bug in
+the tool wiring. `03-ai-structured-filter` and `04-ai-hybrid-filter` avoid the issue entirely by putting
+"today" directly into the prompt text instead of requiring a live tool call — a good illustration of the
+trade-off between the two ways of getting a value the model cannot know at prompt time.
+
+Variant 02(a) has **no** date tool at all: with whole-year date semantics there is nothing useful a
+computed day-level date could do.
 
 ## Running
 
 ```bash
-./mvnw -pl 02-ai-agent-filter spring-boot:run   # http://localhost:8082
+./mvnw -pl 02-ai-agent-filter spring-boot:run   # http://localhost:8082 (/ or /scalar, and /operator)
 ```
 
 ### Switching LLM backends
@@ -127,8 +172,8 @@ block per tool call; a non-reasoning model like `llama3.1:8b` ignores the flag a
 ## Tests
 
 ```bash
-./mvnw -pl 02-ai-agent-filter test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
-./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama                            # CustomerSearchAgentIT + CustomerListViewBrowserlessIT vs native Ollama (ollama is the default test profile)
+./mvnw -pl 02-ai-agent-filter test                                                # unit tests + both browserless view tests, no LLM
+./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama                            # both variants' ITs vs native Ollama (ollama is the default test profile)
 ./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API
 ```
 
@@ -140,39 +185,39 @@ environment variable, respecting `OPENAI_API_KEY` the same as the app itself) to
 test classes against the real OpenAI API instead. The app's *own* default profile is `openai`; only
 the test config overrides it to `ollama`.
 
-- **`CustomerSpecificationsTest`** (`@DataJpaTest`, no LLM) — one test per predicate/field against
-  the seeded H2 data (single- and multi-value/OR cases, including `annualRevenue`'s open- and
-  closed-ended ranges), plus AND-across-fields and null-matches-all.
-- **`CustomerSearchToolCallingServiceToolsTest`** (plain JUnit, no Spring context) — the extraction
-  plumbing (single- and multi-value arguments) and the date tool, in isolation.
-- **`CustomerSearchAgentIT`** — 18 natural-language queries against a native Ollama instance (a
-  plain `@SpringBootTest`, no shared base class). Assertions are tolerant of LLM non-determinism
-  (case-insensitive, substring). Every case here uses the exact same wording/values as one of
-  `03-ai-structured-filter`'s `CustomerSearchAgentIT` cases, so the two modules' results and
-  timings are directly comparable; that module has additional cases (tagged `negation`,
-  `operator-precision`, `relative-date`) with no counterpart here, because this module's flat
-  `CustomerSearchCriteria` can't express NOT, STARTS_WITH/ENDS_WITH, or arbitrary date bounds.
-- **`CustomerListViewBrowserlessTest`** — [Vaadin Browserless
-  testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake, deterministic
-  `CustomerSearchAgent` bean, so it never calls a real model. Since the view applies results
-  asynchronously (`CompletableFuture` + `ui.access(...)`), assertions after a non-blank query use
+Without an LLM (`test`), per variant:
+
+- **`ScalarSpecificationsTest` / `OperatorSpecificationsTest`** (`@DataJpaTest`) — the filter
+  translation against the seeded H2 data: one test per field group, AND-across-fields, and
+  null-matches-all. Each also **asserts the variant's ceiling** (02(a): a date is always a whole year,
+  revenue is always a minimum; 02(b): one operator per field means no range), so the limits are pinned
+  down by tests rather than only described in prose.
+- **`ScalarToolCallingServiceToolsTest` / `OperatorToolCallingServiceToolsTest`** (plain JUnit, no
+  Spring context) — the extraction plumbing in isolation: arguments must land verbatim in the criteria
+  record, a missing operator must default to `CONTAINS`, a field without a value must stay unset, and
+  02(b)'s date tool must return the current time.
+- **`ScalarCustomerListViewBrowserlessTest` / `OperatorCustomerListViewBrowserlessTest`** — [Vaadin
+  Browserless testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake,
+  deterministic `CustomerSearchAgent` bean, so they never call a real model. Since the view applies
+  results asynchronously (`CompletableFuture` + `ui.access(...)`), assertions after a non-blank query use
   `MockVaadin.runUIQueue()` (to flush the queued `ui.access()` command) inside an Awaitility
-  `pollInSameThread()` loop (so the flush runs on the thread holding the UI `ThreadLocal`) —
-  needed because a plain synchronous assertion races the background search thread.
-- **`CustomerListViewBrowserlessIT`** — same Browserless setup, but against a real native Ollama
-  instance instead of a fake agent bean (it fails rather than skipping if unreachable, like
-  `CustomerSearchAgentIT`), exercising the full `TextField` → tool-calling AI layer → `Grid`
-  pipeline end to end. Since the real model's result size isn't known upfront, the wait condition
-  is "the filter field is re-enabled" (it's disabled for the duration of a search) rather than a
-  fixed grid size. `03-ai-structured-filter` has an identical test with the same 7 queries, so the
-  two modules' `-Pit-local-ollama` runs are directly comparable on speed (per-test elapsed time in
-  `target/failsafe-reports/`) and result quality between tool calling and structured output.
+  `pollInSameThread()` loop (so the flush runs on the thread holding the UI `ThreadLocal`) — needed
+  because a plain synchronous assertion races the background search thread.
+
+Against a real model (`verify -Pit-local-ollama`):
+
+- **`ScalarCustomerListViewBrowserlessIT` / `OperatorCustomerListViewBrowserlessIT`** — the same
+  Browserless setup, but against a real native Ollama instance instead of a fake agent bean (they fail
+  rather than skipping if unreachable), exercising the full `TextField` → tool-calling AI layer → `Grid`
+  pipeline end to end. Since the real model's result size isn't known upfront, the wait condition is
+  "the filter field is re-enabled" (it's disabled for the duration of a search) rather than a fixed grid
+  size. Each IT only asks what its variant can express; 02(b)'s adds a negation and a STARTS_WITH case.
 
 ## Sources
 
-- `src/main/java/dev/demo/vaadin/aigridfilter/ui/CustomerListView.java` — the view
-- `src/main/java/dev/demo/vaadin/aigridfilter/ui/CustomerGrid.java` — the grid (columns, sort, responsive layout)
-- `src/main/java/dev/demo/vaadin/aigridfilter/ai/` — the AI layer (see above)
+- `src/main/java/dev/demo/vaadin/aigridfilter/ui/` — the two variant views, their shared base class,
+  and the grid (columns, sort, responsive layout)
+- `src/main/java/dev/demo/vaadin/aigridfilter/ai/` — the AI layer, one package per variant (see above)
 - `src/main/java/dev/demo/vaadin/aigridfilter/data/` — the shared `Customer`/`Address` JPA model
 - `src/main/resources/data.sql` — seed data (100 customers)
 - `src/test/java/dev/demo/vaadin/aigridfilter/` — tests (see [Tests](#tests) above)

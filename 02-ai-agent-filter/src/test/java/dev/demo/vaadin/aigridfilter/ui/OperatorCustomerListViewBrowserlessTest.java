@@ -5,35 +5,37 @@ import com.vaadin.browserless.ViewPackages;
 import com.vaadin.browserless.internal.MockVaadin;
 import com.vaadin.flow.component.grid.GridTester;
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
-import dev.demo.vaadin.aigridfilter.ai.filter.CustomerSearchCriteria;
-import dev.demo.vaadin.aigridfilter.ai.filter.CustomerSpecifications;
+import dev.demo.vaadin.aigridfilter.ai.operator.FieldCriterion;
+import dev.demo.vaadin.aigridfilter.ai.operator.Operator;
+import dev.demo.vaadin.aigridfilter.ai.operator.OperatorCriteria;
+import dev.demo.vaadin.aigridfilter.ai.operator.OperatorSpecifications;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
 import java.time.Duration;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 /**
- * Browserless UI test of {@link CustomerListView}, following {@code 01-non-ai-filter}'s
- * {@code SpringBrowserlessTest} pattern. Wires a fake, deterministic {@link CustomerSearchAgent}
- * bean instead of calling a real model, so this test never talks to an LLM. The real search runs
- * off the UI thread ({@code CompletableFuture} + {@code ui.access(...)}), so grid assertions after
- * a non-blank query use Awaitility rather than asserting immediately.
+ * Browserless UI test of variant 02(b)'s {@link OperatorCustomerListView} — the sibling of
+ * {@link ScalarCustomerListViewBrowserlessTest}, with a fake {@link CustomerSearchAgent} instead of a
+ * real model. {@link #NEGATED_QUERY} goes through the real {@link OperatorSpecifications} with a
+ * negated condition, so 02(b)'s distinguishing capability is exercised end to end through the UI and
+ * not only at the unit-test level.
  */
 @SpringBootTest
-@ViewPackages(classes = CustomerListView.class)
-class CustomerListViewBrowserlessTest extends SpringBrowserlessTest {
+@ViewPackages(classes = OperatorCustomerListView.class)
+class OperatorCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
 
-    private static final String MULTI_VALUE_QUERY = "multi-value query";
+    private static final String NEGATED_QUERY = "negated query";
 
     @Autowired
     private CustomerRepository customerRepository;
@@ -41,20 +43,15 @@ class CustomerListViewBrowserlessTest extends SpringBrowserlessTest {
     @TestConfiguration
     static class FakeSearchAgentConfig {
 
-        /**
-         * Ignores the actual query text and returns a fixed result, except for
-         * {@link #MULTI_VALUE_QUERY}, which goes through the real {@link CustomerSpecifications}
-         * with a two-value {@code companyName} list, so the OR-within-field translation is
-         * exercised end to end through the UI, not just at the unit-test level.
-         */
         @Bean
         @Primary
-        CustomerSearchAgent fakeSearchAgent() {
+        @Qualifier("operatorSearchAgent")
+        CustomerSearchAgent fakeOperatorSearchAgent() {
             return query -> {
-                if (MULTI_VALUE_QUERY.equals(query)) {
-                    return CustomerSpecifications.from(new CustomerSearchCriteria(
-                            List.of("Berlin Data Works", "Hamburg Retail Group"),
-                            null, null, null, null, null, null, null, null, null, null, null, null));
+                if (NEGATED_QUERY.equals(query)) {
+                    return OperatorSpecifications.from(new OperatorCriteria(null, null, null, null, null, null,
+                            null, new FieldCriterion<>("Berlin", Operator.CONTAINS, true),
+                            null, null, null, null, null));
                 }
                 return (root, criteriaQuery, criteriaBuilder) ->
                         criteriaBuilder.equal(root.get("companyName"), "Berlin Data Works");
@@ -64,13 +61,12 @@ class CustomerListViewBrowserlessTest extends SpringBrowserlessTest {
 
     @Test
     void typingQueryNarrowsGridToFakeAgentsResult() {
-        CustomerListView view = navigate(CustomerListView.class);
+        OperatorCustomerListView view = navigate(OperatorCustomerListView.class);
         test(view.filterField).setValue("anything - the fake agent ignores the actual text");
 
         GridTester<?, Customer> grid = test(view.grid);
         // pollInSameThread(): MockVaadin.runUIQueue() needs UI.getCurrent(), a ThreadLocal only
-        // set on this test thread, not on Awaitility's default background poll thread. It flushes
-        // the ui.access(...) commands the background search thread queued.
+        // set on this test thread, not on Awaitility's default background poll thread.
         await().pollInSameThread().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
             MockVaadin.runUIQueue();
             assertThat(grid.size()).isEqualTo(1);
@@ -79,28 +75,27 @@ class CustomerListViewBrowserlessTest extends SpringBrowserlessTest {
     }
 
     @Test
-    void multiValueQueryNarrowsGridToOrMatchedRows() {
-        CustomerListView view = navigate(CustomerListView.class);
-        test(view.filterField).setValue(MULTI_VALUE_QUERY);
+    void negatedQueryExcludesMatchingRowsFromTheGrid() {
+        OperatorCustomerListView view = navigate(OperatorCustomerListView.class);
+        test(view.filterField).setValue(NEGATED_QUERY);
 
         GridTester<?, Customer> grid = test(view.grid);
         await().pollInSameThread().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
             MockVaadin.runUIQueue();
-            assertThat(grid.size()).isEqualTo(2);
+            assertThat(grid.size()).isLessThan((int) customerRepository.count());
         });
-        assertThat(List.of(grid.getRow(0).getCompanyName(), grid.getRow(1).getCompanyName()))
-                .containsExactlyInAnyOrder("Berlin Data Works", "Hamburg Retail Group");
+        assertThat(grid.size()).isGreaterThan(0);
+        for (int i = 0; i < grid.size(); i++) {
+            assertThat(grid.getRow(i).getAddress().getCity()).doesNotContainIgnoringCase("berlin");
+        }
     }
 
     @Test
     void blankQueryResetsToAllRows() {
-        CustomerListView view = navigate(CustomerListView.class);
+        OperatorCustomerListView view = navigate(OperatorCustomerListView.class);
         test(view.filterField).setValue("narrow it first");
 
         GridTester<?, Customer> grid = test(view.grid);
-        // pollInSameThread(): MockVaadin.runUIQueue() needs UI.getCurrent(), a ThreadLocal only
-        // set on this test thread, not on Awaitility's default background poll thread. It flushes
-        // the ui.access(...) commands the background search thread queued.
         await().pollInSameThread().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
             MockVaadin.runUIQueue();
             assertThat(grid.size()).isEqualTo(1);
