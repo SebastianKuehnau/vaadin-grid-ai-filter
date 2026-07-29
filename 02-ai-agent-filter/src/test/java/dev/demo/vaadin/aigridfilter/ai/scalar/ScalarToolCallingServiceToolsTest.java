@@ -43,5 +43,25 @@ class ScalarToolCallingServiceToolsTest {
 
         assertThat(service.criteria).isEqualTo(new ScalarCriteria(
                 null, null, null, null, null, null, null, null, null, null, null, null, null));
+        assertThat(service.criteria.isEmpty()).isTrue();
+    }
+
+    @Test
+    void aRepeatedEmptyCallDoesNotWipeTheExtractedCriteria() {
+        // A void tool is answered with a bare "Done", and a model can read that as "nothing happened"
+        // and call the tool again with no arguments. That must not clear what it just extracted.
+        service.searchCustomers(null, null, null, null, null, null, null, "Berlin", null, null, null, null, null);
+        service.searchCustomers(null, null, null, null, null, null, null, null, null, null, null, null, null);
+
+        assertThat(service.criteria.city()).isEqualTo("Berlin");
+    }
+
+    @Test
+    void aRepeatedNonEmptyCallStillReplacesTheCriteria() {
+        // Only empty repeat calls are ignored: a model correcting itself with real values must win.
+        service.searchCustomers(null, null, null, null, null, null, null, "Berlin", null, null, null, null, null);
+        service.searchCustomers(null, null, null, null, null, null, null, "Hamburg", null, null, null, null, null);
+
+        assertThat(service.criteria.city()).isEqualTo("Hamburg");
     }
 }

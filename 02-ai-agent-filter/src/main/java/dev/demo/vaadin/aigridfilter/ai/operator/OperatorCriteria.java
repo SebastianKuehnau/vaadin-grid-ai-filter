@@ -31,4 +31,12 @@ public record OperatorCriteria(
         FieldCriterion<String> houseNumber,
         FieldCriterion<CreditRating> creditRating,
         FieldCriterion<BigDecimal> annualRevenue) {
+
+    /** True if no field is set at all, i.e. this filters nothing and matches every customer. */
+    public boolean isEmpty() {
+        return companyName == null && contactName == null && email == null && phone == null
+                && customerSince == null && lastOrderDate == null && country == null && city == null
+                && postalCode == null && street == null && houseNumber == null
+                && creditRating == null && annualRevenue == null;
+    }
 }

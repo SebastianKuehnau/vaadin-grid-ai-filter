@@ -226,7 +226,7 @@ class OperatorToolCallingService implements CustomerSearchAgent {
             @ToolParam(description = NUMBER_OPERATOR) Operator annualRevenueOperator,
             @ToolParam(description = NEGATE) Boolean annualRevenueNegate
     ) {
-        this.criteria = new OperatorCriteria(
+        OperatorCriteria incoming = new OperatorCriteria(
                 FieldCriterion.of(companyName, companyNameOperator, companyNameNegate),
                 FieldCriterion.of(contactName, contactNameOperator, contactNameNegate),
                 FieldCriterion.of(email, emailOperator, emailNegate),
@@ -241,6 +241,16 @@ class OperatorToolCallingService implements CustomerSearchAgent {
                 FieldCriterion.of(creditRating, creditRatingOperator, creditRatingNegate),
                 FieldCriterion.of(annualRevenue, annualRevenueOperator, annualRevenueNegate));
 
+        // A tool call is a message the model can repeat: since the tool is void, Spring AI answers it
+        // with a bare "Done", and a model that reads that as "nothing happened" sometimes calls the tool
+        // again with no arguments, wiping the criteria it just extracted. Criteria that were already
+        // extracted are therefore never overwritten by a later empty call.
+        if (criteria != null && !criteria.isEmpty() && incoming.isEmpty()) {
+            logger.warn("Ignoring a repeated searchCustomers call with no arguments; keeping {}", criteria);
+            return;
+        }
+
+        this.criteria = incoming;
         logger.info("searchCustomers -> {}", criteria);
     }
 

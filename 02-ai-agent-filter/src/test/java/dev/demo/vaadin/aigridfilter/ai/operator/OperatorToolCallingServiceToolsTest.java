@@ -94,6 +94,25 @@ class OperatorToolCallingServiceToolsTest {
     }
 
     @Test
+    void aRepeatedEmptyCallDoesNotWipeTheExtractedCriteria() {
+        // A void tool is answered with a bare "Done", and a model can read that as "nothing happened"
+        // and call the tool again with no arguments. That must not clear what it just extracted.
+        searchByCity("Berlin", Operator.CONTAINS, false);
+        searchByCity(null, null, null);
+
+        assertThat(service.criteria.city()).isEqualTo(new FieldCriterion<>("Berlin", Operator.CONTAINS, false));
+    }
+
+    @Test
+    void aRepeatedNonEmptyCallStillReplacesTheCriteria() {
+        // Only empty repeat calls are ignored: a model correcting itself with real values must win.
+        searchByCity("Berlin", Operator.CONTAINS, false);
+        searchByCity("Hamburg", Operator.EQUALS, false);
+
+        assertThat(service.criteria.city()).isEqualTo(new FieldCriterion<>("Hamburg", Operator.EQUALS, false));
+    }
+
+    @Test
     void returnsTheCurrentDateTime() {
         LocalDateTime result = service.currentLocalDateTime();
 

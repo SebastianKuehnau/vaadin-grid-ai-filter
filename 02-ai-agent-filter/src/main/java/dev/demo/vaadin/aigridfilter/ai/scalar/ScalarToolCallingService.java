@@ -145,13 +145,19 @@ class ScalarToolCallingService implements CustomerSearchAgent {
                     500000. Only a lower bound is supported - "under 50000" and "between 50000 and
                     200000" cannot be expressed.""") BigDecimal annualRevenue
     ) {
-        logger.info("searchCustomers: companyName={}, contactName={}, email={}, phone={}, customerSince={}, "
-                        + "lastOrderDate={}, country={}, city={}, postalCode={}, street={}, houseNumber={}, "
-                        + "creditRating={}, annualRevenue={}",
-                companyName, contactName, email, phone, customerSince,
+        ScalarCriteria incoming = new ScalarCriteria(companyName, contactName, email, phone, customerSince,
                 lastOrderDate, country, city, postalCode, street, houseNumber, creditRating, annualRevenue);
 
-        this.criteria = new ScalarCriteria(companyName, contactName, email, phone, customerSince,
-                lastOrderDate, country, city, postalCode, street, houseNumber, creditRating, annualRevenue);
+        // A tool call is a message the model can repeat: since the tool is void, Spring AI answers it
+        // with a bare "Done", and a model that reads that as "nothing happened" sometimes calls the tool
+        // again with no arguments, wiping the criteria it just extracted. Criteria that were already
+        // extracted are therefore never overwritten by a later empty call.
+        if (criteria != null && !criteria.isEmpty() && incoming.isEmpty()) {
+            logger.warn("Ignoring a repeated searchCustomers call with no arguments; keeping {}", criteria);
+            return;
+        }
+
+        this.criteria = incoming;
+        logger.info("searchCustomers -> {}", criteria);
     }
 }
