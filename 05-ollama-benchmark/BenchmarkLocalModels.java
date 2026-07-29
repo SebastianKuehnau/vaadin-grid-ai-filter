@@ -42,10 +42,14 @@ import java.util.stream.Collectors;
  * eight queries all four modules' canonical-query ITs run — so the token and latency figures here line up
  * query-for-query with those suites' pass/fail results. A second, legacy case list mirrors
  * {@code 03-ai-structured-filter}'s {@code CustomerSearchAgentIT}/{@code CustomerSearchAgentExtraIT} and
- * runs against the two condition-list approaches only. Everything is plain HTTP (no Maven/JUnit, no
- * Spring context), each case run {@code --runs} times so per-case pass-rate (not just single-shot
- * pass/fail) becomes measurable — the point being to answer, quantitatively, "does this prompt produce
- * the correct filter with high probability, and did any case regress?" after editing a system prompt or a
+ * runs against <b>all four</b> approaches: many of these cases need negation, a second value for one
+ * field, or a range, which 02(a)/02(b) cannot express at all, so those show up as a low or zero pass rate
+ * for those approaches rather than as "n/a" (unlike the canonical set, this eval does not pre-classify
+ * legacy cases as architecturally out of reach for a given approach — see the "Legacy set" section of the
+ * generated report). Everything is plain HTTP (no Maven/JUnit, no Spring context), each case run
+ * {@code --runs} times so per-case pass-rate (not just single-shot pass/fail) becomes measurable — the
+ * point being to answer, quantitatively, "does this prompt produce the correct filter with high
+ * probability, and did any case regress?" after editing a system prompt or a
  * {@code @ToolParam}/{@code @JsonPropertyDescription}.
  *
  * <p>Run directly with Java's single-file source launcher (no external dependencies, JDK stdlib only):
@@ -128,10 +132,13 @@ public class BenchmarkLocalModels {
      * reliability problem (the ITs are where those expected failures are asserted).
      * <p>
      * {@link CaseGroup#LEGACY} cases are the older set mirroring {@code 03-ai-structured-filter}'s
-     * {@code CustomerSearchAgentIT}/{@code CustomerSearchAgentExtraIT}. They run against the two
-     * condition-list approaches (03 and 04) only: they were written for that filter type, and the
-     * per-field variants 02(a)/02(b) would fail most of them by construction rather than by
-     * unreliability. They are kept because they are the accumulated prompt-tuning safety net.
+     * {@code CustomerSearchAgentIT}/{@code CustomerSearchAgentExtraIT}. They were written for the
+     * condition-list filter type, but run against <b>all four</b> approaches: unlike the canonical set,
+     * a legacy case is not pre-classified as architecturally out of reach for 02(a)/02(b), so a case
+     * needing negation, a second value for one field, or a range shows up as a low or zero pass rate for
+     * those approaches — a deliberately blunt view, kept simple on purpose (see the "Legacy set" section
+     * of the generated report for the resulting matrix). They are kept because they are the accumulated
+     * prompt-tuning safety net.
      */
     record EvalCase(String name, String query, Set<String> tags, CaseGroup group,
                      Set<Approach> approaches, List<Expectation> expected) {
@@ -146,12 +153,12 @@ public class BenchmarkLocalModels {
         }
 
         static EvalCase legacy(String name, String query, Expectation... expected) {
-            return new EvalCase(name, query, Set.of(), CaseGroup.LEGACY, CONDITION_LIST_APPROACHES,
+            return new EvalCase(name, query, Set.of(), CaseGroup.LEGACY, ALL_APPROACHES,
                     List.of(expected));
         }
 
         static EvalCase legacy(String name, String query, String tag, Expectation... expected) {
-            return new EvalCase(name, query, Set.of(tag), CaseGroup.LEGACY, CONDITION_LIST_APPROACHES,
+            return new EvalCase(name, query, Set.of(tag), CaseGroup.LEGACY, ALL_APPROACHES,
                     List.of(expected));
         }
     }
@@ -222,7 +229,7 @@ public class BenchmarkLocalModels {
                 TextExpectation.of("lastOrderDate", "GREATER_OR_EQUAL", "2024-07-01"),
                 TextExpectation.of("lastOrderDate", "LESS_OR_EQUAL", "2025-03-31")));
 
-        // --- legacy prompt-regression set, condition-list approaches (03/04) only: mirrors
+        // --- legacy prompt-regression set, all four approaches: mirrors
         // 03-ai-structured-filter's CustomerSearchAgentIT ... ---
         cases.add(EvalCase.legacy("singleCity", "show me all customers in Berlin",
                 TextExpectation.of("city", "CONTAINS", "berlin")));
@@ -267,7 +274,7 @@ public class BenchmarkLocalModels {
         cases.add(EvalCase.legacy("showAllCustomers_noCriteria", "show all customers"));
 
         // --- ... and its CustomerSearchAgentExtraIT (negation, operator precision, arbitrary date
-        // bounds, anti-hallucination). Same group, same two approaches. ---
+        // bounds, anti-hallucination). Same group, same all-four-approaches treatment. ---
         cases.add(EvalCase.legacy("phoneNumberContains",
                 "show me the customer with the phone number 5020000001 or similar", "fuzzy-match",
                 TextExpectation.of("phone", "CONTAINS", "5020000001")));
@@ -410,7 +417,8 @@ public class BenchmarkLocalModels {
 
     record CaseAggregate(String name, String query, CaseGroup group, int passes, int runs,
                           double medianDurationMs, double medianTokS, List<String> sampleErrors,
-                          List<String> sampleRawBodies) {
+                          List<String> sampleRawBodies, long totalDurationMs, long totalPromptTokens,
+                          long totalCompletionTokens) {
         String passRateLabel() {
             return passes + "/" + runs;
         }
@@ -434,13 +442,31 @@ public class BenchmarkLocalModels {
             return cases.stream().mapToDouble(c -> c.runs() == 0 ? 0 : (double) c.passes() / c.runs()).average()
                     .orElse(0);
         }
+
+        /** Wall-clock time spent on every call of every case/run for this model+approach, successes and
+         * failures alike — the real cost of running this approach, not a per-case median. */
+        long totalDurationMs() {
+            return cases.stream().mapToLong(CaseAggregate::totalDurationMs).sum();
+        }
+
+        long totalPromptTokens() {
+            return cases.stream().mapToLong(CaseAggregate::totalPromptTokens).sum();
+        }
+
+        long totalCompletionTokens() {
+            return cases.stream().mapToLong(CaseAggregate::totalCompletionTokens).sum();
+        }
+
+        long totalTokens() {
+            return totalPromptTokens() + totalCompletionTokens();
+        }
     }
 
     // ---------------------------------------------------------------------------------------------
     // Normalized chat outcome shared by every ApiClient implementation
     // ---------------------------------------------------------------------------------------------
 
-    record ChatResult(String content, long tokenCount, long tokenDurationNs, String rawBody) {
+    record ChatResult(String content, long tokenCount, long promptTokenCount, long tokenDurationNs, String rawBody) {
     }
 
     /** Backend abstraction so the eval/reporting code doesn't care which API it's talking to. */
@@ -564,6 +590,7 @@ public class BenchmarkLocalModels {
         }
         long wallClockMs = (System.nanoTime() - wallClockStart) / 1_000_000;
 
+        printApproachSummary(results);
         printTable(results);
         printFieldAccuracy(results);
         printFailures(results);
@@ -701,7 +728,8 @@ public class BenchmarkLocalModels {
                                          Which case group to run (default: all). 'canonical' is the
                                          eight queries of docs/canonical-query-set.md that all four
                                          approaches share; 'legacy' is the older prompt-regression set,
-                                         which only the two condition-list approaches (03, 04) run.
+                                         which now also runs against all four approaches (many cases are
+                                         architecturally out of reach for 02a/02b and score low/zero).
                   --quick                Evaluate only a small representative subset of the canonical
                                          query set (a single-value case, a multi-field AND case, and
                                          the two cases only the condition-list approaches can express)
@@ -1076,6 +1104,9 @@ public class BenchmarkLocalModels {
             int passes = 0;
             List<String> sampleErrors = new ArrayList<>();
             List<String> sampleRawBodies = new ArrayList<>();
+            long totalDurationMs = 0;
+            long totalPromptTokens = 0;
+            long totalCompletionTokens = 0;
             for (int run = 0; run < runs; run++) {
                 long t0 = System.nanoTime();
                 try {
@@ -1093,6 +1124,9 @@ public class BenchmarkLocalModels {
                     }
                     long durationMs = (System.nanoTime() - t0) / 1_000_000;
                     durations.add(durationMs);
+                    totalDurationMs += durationMs;
+                    totalPromptTokens += chatResult.promptTokenCount();
+                    totalCompletionTokens += chatResult.tokenCount();
                     if (chatResult.tokenDurationNs() > 0) {
                         tokRates.add(chatResult.tokenCount() / (chatResult.tokenDurationNs() / 1e9));
                     }
@@ -1113,7 +1147,9 @@ public class BenchmarkLocalModels {
                         }
                     }
                 } catch (Exception e) {
-                    durations.add((System.nanoTime() - t0) / 1_000_000);
+                    long durationMs = (System.nanoTime() - t0) / 1_000_000;
+                    durations.add(durationMs);
+                    totalDurationMs += durationMs;
                     if (sampleErrors.size() < 2) {
                         sampleErrors.add(e.getClass().getSimpleName() + ": " + e.getMessage());
                     }
@@ -1125,7 +1161,7 @@ public class BenchmarkLocalModels {
             }
             aggregates.add(new CaseAggregate(tc.name(), tc.query(), tc.group(), passes, runs, median(durations),
                     median(tokRates.stream().mapToDouble(Double::doubleValue).boxed().collect(Collectors.toList())),
-                    sampleErrors, sampleRawBodies));
+                    sampleErrors, sampleRawBodies, totalDurationMs, totalPromptTokens, totalCompletionTokens));
         }
 
         sampling.set(false);
@@ -1485,8 +1521,8 @@ public class BenchmarkLocalModels {
             if (map.get("message") instanceof Map<?, ?> m && m.get("content") instanceof String s) {
                 content = s;
             }
-            return new ChatResult(content, asLong(map.get("eval_count")), asLong(map.get("eval_duration")),
-                    debugRaw ? response.body() : null);
+            return new ChatResult(content, asLong(map.get("eval_count")), asLong(map.get("prompt_eval_count")),
+                    asLong(map.get("eval_duration")), debugRaw ? response.body() : null);
         }
 
         @Override
@@ -1514,8 +1550,8 @@ public class BenchmarkLocalModels {
                     }
                 }
             }
-            return new ChatResult(argsJson, asLong(map.get("eval_count")), asLong(map.get("eval_duration")),
-                    debugRaw ? response.body() : null);
+            return new ChatResult(argsJson, asLong(map.get("eval_count")), asLong(map.get("prompt_eval_count")),
+                    asLong(map.get("eval_duration")), debugRaw ? response.body() : null);
         }
 
         private HttpResponse<String> post(String payload) throws IOException, InterruptedException {
@@ -1673,10 +1709,12 @@ public class BenchmarkLocalModels {
                 content = c;
             }
             long tokenCount = 0;
+            long promptTokenCount = 0;
             if (map.get("usage") instanceof Map<?, ?> usage) {
                 tokenCount = asLong(usage.get("completion_tokens"));
+                promptTokenCount = asLong(usage.get("prompt_tokens"));
             }
-            return new ChatResult(content, tokenCount, 0, debugRaw ? response.body() : null);
+            return new ChatResult(content, tokenCount, promptTokenCount, 0, debugRaw ? response.body() : null);
         }
 
         @Override
@@ -1695,8 +1733,10 @@ public class BenchmarkLocalModels {
             }
             String argsJson = "{}";
             long tokenCount = 0;
+            long promptTokenCount = 0;
             if (map.get("usage") instanceof Map<?, ?> usage) {
                 tokenCount = asLong(usage.get("completion_tokens"));
+                promptTokenCount = asLong(usage.get("prompt_tokens"));
             }
             if (map.get("choices") instanceof List<?> choices && !choices.isEmpty()
                     && choices.get(0) instanceof Map<?, ?> choice && choice.get("message") instanceof Map<?, ?> msg
@@ -1712,7 +1752,7 @@ public class BenchmarkLocalModels {
                     }
                 }
             }
-            return new ChatResult(argsJson, tokenCount, 0, debugRaw ? response.body() : null);
+            return new ChatResult(argsJson, tokenCount, promptTokenCount, 0, debugRaw ? response.body() : null);
         }
 
         private HttpResponse<String> post(String payload) throws IOException, InterruptedException {
@@ -1918,6 +1958,31 @@ public class BenchmarkLocalModels {
         }
     }
 
+    /** Console counterpart of {@link #renderApproachSummary}. */
+    private static void printApproachSummary(List<ModelApproachResult> results) {
+        List<ModelApproachResult> usable = results.stream().filter(r -> r.fatalError() == null).toList();
+        if (usable.isEmpty()) return;
+        System.out.println();
+        System.out.println("Approach performance summary (across all tested models):");
+        System.out.printf("  %-16s%-8s%-12s%-10s%-14s%-14s%-14s%-10s%n",
+                "Approach", "Models", "Canon.", "Legacy", "Prompt tok", "Compl. tok", "Tokens", "Time");
+        for (Approach approach : Approach.values()) {
+            List<ModelApproachResult> forApproach = usable.stream().filter(r -> r.approach() == approach).toList();
+            if (forApproach.isEmpty()) continue;
+            double canonicalMean = forApproach.stream().mapToDouble(r -> r.meanPassRate(CaseGroup.CANONICAL))
+                    .average().orElse(0);
+            double legacyMean = forApproach.stream().mapToDouble(r -> r.meanPassRate(CaseGroup.LEGACY))
+                    .average().orElse(0);
+            long promptTokens = forApproach.stream().mapToLong(ModelApproachResult::totalPromptTokens).sum();
+            long completionTokens = forApproach.stream().mapToLong(ModelApproachResult::totalCompletionTokens).sum();
+            long totalMs = forApproach.stream().mapToLong(ModelApproachResult::totalDurationMs).sum();
+            System.out.printf("  %-16s%-8d%-12s%-10s%-14d%-14d%-14d%-10s%n",
+                    approach.label, forApproach.size(),
+                    "%.0f%%".formatted(canonicalMean * 100), "%.0f%%".formatted(legacyMean * 100),
+                    promptTokens, completionTokens, promptTokens + completionTokens, formatDuration(totalMs));
+        }
+    }
+
     /** Per-case pass-rate breakdown, one table per model/approach, canonical cases first. */
     private static void printPerCaseTable(StringBuilder sb, ModelApproachResult r) {
         sb.append("\n### ").append(r.model()).append(" [").append(r.approach().label).append("]\n\n");
@@ -1989,6 +2054,55 @@ public class BenchmarkLocalModels {
         return "%.1f GB".formatted(mb / 1024.0);
     }
 
+    private static String formatDuration(long ms) {
+        if (ms < 1000) return ms + " ms";
+        double seconds = ms / 1000.0;
+        if (seconds < 60) return "%.1f s".formatted(seconds);
+        long totalSeconds = ms / 1000;
+        return "%dm %02ds".formatted(totalSeconds / 60, totalSeconds % 60);
+    }
+
+    /**
+     * One row per {@link Approach}, aggregated across every model tested — the model-independent view of
+     * "how expensive/reliable is this approach", complementing the per-model rows above (which mix models
+     * of very different sizes/speeds). Token and time figures are true sums over every call of every case
+     * and run actually executed for that approach (not medians), so they reflect the approach's real
+     * cost — including that a 39-parameter tool schema (02(b)) costs far more prompt tokens per request
+     * than a single-parameter one (04), independent of the model used.
+     */
+    private static void renderApproachSummary(StringBuilder sb, List<ModelApproachResult> results) {
+        List<ModelApproachResult> usable = results.stream().filter(r -> r.fatalError() == null).toList();
+        if (usable.isEmpty()) return;
+
+        sb.append("\n## Approach performance summary (across all tested models)\n\n");
+        sb.append("Mean pass rate is the average of each tested model's mean pass rate for that approach ")
+          .append("(one model = one data point); token and time totals are true sums over every call made ")
+          .append("for that approach, across every model, case and run.\n\n");
+        sb.append("| Approach | Models tested | Mean pass rate (canonical) | Mean pass rate (legacy) | ")
+          .append("Prompt tokens (Σ) | Completion tokens (Σ) | Tokens (Σ) | Time (Σ) |\n");
+        sb.append("|---|---|---|---|---|---|---|---|\n");
+        for (Approach approach : Approach.values()) {
+            List<ModelApproachResult> forApproach = usable.stream().filter(r -> r.approach() == approach).toList();
+            if (forApproach.isEmpty()) continue;
+            double canonicalMean = forApproach.stream().mapToDouble(r -> r.meanPassRate(CaseGroup.CANONICAL))
+                    .average().orElse(0);
+            double legacyMean = forApproach.stream().mapToDouble(r -> r.meanPassRate(CaseGroup.LEGACY))
+                    .average().orElse(0);
+            long promptTokens = forApproach.stream().mapToLong(ModelApproachResult::totalPromptTokens).sum();
+            long completionTokens = forApproach.stream().mapToLong(ModelApproachResult::totalCompletionTokens).sum();
+            long totalMs = forApproach.stream().mapToLong(ModelApproachResult::totalDurationMs).sum();
+            sb.append("| ").append(approach.label)
+              .append(" | ").append(forApproach.size())
+              .append(" | ").append("%.0f%%".formatted(canonicalMean * 100))
+              .append(" | ").append("%.0f%%".formatted(legacyMean * 100))
+              .append(" | ").append(promptTokens)
+              .append(" | ").append(completionTokens)
+              .append(" | ").append(promptTokens + completionTokens)
+              .append(" | ").append(formatDuration(totalMs))
+              .append(" |\n");
+        }
+    }
+
     private static String renderMarkdown(List<ModelApproachResult> results, String backendName, String baseUrl,
             CliArgs cli, int caseCount, long wallClockMs) {
         StringBuilder sb = new StringBuilder();
@@ -2008,8 +2122,13 @@ public class BenchmarkLocalModels {
           .append("ones all four modules' canonical-query ITs run, so these figures line up ")
           .append("query-for-query with those suites' pass/fail results; the legacy cases mirror ")
           .append("`03-ai-structured-filter`'s `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT` and ")
-          .append("run against the two condition-list approaches only.\n\n");
-        sb.append("| Model | Approach | Pass rate | Median Latency | TTFT | Tokens/s | RAM (JVM) | CPU | Model Size |\n");
+          .append("run against all four approaches — several of them need negation, a second value for ")
+          .append("one field, or a range, which 02(a)/02(b) cannot express at all, so those show up as a ")
+          .append("low or zero pass rate for those approaches rather than as \"n/a\".\n\n");
+
+        renderApproachSummary(sb, results);
+
+        sb.append("\n| Model | Approach | Pass rate | Median Latency | TTFT | Tokens/s | RAM (JVM) | CPU | Model Size |\n");
         sb.append("|---|---|---|---|---|---|---|---|---|\n");
         for (ModelApproachResult r : results) {
             if (r.fatalError() != null) {
@@ -2033,6 +2152,7 @@ public class BenchmarkLocalModels {
           .append(" (nvidia-smi; \"n/a\" on hosts without an NVIDIA GPU, e.g. Apple Silicon)\n");
 
         renderCanonicalMatrix(sb, results);
+        renderLegacyMatrix(sb, results);
 
         sb.append("\n## Per-case pass rate\n");
         for (ModelApproachResult r : results) {
@@ -2090,38 +2210,63 @@ public class BenchmarkLocalModels {
      * limit). The per-approach sections elsewhere in this report never put the same query side by side.
      */
     private static void renderCanonicalMatrix(StringBuilder sb, List<ModelApproachResult> results) {
-        List<ModelApproachResult> canonicalResults = results.stream()
+        renderCaseMatrix(sb, results, CaseGroup.CANONICAL, "Canonical query set",
+                "The eight queries of `docs/canonical-query-set.md`, run against every selected "
+                        + "approach. `n/a` = the approach's filter type cannot express that query at all, so it "
+                        + "is not run (the modules' canonical-query ITs assert those expected failures against "
+                        + "the resulting customer set instead).\n\n"
+                        + "Two things this harness measures differently from those ITs, both worth knowing before "
+                        + "reading a cell as a verdict on the approach:\n\n"
+                        + "- **Single round trip.** It reads the first `searchCustomers` tool call and does not "
+                        + "execute chained tool calls, so `02b-operator` cannot pass `C7_RELATIVE_DATE` here: that "
+                        + "query needs its `currentLocalDateTime()` hop first. Its canonical-query IT, which runs "
+                        + "the real Spring AI tool loop, does pass it.\n"
+                        + "- **Field-precise scoring.** A case fails if the model populates a field the query did "
+                        + "not ask for, even when the extra condition does not change the resulting rows (e.g. "
+                        + "adding `country=Germany` to \"creditworthy customers in Hamburg\"). The ITs score the "
+                        + "customer set, so they accept that. Neither view is wrong — this one is stricter about "
+                        + "the filter, the ITs are stricter about the answer.\n");
+    }
+
+    /**
+     * The legacy set as the same kind of matrix as {@link #renderCanonicalMatrix}. Unlike the canonical
+     * set, a legacy case is not pre-classified as architecturally out of reach for a given approach — every
+     * case runs against all four, so a {@code 0/N} for 02(a)/02(b) on e.g. a negation or multi-value-OR
+     * case means "cannot express this at all", not "unreliable"; read those cells with that in mind.
+     */
+    private static void renderLegacyMatrix(StringBuilder sb, List<ModelApproachResult> results) {
+        renderCaseMatrix(sb, results, CaseGroup.LEGACY, "Legacy set",
+                "The older prompt-regression cases mirroring `03-ai-structured-filter`'s "
+                        + "`CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`, run against every approach. "
+                        + "Unlike the canonical matrix above, there is no `n/a` here: every case actually runs "
+                        + "against every approach, so a low or zero pass rate for `02a-flat`/`02b-operator` on a "
+                        + "case needing negation, a second value for one field, or a range reflects an "
+                        + "architectural ceiling, not unreliability — these approaches were never designed to "
+                        + "express that case at all.\n");
+    }
+
+    /** Shared rendering for {@link #renderCanonicalMatrix} and {@link #renderLegacyMatrix}: one row per
+     * case, one column per approach, for every model, plus mean-pass-rate/median-latency/median-tok/s
+     * summary rows. */
+    private static void renderCaseMatrix(StringBuilder sb, List<ModelApproachResult> results, CaseGroup group,
+            String heading, String intro) {
+        List<ModelApproachResult> groupResults = results.stream()
                 .filter(r -> r.fatalError() == null)
-                .filter(r -> r.cases().stream().anyMatch(c -> c.group() == CaseGroup.CANONICAL))
+                .filter(r -> r.cases().stream().anyMatch(c -> c.group() == group))
                 .toList();
-        if (canonicalResults.isEmpty()) return;
+        if (groupResults.isEmpty()) return;
 
-        sb.append("\n## Canonical query set\n\n");
-        sb.append("The eight queries of `docs/canonical-query-set.md`, run against every selected ")
-          .append("approach. `n/a` = the approach's filter type cannot express that query at all, so it ")
-          .append("is not run (the modules' canonical-query ITs assert those expected failures against ")
-          .append("the resulting customer set instead).\n\n");
-        sb.append("Two things this harness measures differently from those ITs, both worth knowing before ")
-          .append("reading a cell as a verdict on the approach:\n\n")
-          .append("- **Single round trip.** It reads the first `searchCustomers` tool call and does not ")
-          .append("execute chained tool calls, so `02b-operator` cannot pass `C7_RELATIVE_DATE` here: that ")
-          .append("query needs its `currentLocalDateTime()` hop first. Its canonical-query IT, which runs ")
-          .append("the real Spring AI tool loop, does pass it.\n")
-          .append("- **Field-precise scoring.** A case fails if the model populates a field the query did ")
-          .append("not ask for, even when the extra condition does not change the resulting rows (e.g. ")
-          .append("adding `country=Germany` to \"creditworthy customers in Hamburg\"). The ITs score the ")
-          .append("customer set, so they accept that. Neither view is wrong — this one is stricter about ")
-          .append("the filter, the ITs are stricter about the answer.\n");
+        sb.append("\n## ").append(heading).append("\n\n").append(intro);
 
-        for (String model : canonicalResults.stream().map(ModelApproachResult::model).distinct().toList()) {
-            List<ModelApproachResult> perApproach = canonicalResults.stream()
+        for (String model : groupResults.stream().map(ModelApproachResult::model).distinct().toList()) {
+            List<ModelApproachResult> perApproach = groupResults.stream()
                     .filter(r -> r.model().equals(model)).toList();
             if (perApproach.isEmpty()) continue;
 
             List<String> caseNames = new ArrayList<>();
             for (ModelApproachResult r : perApproach) {
                 for (CaseAggregate c : r.cases()) {
-                    if (c.group() == CaseGroup.CANONICAL && !caseNames.contains(c.name())) {
+                    if (c.group() == group && !caseNames.contains(c.name())) {
                         caseNames.add(c.name());
                     }
                 }
@@ -2142,19 +2287,19 @@ public class BenchmarkLocalModels {
             }
             sb.append("| **Mean (expressible cases)** |");
             for (ModelApproachResult r : perApproach) {
-                sb.append(" **").append("%.0f%%".formatted(r.meanPassRate(CaseGroup.CANONICAL) * 100))
+                sb.append(" **").append("%.0f%%".formatted(r.meanPassRate(group) * 100))
                   .append("** |");
             }
             sb.append("\n| **Median latency** |");
             for (ModelApproachResult r : perApproach) {
                 sb.append(" ").append("%.0f ms".formatted(median(r.cases().stream()
-                        .filter(c -> c.group() == CaseGroup.CANONICAL)
+                        .filter(c -> c.group() == group)
                         .map(c -> (long) c.medianDurationMs()).collect(Collectors.toList())))).append(" |");
             }
             sb.append("\n| **Median tokens/s** |");
             for (ModelApproachResult r : perApproach) {
                 sb.append(" ").append("%.1f".formatted(median(r.cases().stream()
-                        .filter(c -> c.group() == CaseGroup.CANONICAL)
+                        .filter(c -> c.group() == group)
                         .map(CaseAggregate::medianTokS).collect(Collectors.toList())))).append(" |");
             }
             sb.append("\n");

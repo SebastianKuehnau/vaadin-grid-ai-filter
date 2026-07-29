@@ -47,7 +47,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * The wording and source order of these cases date from when {@code 02-ai-agent-filter} still had a
  * single, list-based tool call and ran an identical suite, so its results were directly comparable
  * per case. That module has since become the two per-field variants 02(a)/02(b), which are compared
- * against this one through the canonical query set instead ({@link CanonicalQueryIT} here and the
+ * against this one through the canonical query set instead ({@link StructuredCanonicalQueryIT} here and the
  * variant ITs there). This class stays as this module's broader prompt-regression net; cases needing
  * negation, STARTS_WITH/ENDS_WITH/EQUALS precision or arbitrary date bounds live separately in
  * {@link CustomerSearchAgentExtraIT}, together with {@code phoneNumberContains} (which the old

@@ -27,14 +27,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Runs the canonical query set (see {@code docs/canonical-query-set.md}) against a real Ollama and
  * scores every query on the <b>resulting customer set</b>, not on the shape of the extracted filter: the
- * query goes through the hybrid tool call ({@code @Tool searchCustomers(List<Condition>)}), the returned {@code Specification} is executed against the seeded
+ * query goes through structured output ({@code .responseEntity(CustomerFilter.class)}), the returned {@code Specification} is executed against the seeded
  * database, and the resulting ids are compared with the ids a reference predicate selects.
  * <p>
- * The filter type here is {@code 03-ai-structured-filter}'s, copied 1:1, so all eight categories are
- * expressible — including the two that no per-field tool parameter list can reach: multi-value OR
- * (several values in one condition) and real ranges (two sibling conditions on one field). Since 03
- * runs the identical set against the identical filter type, a divergence between the two modules can
- * only come from the delivery mechanism.
+ * A {@code CustomerFilter} is a flat list of conditions, each with several values (OR within a field)
+ * and a negate flag, and a range is two sibling conditions on one field — so all eight categories are
+ * expressible. {@code 04-ai-hybrid-filter} runs this very same set against the very same filter type,
+ * delivered as a tool call instead; any divergence between the two is model or mechanism behaviour,
+ * never a difference in what the filter can express.
  * <p>
  * Queries this variant cannot express are marked {@link Outcome#FAILS_BY_DESIGN} and asserted to produce
  * a customer set that differs from the expected one — a documented, non-erroring failure. Should such a
@@ -54,9 +54,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 // trips — the suite should fail on wrong results, not on slowness.
 @Timeout(value = 300, unit = TimeUnit.SECONDS)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class CanonicalQueryIT {
+class StructuredCanonicalQueryIT {
 
-    private static final Logger logger = LoggerFactory.getLogger(CanonicalQueryIT.class);
+    private static final Logger logger = LoggerFactory.getLogger(StructuredCanonicalQueryIT.class);
 
     /** Whether this variant's filter type can express a query at all. */
     enum Outcome {
@@ -147,7 +147,7 @@ class CanonicalQueryIT {
     }
 
     @Autowired
-    CustomerSearchHybridToolCallingService agent;
+    CustomerSearchStructuredOutputService agent;
 
     @Autowired
     CustomerRepository customerRepository;

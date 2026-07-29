@@ -93,10 +93,26 @@ report repeats this caveat next to the matrix, so a `0/1` there is never mistake
   problem. The report's "Canonical query set" section is the resulting matrix: one row per query, one
   column per approach.
 - **Legacy set**: the older prompt-regression cases mirroring `03-ai-structured-filter`'s
-  `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`. They run against the two condition-list
-  approaches (`03`, `04`) only — they were written for that filter type, and the per-field variants would
-  fail most of them by construction rather than by unreliability. They are kept because they are the
-  accumulated prompt-tuning safety net.
+  `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`. Unlike the canonical set, they run against **all
+  four** approaches without pre-classifying which ones can express them — they were written for the
+  condition-list filter type, so a case needing negation, a second value for one field, or a range shows
+  up as a low or zero pass rate for `02a`/`02b` rather than as `n/a`. They are kept because they are the
+  accumulated prompt-tuning safety net, and running them everywhere makes the per-field variants'
+  ceiling visible on a much larger case set than the eight canonical queries alone. The report's "Legacy
+  set" section is the same kind of matrix as the canonical one (one row per case, one column per
+  approach).
+
+### Approach performance summary
+
+The report's "Approach performance summary" table aggregates **across every tested model**, one row
+per approach: mean pass rate (canonical and legacy separately), total prompt tokens, total completion
+tokens, total tokens, and total wall-clock time — all true sums over every call actually made for that
+approach (not medians), so it reflects the approach's real cost independent of which models were
+benchmarked. This is what makes e.g. `02b-operator`'s 39-parameter tool schema's prompt-token overhead
+visible against `04-hybrid`'s single-parameter one, and lets 03/04's combined canonical+legacy pass
+rate and total time be compared directly against 02(a)/02(b)'s. Ollama's native API reports
+`prompt_eval_count`/`eval_count`; the MLX (OpenAI-compatible) backend reports the equivalent
+`usage.prompt_tokens`/`usage.completion_tokens`.
 
 ### Pass-rate over K runs (`--runs`)
 

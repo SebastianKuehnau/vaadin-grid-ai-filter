@@ -148,7 +148,7 @@ the test config overrides it to `ollama`.
 > (or swap the model in `application-ollama.properties`) if you hit it during a demo.
 
 - **`CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the build if this
-  module's `CanonicalQueryIT` or the benchmark script stops matching `docs/canonical-query-set.md`
+  module's `StructuredCanonicalQueryIT` or the benchmark script stops matching `docs/canonical-query-set.md`
   verbatim, in wording or order.
 - **`CustomerFilterSpecificationsTest`** (`@DataJpaTest`, no LLM) — deterministic test of the flat
   translation against the seeded H2 data. `04-ai-hybrid-filter` runs a 1:1 copy of it against its copy of
@@ -156,7 +156,7 @@ the test config overrides it to `ollama`.
   mechanism.
 - **`CustomerFilterSpecificationsExtraTest`** (`@DataJpaTest`, no LLM) — negation
   (`Condition.negate()`), split out of the class above.
-- **`CanonicalQueryIT`** — the eight queries of `docs/canonical-query-set.md`, each scored on the
+- **`StructuredCanonicalQueryIT`** — the eight queries of `docs/canonical-query-set.md`, each scored on the
   **resulting customer set**: the returned `Specification` is executed against the seeded database and the
   matching ids are compared with those of a reference predicate. All eight are expected to pass here;
   `02-ai-agent-filter`'s two variants and `04-ai-hybrid-filter` run the identical queries, which is what

@@ -44,7 +44,7 @@ those of a reference predicate — not on whether the extracted filter "looks ri
 | **Categories reached** | **2 / 8** | **5 / 8** | **8 / 8** | **8 / 8** | |
 
 Evidence: `FlatCanonicalQueryIT`, `OperatorCanonicalQueryIT` (both in `02-ai-agent-filter`) and
-`CanonicalQueryIT` (in `03-ai-structured-filter` and `04-ai-hybrid-filter`). The ❌ cells are not skipped
+`StructuredCanonicalQueryIT` (in `03-ai-structured-filter` and `04-ai-hybrid-filter`). The ❌ cells are not skipped
 — they run, and the IT asserts that the resulting set *differs* from the expected one, so a ceiling is a
 recorded, non-erroring failure. If such a case ever matched, the test would fail loudly.
 

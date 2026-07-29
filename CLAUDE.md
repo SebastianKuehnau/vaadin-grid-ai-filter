@@ -42,7 +42,7 @@ A task is only finished when:
 2. For UI changes: the app has been started and the change verified via a Playwright screenshot
    (save screenshots to `~/screenshots/`).
 3. For changes to filter/AI logic: the affected module's IT classes pass, run via `-Pit-local-ollama`
-   (against a native Ollama instance) — the canonical-query IT (`CanonicalQueryIT` in 03/04,
+   (against a native Ollama instance) — the canonical-query IT (`StructuredCanonicalQueryIT` in 03/04,
    `ScalarCanonicalQueryIT`/`OperatorCanonicalQueryIT` in 02), plus the module's browserless IT for
    UI→AI changes. 03 additionally has `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into

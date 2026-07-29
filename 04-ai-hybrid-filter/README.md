@@ -119,7 +119,7 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
 ```
 
 - **`CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the build if this
-  module's `CanonicalQueryIT` or the benchmark script stops matching `docs/canonical-query-set.md`
+  module's `StructuredCanonicalQueryIT` or the benchmark script stops matching `docs/canonical-query-set.md`
   verbatim, in wording or order.
 - **`CustomerFilterSpecificationsTest` / `CustomerFilterSpecificationsExtraTest`** (`@DataJpaTest`, no
   LLM) — the copied translation logic against the seeded H2 data, a 1:1 copy of 03's tests. If 03 and 04
@@ -130,7 +130,7 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
 - **`CustomerListViewBrowserlessTest`** — [Vaadin Browserless
   testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake, deterministic
   `CustomerSearchAgent` bean, so it never calls a real model.
-- **`CanonicalQueryIT`** — the eight queries of `docs/canonical-query-set.md` against a real Ollama, each
+- **`StructuredCanonicalQueryIT`** — the eight queries of `docs/canonical-query-set.md` against a real Ollama, each
   scored on the **resulting customer set** (the `Specification` is executed against the seeded database and
   the matching ids compared with a reference predicate). All eight are expected to pass here, exactly as
   in 03: same filter type, same prompt rules, same queries. A divergence between the two modules could
