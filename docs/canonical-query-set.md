@@ -7,7 +7,7 @@ Five places use these queries **verbatim**:
 
 | Copy | File |
 |---|---|
-| 02(a) | `02-ai-agent-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/scalar/ScalarCanonicalQueryIT.java` |
+| 02(a) | `02-ai-agent-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/flat/FlatCanonicalQueryIT.java` |
 | 02(b) | `02-ai-agent-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/operator/OperatorCanonicalQueryIT.java` |
 | 03 | `03-ai-structured-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/CanonicalQueryIT.java` |
 | 04 | `04-ai-hybrid-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/CanonicalQueryIT.java` |
@@ -25,7 +25,7 @@ The four AI approaches differ in what their filter type can express, not in how 
 Each query below is the cheapest possible probe for one capability, so the resulting matrix reads as a
 capability ladder rather than a list of anecdotes:
 
-| # | Category | 02(a) scalar | 02(b) value+operator+negate | 03 structured | 04 hybrid |
+| # | Category | 02(a) flat | 02(b) value+operator+negate | 03 structured | 04 hybrid |
 |---|---|---|---|---|---|
 | C1 | single value | ✅ | ✅ | ✅ | ✅ |
 | C2 | multiple values for one field (OR) | ❌ | ❌ | ✅ | ✅ |

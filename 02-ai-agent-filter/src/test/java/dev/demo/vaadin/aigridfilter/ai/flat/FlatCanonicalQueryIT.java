@@ -1,4 +1,4 @@
-package dev.demo.vaadin.aigridfilter.ai.scalar;
+package dev.demo.vaadin.aigridfilter.ai.flat;
 
 import dev.demo.vaadin.aigridfilter.ai.TokenUsageRecorder;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Runs the canonical query set (see {@code docs/canonical-query-set.md}) against a real Ollama and
  * scores every query on the <b>resulting customer set</b>, not on the shape of the extracted filter: the
- * query goes through variant 02(a)'s scalar tool call, the returned {@code Specification} is executed against the seeded
+ * query goes through variant 02(a).s flat tool call, the returned {@code Specification} is executed against the seeded
  * database, and the resulting ids are compared with the ids a reference predicate selects.
  * <p>
  * Variant 02(a) has one scalar value per field and no operator at all, so only the two simplest
@@ -54,9 +54,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 // trips — the suite should fail on wrong results, not on slowness.
 @Timeout(value = 300, unit = TimeUnit.SECONDS)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class ScalarCanonicalQueryIT {
+class FlatCanonicalQueryIT {
 
-    private static final Logger logger = LoggerFactory.getLogger(ScalarCanonicalQueryIT.class);
+    private static final Logger logger = LoggerFactory.getLogger(FlatCanonicalQueryIT.class);
 
     /** Whether this variant's filter type can express a query at all. */
     enum Outcome {
@@ -147,7 +147,7 @@ class ScalarCanonicalQueryIT {
     }
 
     @Autowired
-    ScalarToolCallingService agent;
+    FlatToolCallingService agent;
 
     @Autowired
     CustomerRepository customerRepository;
@@ -162,7 +162,7 @@ class ScalarCanonicalQueryIT {
 
     @AfterAll
     void logTokenSummary() {
-        tokenUsageRecorder.logSummary("ScalarCanonicalQueryIT");
+        tokenUsageRecorder.logSummary("FlatCanonicalQueryIT");
     }
 
     @ParameterizedTest

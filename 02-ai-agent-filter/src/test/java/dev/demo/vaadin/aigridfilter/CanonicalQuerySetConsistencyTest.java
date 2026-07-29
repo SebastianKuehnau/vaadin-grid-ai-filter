@@ -36,7 +36,7 @@ class CanonicalQuerySetConsistencyTest {
 
     /** The IT sources owned by this module; every one of them must carry the canonical wording. */
     private static final List<String> IT_SOURCES = List.of(
-            "02-ai-agent-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/scalar/ScalarCanonicalQueryIT.java",
+            "02-ai-agent-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/flat/FlatCanonicalQueryIT.java",
             "02-ai-agent-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/operator/OperatorCanonicalQueryIT.java");
 
     /** A fenced {@code text} block in the document — one per canonical query, in order. */

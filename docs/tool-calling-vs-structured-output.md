@@ -21,9 +21,9 @@ The four are deliberately arranged so that each neighbouring pair differs in exa
 
 ## The four approaches in one paragraph each
 
-**02(a) — scalar tool calling.** `ScalarToolCallingService` exposes
+**02(a) — flat tool calling.** `FlatToolCallingService` exposes
 `@Tool searchCustomers(companyName, contactName, …, annualRevenue)`: 13 scalar parameters, no operator,
-no negation, no second tool. The tool body fills a `ScalarCriteria`, which `ScalarSpecifications` turns
+no negation, no second tool. The tool body fills a `FlatCriteria`, which `FlatSpecifications` turns
 into a `Specification`. Every field's meaning is hard-wired there: text = substring, date = the whole
 calendar year it falls in, revenue = a minimum.
 
@@ -93,7 +93,7 @@ prompt deterministic), so only the duration column needs a median.
 
 | Approach | Tokens/request | prompt | completion | Duration/request | Categories reached |
 |---|---|---|---|---|---|
-| 02(a) scalar (13 parameters) | **1154** | 1120 | 34 | 2856 ms | 2 / 8 |
+| 02(a) flat (13 parameters) | **1154** | 1120 | 34 | 2856 ms | 2 / 8 |
 | 02(b) value+operator+negate (39 parameters) | **3248** | 3154 | 94 | 6071 ms | 5 / 8 |
 | 03 structured output | **2307** | 2243 | 64 | 4089 ms | 8 / 8 |
 | 04 hybrid (1 parameter) | **2358** | 2288 | 70 | 5128 ms | 8 / 8 |

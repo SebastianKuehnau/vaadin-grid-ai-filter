@@ -1,4 +1,4 @@
-package dev.demo.vaadin.aigridfilter.ai.scalar;
+package dev.demo.vaadin.aigridfilter.ai.flat;
 
 import dev.demo.vaadin.aigridfilter.ai.TokenUsageRecorder;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
@@ -16,15 +16,15 @@ import static org.mockito.Mockito.mock;
 /**
  * Plain JUnit test (no Spring context, no LLM) of variant 02(a)'s tool in isolation: calling
  * {@code searchCustomers} directly with fixed literal arguments must capture them, verbatim, into
- * {@link ScalarToolCallingService#criteria}. The {@link ChatModel} and {@link TokenUsageRecorder} are
+ * {@link FlatToolCallingService#criteria}. The {@link ChatModel} and {@link TokenUsageRecorder} are
  * mocked purely to satisfy the constructor — neither is invoked (the tool never calls the model or
  * records usage).
  */
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
-class ScalarToolCallingServiceToolsTest {
+class FlatToolCallingServiceToolsTest {
 
-    private final ScalarToolCallingService service =
-            new ScalarToolCallingService(mock(ChatModel.class), mock(TokenUsageRecorder.class));
+    private final FlatToolCallingService service =
+            new FlatToolCallingService(mock(ChatModel.class), mock(TokenUsageRecorder.class));
 
     @Test
     void capturesEveryArgumentIntoResult() {
@@ -32,7 +32,7 @@ class ScalarToolCallingServiceToolsTest {
                 LocalDate.of(2020, 1, 1), LocalDate.of(2021, 6, 15), "Germany", "Berlin", "10115",
                 "Main Street", "1", CreditRating.GOOD, BigDecimal.valueOf(50_000));
 
-        assertThat(service.criteria).isEqualTo(new ScalarCriteria("Acme", "Jane Doe", "jane@acme.example",
+        assertThat(service.criteria).isEqualTo(new FlatCriteria("Acme", "Jane Doe", "jane@acme.example",
                 "+4916057123456", LocalDate.of(2020, 1, 1), LocalDate.of(2021, 6, 15), "Germany", "Berlin",
                 "10115", "Main Street", "1", CreditRating.GOOD, BigDecimal.valueOf(50_000)));
     }
@@ -41,7 +41,7 @@ class ScalarToolCallingServiceToolsTest {
     void allNullArgumentsCaptureAllNullCriteria() {
         service.searchCustomers(null, null, null, null, null, null, null, null, null, null, null, null, null);
 
-        assertThat(service.criteria).isEqualTo(new ScalarCriteria(
+        assertThat(service.criteria).isEqualTo(new FlatCriteria(
                 null, null, null, null, null, null, null, null, null, null, null, null, null));
         assertThat(service.criteria.isEmpty()).isTrue();
     }

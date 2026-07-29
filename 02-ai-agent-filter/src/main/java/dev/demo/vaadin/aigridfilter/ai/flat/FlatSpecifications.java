@@ -1,4 +1,4 @@
-package dev.demo.vaadin.aigridfilter.ai.scalar;
+package dev.demo.vaadin.aigridfilter.ai.flat;
 
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -12,11 +12,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Translates a {@link ScalarCriteria} into a JPA {@link Specification}: one predicate per non-null
+ * Translates a {@link FlatCriteria} into a JPA {@link Specification}: one predicate per non-null
  * field, all AND-combined. {@code null} criteria (e.g. when the LLM never called the search tool)
  * matches every customer.
  * <p>
- * Because {@link ScalarCriteria} carries no operator, every field's comparison is hard-wired here:
+ * Because {@link FlatCriteria} carries no operator, every field's comparison is hard-wired here:
  * <ul>
  *   <li>text fields — case-insensitive substring match,</li>
  *   <li>{@code customerSince} / {@code lastOrderDate} — the whole calendar year the given date falls
@@ -28,12 +28,12 @@ import java.util.List;
  * These baked-in semantics are exactly what variant 02(b) replaces with an explicit
  * {@code Operator} per field.
  */
-public final class ScalarSpecifications {
+public final class FlatSpecifications {
 
-    private ScalarSpecifications() {
+    private FlatSpecifications() {
     }
 
-    public static Specification<Customer> from(ScalarCriteria criteria) {
+    public static Specification<Customer> from(FlatCriteria criteria) {
         if (criteria == null) {
             return (root, query, cb) -> cb.conjunction();
         }

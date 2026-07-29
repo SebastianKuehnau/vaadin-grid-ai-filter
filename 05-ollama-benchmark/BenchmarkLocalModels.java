@@ -163,8 +163,8 @@ public class BenchmarkLocalModels {
     private static final Set<Approach> CONDITION_LIST_APPROACHES =
             Set.of(Approach.STRUCTURED, Approach.CONDITION_TOOL_CALLING);
 
-    /** Everything except 02(a), whose scalar-only tool has neither an operator nor a negate flag. */
-    private static final Set<Approach> EXCEPT_SCALAR = Set.of(Approach.OPERATOR_TOOL_CALLING,
+    /** Everything except 02(a), whose flat-only tool has neither an operator nor a negate flag. */
+    private static final Set<Approach> EXCEPT_FLAT = Set.of(Approach.OPERATOR_TOOL_CALLING,
             Approach.STRUCTURED, Approach.CONDITION_TOOL_CALLING);
 
     /** The 13 fields every approach can express (the per-field variants' tool parameters, and the subset
@@ -198,11 +198,11 @@ public class BenchmarkLocalModels {
                 TextExpectation.of("city", new String[]{"CONTAINS", "EQUALS"}, "berlin"),
                 TextExpectation.of("city", new String[]{"CONTAINS", "EQUALS"}, "hamburg")));
         cases.add(EvalCase.canonical("C3_NEGATION", "show me all customers except from Berlin",
-                EXCEPT_SCALAR,
+                EXCEPT_FLAT,
                 TextExpectation.of("city", new String[]{"NOT_CONTAINS", "NOT_EQUALS"}, "berlin")));
         cases.add(EvalCase.canonical("C4_OPERATOR_PRECISION",
                 "show me all customers with an \"m\" as the first character in the contact name",
-                EXCEPT_SCALAR,
+                EXCEPT_FLAT,
                 TextExpectation.of("contactName", "STARTS_WITH", "m")));
         cases.add(EvalCase.canonical("C5_COMBINED_AND", "creditworthy customers in Hamburg",
                 ALL_APPROACHES,
@@ -214,7 +214,7 @@ public class BenchmarkLocalModels {
                 new NumericAtMost("annualRevenue", BigDecimal.valueOf(250_000))));
         cases.add(EvalCase.canonical("C7_RELATIVE_DATE",
                 "show me all customers who placed an order in the last 12 months",
-                EXCEPT_SCALAR,
+                EXCEPT_FLAT,
                 TextExpectation.of("lastOrderDate", "GREATER_OR_EQUAL", "")));
         cases.add(EvalCase.canonical("C8_DATE_RANGE",
                 "customers who last ordered between 2024-07-01 and 2025-03-31",
@@ -354,7 +354,7 @@ public class BenchmarkLocalModels {
      * tool schema) is extracted from at runtime, so the eval can never drift from the running apps.
      */
     enum Approach {
-        SCALAR_TOOL_CALLING("02a-scalar", "02-ai-agent-filter", "scalar/ScalarToolCallingService.java"),
+        FLAT_TOOL_CALLING("02a-flat", "02-ai-agent-filter", "flat/FlatToolCallingService.java"),
         OPERATOR_TOOL_CALLING("02b-operator", "02-ai-agent-filter", "operator/OperatorToolCallingService.java"),
         STRUCTURED("03-structured", "03-ai-structured-filter", "CustomerSearchStructuredOutputService.java"),
         CONDITION_TOOL_CALLING("04-hybrid", "04-ai-hybrid-filter", "CustomerSearchHybridToolCallingService.java");
@@ -1266,7 +1266,7 @@ public class BenchmarkLocalModels {
         }
         if (!(parsed instanceof Map<?, ?> args)) return List.of();
         return switch (approach) {
-            case SCALAR_TOOL_CALLING -> scalarLeaves(args);
+            case FLAT_TOOL_CALLING -> flatLeaves(args);
             case OPERATOR_TOOL_CALLING -> operatorLeaves(args);
             case CONDITION_TOOL_CALLING -> conditionLeaves(args);
             case STRUCTURED -> throw new IllegalStateException("Structured output does not call a tool");
@@ -1274,7 +1274,7 @@ public class BenchmarkLocalModels {
     }
 
     /** 02(a): one scalar value per field, no operator and no negate flag anywhere. */
-    private static List<Leaf> scalarLeaves(Map<?, ?> args) {
+    private static List<Leaf> flatLeaves(Map<?, ?> args) {
         List<Leaf> leaves = new ArrayList<>();
         for (Map.Entry<?, ?> entry : args.entrySet()) {
             if (entry.getValue() == null) continue;

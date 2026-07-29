@@ -7,7 +7,7 @@ import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 
 /**
- * Variant <b>02(a)</b>'s view (routes {@code /} and {@code /scalar}): natural-language filtering
+ * Variant <b>02(a)</b>'s view (routes {@code /} and {@code /flat}): natural-language filtering
  * through a tool call with one scalar value per field. Sibling of {@link OperatorCustomerListView},
  * which serves variant 02(b) from the same running application.
  * <p>
@@ -16,11 +16,11 @@ import org.springframework.beans.factory.annotation.Qualifier;
  * them. The view itself still knows nothing beyond the {@link CustomerSearchAgent} interface.
  */
 @Route("")
-@RouteAlias("scalar")
-public class ScalarCustomerListView extends AbstractCustomerListView {
+@RouteAlias("flat")
+public class FlatCustomerListView extends AbstractCustomerListView {
 
-    public ScalarCustomerListView(CustomerRepository customerRepository,
-                                  @Qualifier("scalarSearchAgent") CustomerSearchAgent searchAgent) {
+    public FlatCustomerListView(CustomerRepository customerRepository,
+                                 @Qualifier("flatSearchAgent") CustomerSearchAgent searchAgent) {
         super(customerRepository, searchAgent,
                 "Customer Grid – AI Filter 02(a)",
                 "Tool calling with one scalar value per field: no operator, no negation, "

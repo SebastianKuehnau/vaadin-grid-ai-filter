@@ -26,7 +26,7 @@ import static org.awaitility.Awaitility.await;
 
 /**
  * Browserless UI test of variant 02(b)'s {@link OperatorCustomerListView} — the sibling of
- * {@link ScalarCustomerListViewBrowserlessTest}, with a fake {@link CustomerSearchAgent} instead of a
+ * {@link FlatCustomerListViewBrowserlessTest}, with a fake {@link CustomerSearchAgent} instead of a
  * real model. {@link #NEGATED_QUERY} goes through the real {@link OperatorSpecifications} with a
  * negated condition, so 02(b)'s distinguishing capability is exercised end to end through the UI and
  * not only at the unit-test level.

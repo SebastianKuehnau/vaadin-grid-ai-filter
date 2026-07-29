@@ -23,9 +23,9 @@ point of this document now.
 Tool calling and structured output are two ways for the model to *deliver* a filter. What a filter can
 *express* is decided by its **type**, independently of how it is delivered.
 
-| | 02(a) scalar | 02(b) value+operator+negate | 03 structured output | 04 hybrid |
+| | 02(a) flat | 02(b) value+operator+negate | 03 structured output | 04 hybrid |
 |---|---|---|---|---|
-| Filter type | `ScalarCriteria` — one scalar value per field | `OperatorCriteria` — one value **+ operator + negate** per field | `CustomerFilter` = `List<Condition>` | **the same** `CustomerFilter` = `List<Condition>` |
+| Filter type | `FlatCriteria` — one scalar value per field | `OperatorCriteria` — one value **+ operator + negate** per field | `CustomerFilter` = `List<Condition>` | **the same** `CustomerFilter` = `List<Condition>` |
 | Semantics | hard-wired per field (text = CONTAINS, date = whole calendar year, revenue = minimum) | chosen per field via `Operator` + `negate` | chosen per condition via `Operator` + `negate` | chosen per condition via `Operator` + `negate` |
 | Delivery | model **calls** `@Tool searchCustomers(...)`, 13 parameters | model **calls** `@Tool searchCustomers(...)`, **39** parameters | model **returns** one JSON object via `.responseEntity(CustomerFilter.class)` | model **calls** `@Tool searchCustomers(List<Condition>)`, **1** parameter |
 | Multi-value OR / ranges | ❌ / ❌ | ❌ / ❌ | ✅ / ✅ | ✅ / ✅ |

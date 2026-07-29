@@ -30,7 +30,7 @@ import java.util.concurrent.CompletionException;
  * resulting {@link Specification} onto the grid — no Spring AI, no criteria building.
  * <p>
  * The two subclasses differ only in which {@link CustomerSearchAgent} implementation Spring injects
- * (variant 02(a)'s scalar tool call vs. variant 02(b)'s value/operator/negate tool call) and in their
+ * (variant 02(a).s flat tool call vs. variant 02(b)'s value/operator/negate tool call) and in their
  * headings; the search plumbing lives here exactly once.
  */
 abstract class AbstractCustomerListView extends VerticalLayout {
@@ -74,7 +74,7 @@ abstract class AbstractCustomerListView extends VerticalLayout {
     private HorizontalLayout variantSwitcher() {
         HorizontalLayout switcher = new HorizontalLayout(
                 new Span("Variant:"),
-                variantLink("02(a) scalar", ScalarCustomerListView.class),
+                variantLink("02(a) flat", FlatCustomerListView.class),
                 variantLink("02(b) value + operator + negate", OperatorCustomerListView.class));
         switcher.setAlignItems(Alignment.CENTER);
         return switcher;

@@ -21,18 +21,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 /**
- * Browserless UI test of variant 02(a)'s {@link ScalarCustomerListView}, following
+ * Browserless UI test of variant 02(a)'s {@link FlatCustomerListView}, following
  * {@code 01-non-ai-filter}'s {@code SpringBrowserlessTest} pattern. Wires a fake, deterministic
  * {@link CustomerSearchAgent} bean instead of calling a real model, so this test never talks to an
  * LLM. The real search runs off the UI thread ({@code CompletableFuture} + {@code ui.access(...)}), so
  * grid assertions after a non-blank query use Awaitility rather than asserting immediately.
  * <p>
- * The fake carries the {@code scalarSearchAgent} qualifier of the real bean and is {@code @Primary},
+ * The fake carries the {@code flatSearchAgent} qualifier of the real bean and is {@code @Primary},
  * so it wins for this view's injection point without touching variant 02(b)'s wiring.
  */
 @SpringBootTest
-@ViewPackages(classes = ScalarCustomerListView.class)
-class ScalarCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
+@ViewPackages(classes = FlatCustomerListView.class)
+class FlatCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
 
     @Autowired
     private CustomerRepository customerRepository;
@@ -43,8 +43,8 @@ class ScalarCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
         /** Ignores the query text and always narrows the grid to a single, known company. */
         @Bean
         @Primary
-        @Qualifier("scalarSearchAgent")
-        CustomerSearchAgent fakeScalarSearchAgent() {
+        @Qualifier("flatSearchAgent")
+        CustomerSearchAgent fakeFlatSearchAgent() {
             return _ -> (root, criteriaQuery, criteriaBuilder) ->
                     criteriaBuilder.equal(root.get("companyName"), "Berlin Data Works");
         }
@@ -52,7 +52,7 @@ class ScalarCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
 
     @Test
     void typingQueryNarrowsGridToFakeAgentsResult() {
-        ScalarCustomerListView view = navigate(ScalarCustomerListView.class);
+        FlatCustomerListView view = navigate(FlatCustomerListView.class);
         test(view.filterField).setValue("anything - the fake agent ignores the actual text");
 
         GridTester<?, Customer> grid = test(view.grid);
@@ -68,7 +68,7 @@ class ScalarCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
 
     @Test
     void blankQueryResetsToAllRows() {
-        ScalarCustomerListView view = navigate(ScalarCustomerListView.class);
+        FlatCustomerListView view = navigate(FlatCustomerListView.class);
         test(view.filterField).setValue("narrow it first");
 
         GridTester<?, Customer> grid = test(view.grid);

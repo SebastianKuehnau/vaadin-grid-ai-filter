@@ -101,7 +101,7 @@ Use the root Maven wrapper (`./mvnw`) from the repository root. Modules have no 
 
 ```bash
 ./mvnw -pl 01-non-ai-filter        spring-boot:run   # http://localhost:8081 (/ or /in-memory, and /lazy)
-./mvnw -pl 02-ai-agent-filter      spring-boot:run   # http://localhost:8082 (/ or /scalar, and /operator)
+./mvnw -pl 02-ai-agent-filter      spring-boot:run   # http://localhost:8082 (/ or /flat, and /operator)
 ./mvnw -pl 03-ai-structured-filter spring-boot:run   # http://localhost:8083
 ./mvnw -pl 04-ai-hybrid-filter     spring-boot:run   # http://localhost:8084
 ```

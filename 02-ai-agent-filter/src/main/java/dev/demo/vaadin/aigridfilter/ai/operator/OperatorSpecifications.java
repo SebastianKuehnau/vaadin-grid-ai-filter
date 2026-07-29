@@ -19,7 +19,7 @@ import java.util.List;
  * optionally flipped by its {@code negate} flag. {@code null} criteria (e.g. when the LLM never
  * called the search tool) matches every customer.
  * <p>
- * Unlike variant 02(a)'s {@code ScalarSpecifications}, the comparison is no longer hard-wired per
+ * Unlike variant 02(a)'s {@code FlatSpecifications}, the comparison is no longer hard-wired per
  * field — text fields can do CONTAINS / EQUALS / STARTS_WITH / ENDS_WITH, and dates get real
  * day-level bounds instead of whole-calendar-year matching. What is still impossible here is a
  * <em>second</em> predicate on the same field, so no OR of values and no range.

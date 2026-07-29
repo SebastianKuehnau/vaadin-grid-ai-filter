@@ -10,7 +10,7 @@ them without a restart:
 
 | Variant | Route | Tool signature | Adds | Still out of reach |
 |---|---|---|---|---|
-| **02(a)** scalar | `/` (alias `/scalar`) | 13 parameters — one scalar value per field | nothing (the simplest possible tool call) | negation, operator precision, multi-value OR, ranges, date bounds |
+| **02(a)** flat | `/` (alias `/flat`) | 13 parameters — one scalar value per field | nothing (the simplest possible tool call) | negation, operator precision, multi-value OR, ranges, date bounds |
 | **02(b)** value + operator + negate | `/operator` | **39** parameters — value, `Operator`, `negate` per field | negation, operator precision, day-level date bounds | multi-value OR, any range (revenue or date) |
 
 The interesting part is 02(b)'s bill: **three times** the tool parameters of 02(a) buys exactly two
@@ -21,7 +21,7 @@ as structured output, 04 as a tool call. Compare with the non-AI baselines in `0
 
 ## Views
 
-- **`/`** (alias `/scalar`) — `ScalarCustomerListView`, variant 02(a).
+- **`/`** (alias `/flat`) — `FlatCustomerListView`, variant 02(a).
 - **`/operator`** — `OperatorCustomerListView`, variant 02(b).
 - **`AbstractCustomerListView`** — everything the two share: one natural-language `TextField` above the
   grid, the async search (`CompletableFuture` + `ui.access(...)`), the error notification, and a
@@ -36,7 +36,7 @@ as structured output, 04 as a tool call. Compare with the non-AI baselines in `0
 
 Both agents implement the same `CustomerSearchAgent` interface, so they are interchangeable from the
 view's point of view. Because there are two implementations, each view injects its own by **bean name**
-(`@Qualifier("scalarSearchAgent")` / `@Qualifier("operatorSearchAgent")`) instead of by type.
+(`@Qualifier("flatSearchAgent")` / `@Qualifier("operatorSearchAgent")`) instead of by type.
 
 ## AI layer (`ai`)
 
@@ -44,10 +44,10 @@ view's point of view. Because there are two implementations, each view injects i
 ai/
 ├── CustomerSearchAgent.java            (public interface — the views' only dependency, the testability seam)
 ├── TokenUsageRecorder.java             (@Component — per-request token usage and duration)
-├── scalar/                             ← variant 02(a)
-│   ├── ScalarToolCallingService.java   (@Service("scalarSearchAgent") @Scope("prototype") — ChatClient, system prompt, the @Tool method)
-│   ├── ScalarCriteria.java             (public record — one scalar value per field)
-│   └── ScalarSpecifications.java       (public final utility — AND-across-fields -> Specification<Customer>)
+├── flat/                             ← variant 02(a)
+│   ├── FlatToolCallingService.java   (@Service("flatSearchAgent") @Scope("prototype") — ChatClient, system prompt, the @Tool method)
+│   ├── FlatCriteria.java             (public record — one scalar value per field)
+│   └── FlatSpecifications.java       (public final utility — AND-across-fields -> Specification<Customer>)
 └── operator/                           ← variant 02(b)
     ├── OperatorToolCallingService.java (@Service("operatorSearchAgent") @Scope("prototype") — 39 flat @ToolParams + the date tool)
     ├── Operator.java                   (public enum — CONTAINS, EQUALS, GREATER_OR_EQUAL, LESS_OR_EQUAL, STARTS_WITH, ENDS_WITH)
@@ -70,8 +70,8 @@ model, ...) it falls back to an unrestricted specification, so the UI never brea
 ### Variant 02(a) — one scalar value per field
 
 The simplest tool call that can still filter: `searchCustomers(companyName, contactName, …, annualRevenue)`,
-one scalar parameter per field, no `List` anywhere, no second tool. Because `ScalarCriteria` carries no
-operator, every field's meaning is hard-wired in `ScalarSpecifications`:
+one scalar parameter per field, no `List` anywhere, no second tool. Because `FlatCriteria` carries no
+operator, every field's meaning is hard-wired in `FlatSpecifications`:
 
 - text fields — case-insensitive substring match,
 - `customerSince` / `lastOrderDate` — the **whole calendar year** the given date falls in,
@@ -126,7 +126,7 @@ computed day-level date could do.
 ## Running
 
 ```bash
-./mvnw -pl 02-ai-agent-filter spring-boot:run   # http://localhost:8082 (/ or /scalar, and /operator)
+./mvnw -pl 02-ai-agent-filter spring-boot:run   # http://localhost:8082 (/ or /flat, and /operator)
 ```
 
 ### Switching LLM backends
@@ -190,16 +190,16 @@ Without an LLM (`test`), per variant:
 - **`CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring) — fails the build if either variant's
   canonical-query IT, or the benchmark script, stops matching `docs/canonical-query-set.md` verbatim, in
   wording or order.
-- **`ScalarSpecificationsTest` / `OperatorSpecificationsTest`** (`@DataJpaTest`) — the filter
+- **`FlatSpecificationsTest` / `OperatorSpecificationsTest`** (`@DataJpaTest`) — the filter
   translation against the seeded H2 data: one test per field group, AND-across-fields, and
   null-matches-all. Each also **asserts the variant's ceiling** (02(a): a date is always a whole year,
   revenue is always a minimum; 02(b): one operator per field means no range), so the limits are pinned
   down by tests rather than only described in prose.
-- **`ScalarToolCallingServiceToolsTest` / `OperatorToolCallingServiceToolsTest`** (plain JUnit, no
+- **`FlatToolCallingServiceToolsTest` / `OperatorToolCallingServiceToolsTest`** (plain JUnit, no
   Spring context) — the extraction plumbing in isolation: arguments must land verbatim in the criteria
   record, a missing operator must default to `CONTAINS`, a field without a value must stay unset, and
   02(b)'s date tool must return the current time.
-- **`ScalarCustomerListViewBrowserlessTest` / `OperatorCustomerListViewBrowserlessTest`** — [Vaadin
+- **`FlatCustomerListViewBrowserlessTest` / `OperatorCustomerListViewBrowserlessTest`** — [Vaadin
   Browserless testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake,
   deterministic `CustomerSearchAgent` bean, so they never call a real model. Since the view applies
   results asynchronously (`CompletableFuture` + `ui.access(...)`), assertions after a non-blank query use
@@ -209,7 +209,7 @@ Without an LLM (`test`), per variant:
 
 Against a real model (`verify -Pit-local-ollama`):
 
-- **`ScalarCanonicalQueryIT` / `OperatorCanonicalQueryIT`** — the eight queries of
+- **`FlatCanonicalQueryIT` / `OperatorCanonicalQueryIT`** — the eight queries of
   `docs/canonical-query-set.md`, each scored on the **resulting customer set**: the variant's
   `Specification` is executed against the seeded database and the matching customer ids are compared with
   those of a reference predicate. Queries the variant cannot express are marked `FAILS_BY_DESIGN` and
@@ -217,7 +217,7 @@ Against a real model (`verify -Pit-local-ollama`):
   down by tests, and an accidental pass fails the build instead of going unnoticed. `03-ai-structured-filter`
   and `04-ai-hybrid-filter` run the identical queries, which is what makes the capability matrix a
   measurement.
-- **`ScalarCustomerListViewBrowserlessIT` / `OperatorCustomerListViewBrowserlessIT`** — the same
+- **`FlatCustomerListViewBrowserlessIT` / `OperatorCustomerListViewBrowserlessIT`** — the same
   Browserless setup, but against a real native Ollama instance instead of a fake agent bean (they fail
   rather than skipping if unreachable), exercising the full `TextField` → tool-calling AI layer → `Grid`
   pipeline end to end. Since the real model's result size isn't known upfront, the wait condition is

@@ -8,10 +8,10 @@ import org.springframework.beans.factory.annotation.Qualifier;
 /**
  * Variant <b>02(b)</b>'s view (route {@code /operator}): natural-language filtering through a tool
  * call that carries a value, an operator and a negate flag per field. Sibling of
- * {@link ScalarCustomerListView}, which serves variant 02(a) from the same running application, so a
+ * {@link FlatCustomerListView}, which serves variant 02(a) from the same running application, so a
  * talk can switch between the two variants live.
  * <p>
- * The agent is injected by bean name — see {@link ScalarCustomerListView}.
+ * The agent is injected by bean name — see {@link FlatCustomerListView}.
  */
 @Route("operator")
 public class OperatorCustomerListView extends AbstractCustomerListView {

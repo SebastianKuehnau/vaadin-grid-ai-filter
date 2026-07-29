@@ -25,7 +25,7 @@ import static org.awaitility.Awaitility.await;
 
 /**
  * Browserless UI integration test of variant <b>02(b)</b> against a real AI backend — the sibling of
- * {@link ScalarCustomerListViewBrowserlessIT}, for the value/operator/negate tool call. On top of the
+ * {@link FlatCustomerListViewBrowserlessIT}, for the value/operator/negate tool call. On top of the
  * queries both variants can express, it covers the two capabilities 02(b) adds: negation and operator
  * precision, both asserted on the resulting grid rows.
  * <p>
@@ -147,7 +147,7 @@ class OperatorCustomerListViewBrowserlessIT extends SpringBrowserlessTest {
         }
     }
 
-    /** See {@link ScalarCustomerListViewBrowserlessIT#search} — same async-search handshake. */
+    /** See {@link FlatCustomerListViewBrowserlessIT#search} — same async-search handshake. */
     private GridTester<?, Customer> search(String query) {
         OperatorCustomerListView view = navigate(OperatorCustomerListView.class);
         test(view.filterField).setValue(query);

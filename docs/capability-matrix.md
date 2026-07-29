@@ -5,9 +5,9 @@ modules' integration-test suites and the `05-ollama-benchmark` harness. Companio
 [tool-calling-vs-structured-output.md](tool-calling-vs-structured-output.md) and
 [canonical-query-set.md](canonical-query-set.md).
 
-- **02(a) = `02-ai-agent-filter`, scalar variant** — tool calling; the LLM calls
+- **02(a) = `02-ai-agent-filter`, flat variant** — tool calling; the LLM calls
   `@Tool searchCustomers(...)` with **13** parameters, one scalar value per field →
-  `ScalarCriteria` → `ScalarSpecifications`. No operator, no negation.
+  `FlatCriteria` → `FlatSpecifications`. No operator, no negation.
 - **02(b) = `02-ai-agent-filter`, operator variant** — tool calling; the same tool with **39**
   parameters, a value + `Operator` + `negate` per field → `OperatorCriteria` →
   `OperatorSpecifications`.
@@ -43,7 +43,7 @@ those of a reference predicate — not on whether the extracted filter "looks ri
 | Date range — "between 2024-07-01 and 2025-03-31" (`C8_DATE_RANGE`) | ❌ | ❌ | ✅ | ✅ | 4 |
 | **Categories reached** | **2 / 8** | **5 / 8** | **8 / 8** | **8 / 8** | |
 
-Evidence: `ScalarCanonicalQueryIT`, `OperatorCanonicalQueryIT` (both in `02-ai-agent-filter`) and
+Evidence: `FlatCanonicalQueryIT`, `OperatorCanonicalQueryIT` (both in `02-ai-agent-filter`) and
 `CanonicalQueryIT` (in `03-ai-structured-filter` and `04-ai-hybrid-filter`). The ❌ cells are not skipped
 — they run, and the IT asserts that the resulting set *differs* from the expected one, so a ceiling is a
 recorded, non-erroring failure. If such a case ever matched, the test would fail loudly.
@@ -72,7 +72,7 @@ so every row answers the identical questions. Token counts were identical in all
 
 | Approach | Tool/schema shape | Tokens/request | prompt | completion | Duration/request |
 |---|---|---|---|---|---|
-| 02(a) scalar | 13 flat parameters | **1154** | 1120 | 34 | 2856 ms |
+| 02(a) flat | 13 flat parameters | **1154** | 1120 | 34 | 2856 ms |
 | 02(b) value+operator+negate | 39 flat parameters | **3248** | 3154 | 94 | 6071 ms |
 | 03 structured output | `CustomerFilter` response schema | **2307** | 2243 | 64 | 4089 ms |
 | 04 hybrid | 1 `List<Condition>` parameter | **2358** | 2288 | 70 | 5128 ms |

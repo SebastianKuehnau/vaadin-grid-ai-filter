@@ -34,7 +34,7 @@ import java.time.LocalDateTime;
  * entirely, which is what {@code 03-ai-structured-filter} (structured output) and
  * {@code 04-ai-hybrid-filter} (the same condition list, delivered as a tool call) do.
  * <p>
- * {@code @Scope("prototype")}: see {@code ScalarToolCallingService} — one instance per Vaadin view, so
+ * {@code @Scope("prototype")}: see {@code FlatToolCallingService} — one instance per Vaadin view, so
  * {@link #criteria} can live on the bean.
  */
 @Service("operatorSearchAgent")

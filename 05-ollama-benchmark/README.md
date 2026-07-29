@@ -6,7 +6,7 @@ approaches this project demos:
 
 | `--approach=` | Module | Filter type | Delivery |
 | --- | --- | --- | --- |
-| `02a` | `02-ai-agent-filter`, scalar variant | one scalar value per field | tool call, 13 parameters |
+| `02a` | `02-ai-agent-filter`, flat variant | one scalar value per field | tool call, 13 parameters |
 | `02b` | `02-ai-agent-filter`, operator variant | value + `Operator` + `negate` per field | tool call, 39 parameters |
 | `03` | `03-ai-structured-filter` | `CustomerFilter` = `List<Condition>` | structured output |
 | `04` | `04-ai-hybrid-filter` | the same `List<Condition>` | tool call, 1 parameter |
@@ -53,7 +53,7 @@ approaches, the real `searchCustomers` tool/argument schema — extracted at run
 production source, never hard-coded, so the eval cannot drift from what the apps do:
 
 - **`02a`**: `SYSTEM_PROMPT` plus the 13 scalar `@ToolParam`s of
-  `../02-ai-agent-filter/.../ai/scalar/ScalarToolCallingService.java`.
+  `../02-ai-agent-filter/.../ai/flat/FlatToolCallingService.java`.
 - **`02b`**: `SYSTEM_PROMPT` plus the 39 `@ToolParam`s of
   `../02-ai-agent-filter/.../ai/operator/OperatorToolCallingService.java`. Its operator/negate
   descriptions are shared `static final String` constants in that class (13 fields would otherwise repeat

@@ -1,4 +1,4 @@
-package dev.demo.vaadin.aigridfilter.ai.scalar;
+package dev.demo.vaadin.aigridfilter.ai.flat;
 
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
 import dev.demo.vaadin.aigridfilter.ai.TokenUsageRecorder;
@@ -23,7 +23,7 @@ import java.time.LocalDate;
  * Variant <b>02(a)</b> of the tool-calling AI layer — the simplest rung of the escalation ladder:
  * the model calls one {@code searchCustomers} tool with <em>one scalar value per field</em>. No
  * {@code List} parameter (so no OR within a field), no operator, no negation, and no live-clock tool.
- * Everything the filter can mean is baked into {@link ScalarSpecifications}.
+ * Everything the filter can mean is baked into {@link FlatSpecifications}.
  * <p>
  * Variant 02(b) ({@code ai/operator}) is the same delivery mechanism with an operator and a negate
  * flag added per field; see {@code OperatorToolCallingService}.
@@ -35,11 +35,11 @@ import java.time.LocalDate;
  * disables the filter field for the duration of a search). {@link #criteria} is reset explicitly at
  * the top of {@link #requestCriteria}, since it now outlives a single call.
  */
-@Service("scalarSearchAgent")
+@Service("flatSearchAgent")
 @Scope("prototype")
-class ScalarToolCallingService implements CustomerSearchAgent {
+class FlatToolCallingService implements CustomerSearchAgent {
 
-    private static final Logger logger = LoggerFactory.getLogger(ScalarToolCallingService.class);
+    private static final Logger logger = LoggerFactory.getLogger(FlatToolCallingService.class);
 
     private static final String SYSTEM_PROMPT = """
             You are a helpful assistant that helps users find customers based on their
@@ -57,9 +57,9 @@ class ScalarToolCallingService implements CustomerSearchAgent {
     private final ChatClient chatClient;
     private final TokenUsageRecorder tokenUsageRecorder;
 
-    ScalarCriteria criteria;
+    FlatCriteria criteria;
 
-    ScalarToolCallingService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
+    FlatToolCallingService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
         this.chatClient = ChatClient.builder(chatModel).build();
         this.tokenUsageRecorder = tokenUsageRecorder;
     }
@@ -71,7 +71,7 @@ class ScalarToolCallingService implements CustomerSearchAgent {
      */
     @Override
     public Specification<Customer> resolveFilter(String naturalLanguageQuery) {
-        return ScalarSpecifications.from(requestCriteria(naturalLanguageQuery));
+        return FlatSpecifications.from(requestCriteria(naturalLanguageQuery));
     }
 
     /**
@@ -79,7 +79,7 @@ class ScalarToolCallingService implements CustomerSearchAgent {
      * Package-private so the AI layer can be tested directly on the produced criteria. Returns
      * {@code null} if the model produces nothing usable, so the UI never breaks on a bad response.
      */
-    ScalarCriteria requestCriteria(String naturalLanguageQuery) {
+    FlatCriteria requestCriteria(String naturalLanguageQuery) {
         criteria = null;
         try {
             // Capture the ChatResponse (instead of discarding .content()) to read its token usage.
@@ -147,7 +147,7 @@ class ScalarToolCallingService implements CustomerSearchAgent {
                     500000. Only a lower bound is supported - "under 50000" and "between 50000 and
                     200000" cannot be expressed.""") BigDecimal annualRevenue
     ) {
-        ScalarCriteria incoming = new ScalarCriteria(companyName, contactName, email, phone, customerSince,
+        FlatCriteria incoming = new FlatCriteria(companyName, contactName, email, phone, customerSince,
                 lastOrderDate, country, city, postalCode, street, houseNumber, creditRating, annualRevenue);
 
         // A tool call is a message the model can repeat: since the tool is void, Spring AI answers it

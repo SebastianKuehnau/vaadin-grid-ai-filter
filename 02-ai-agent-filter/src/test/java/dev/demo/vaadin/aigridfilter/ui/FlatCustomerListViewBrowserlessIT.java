@@ -26,14 +26,14 @@ import static org.awaitility.Awaitility.await;
 /**
  * Browserless UI integration test of variant <b>02(a)</b> against a real AI backend — no fake
  * {@code CustomerSearchAgent} bean. Verifies the full pipeline end to end: typing a natural-language
- * query, the real scalar tool-calling AI layer resolving it, and the grid showing the right rows.
- * Complements {@link ScalarCustomerListViewBrowserlessTest} (fast, fake agent, no LLM) and
- * {@code ScalarCanonicalQueryIT} (real backend, but bypasses the UI).
+ * query, the real flat tool-calling AI layer resolving it, and the grid showing the right rows.
+ * Complements {@link FlatCustomerListViewBrowserlessTest} (fast, fake agent, no LLM) and
+ * {@code FlatCanonicalQueryIT} (real backend, but bypasses the UI).
  * <p>
  * Only queries this variant can actually express are covered here: one value per field, AND across
  * fields, revenue as a minimum. Multi-value OR, negation, operator precision and date bounds are
  * architecturally out of reach for 02(a) — their expected failures are recorded, per canonical query,
- * in {@code ScalarCanonicalQueryIT} instead of being retried here.
+ * in {@code FlatCanonicalQueryIT} instead of being retried here.
  * <p>
  * Which Spring profile {@code AI_TEST_PROFILE} selects comes from
  * {@code src/test/resources/application.properties}, so the ITs target a native Ollama instance by
@@ -41,9 +41,9 @@ import static org.awaitility.Awaitility.await;
  * skipping.
  */
 @SpringBootTest
-@ViewPackages(classes = ScalarCustomerListView.class)
+@ViewPackages(classes = FlatCustomerListView.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class ScalarCustomerListViewBrowserlessIT extends SpringBrowserlessTest {
+class FlatCustomerListViewBrowserlessIT extends SpringBrowserlessTest {
 
     @Autowired
     private CustomerRepository customerRepository;
@@ -58,7 +58,7 @@ class ScalarCustomerListViewBrowserlessIT extends SpringBrowserlessTest {
 
     @AfterAll
     void logTokenSummary() {
-        tokenUsageRecorder.logSummary("ScalarCustomerListViewBrowserlessIT");
+        tokenUsageRecorder.logSummary("FlatCustomerListViewBrowserlessIT");
     }
 
     @Test
@@ -136,7 +136,7 @@ class ScalarCustomerListViewBrowserlessIT extends SpringBrowserlessTest {
      * answer ends up matching.
      */
     private GridTester<?, Customer> search(String query) {
-        ScalarCustomerListView view = navigate(ScalarCustomerListView.class);
+        FlatCustomerListView view = navigate(FlatCustomerListView.class);
         test(view.filterField).setValue(query);
 
         await().pollInSameThread().atMost(Duration.ofSeconds(90)).untilAsserted(() -> {

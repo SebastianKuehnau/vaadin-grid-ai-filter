@@ -10,7 +10,7 @@ import java.time.LocalDate;
  * {@link Operator}, one {@code negate} flag. Every field is optional ({@code null} means "don't
  * filter on this"); all given fields are combined with AND by {@link OperatorSpecifications#from}.
  * <p>
- * Compared with variant 02(a)'s {@code ScalarCriteria} this triples the tool-parameter count (13
+ * Compared with variant 02(a)'s {@code FlatCriteria} this triples the tool-parameter count (13
  * fields × 3 parameters = 39) and buys exactly two capabilities: negation and operator precision
  * (EQUALS / STARTS_WITH / ENDS_WITH, day-level date bounds). What it still cannot express, by
  * construction, is multi-value OR within a field and any value range — see {@link FieldCriterion}.

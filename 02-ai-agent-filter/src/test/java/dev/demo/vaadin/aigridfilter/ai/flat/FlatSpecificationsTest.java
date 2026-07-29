@@ -1,4 +1,4 @@
-package dev.demo.vaadin.aigridfilter.ai.scalar;
+package dev.demo.vaadin.aigridfilter.ai.flat;
 
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
@@ -15,7 +15,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Deterministic, fast test of variant 02(a)'s filter translation ({@link ScalarCriteria} -> JPA
+ * Deterministic, fast test of variant 02(a)'s filter translation ({@link FlatCriteria} -> JPA
  * {@code Specification}) against the seeded H2 database — no LLM, no Docker. One test per field
  * group, plus the AND-across-fields combination and the null-matches-all cases.
  * <p>
@@ -24,13 +24,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE) // keep configured H2 + data.sql
-class ScalarSpecificationsTest {
+class FlatSpecificationsTest {
 
     @Autowired
     CustomerRepository repository;
 
-    private List<Customer> findAll(ScalarCriteria criteria) {
-        return repository.findAll(ScalarSpecifications.from(criteria));
+    private List<Customer> findAll(FlatCriteria criteria) {
+        return repository.findAll(FlatSpecifications.from(criteria));
     }
 
     /** Base criteria with every field unset; individual tests set the one field they exercise. */
@@ -68,8 +68,8 @@ class ScalarSpecificationsTest {
         Builder creditRating(CreditRating value) { this.creditRating = value; return this; }
         Builder annualRevenue(BigDecimal value) { this.annualRevenue = value; return this; }
 
-        ScalarCriteria build() {
-            return new ScalarCriteria(companyName, contactName, email, phone, customerSince, lastOrderDate,
+        FlatCriteria build() {
+            return new FlatCriteria(companyName, contactName, email, phone, customerSince, lastOrderDate,
                     country, city, postalCode, street, houseNumber, creditRating, annualRevenue);
         }
     }
