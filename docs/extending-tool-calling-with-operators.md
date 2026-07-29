@@ -72,7 +72,7 @@ that "tool calling vs. structured output" is a question of *delivery*, not *capa
   enum and a negate flag) tends to be harder for a small model to fill correctly than a single
   structured JSON object. This is the same reliability axis measured in the comparison document —
   where structured output on the weaker `llama3.1:8b` already dropped one bound of a date range
-  (`notInCityWithRevenueAndYear`, `04-ollama-benchmark`, `--runs=5`). A more complex tool schema would
+  (`notInCityWithRevenueAndYear`, `05-ollama-benchmark`, `--runs=5`). A more complex tool schema would
   have to be re-benchmarked, not assumed to be free.
 - **Effort is modest but not zero.** The predicate logic already exists in 03's
   `CustomerFilterSpecifications`; most of the work is copying `Operator` / `Condition` /

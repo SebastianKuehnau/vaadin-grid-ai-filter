@@ -3,7 +3,7 @@
 Two ways to turn a natural-language query into a Vaadin-`Grid` filter, both implemented in this repo
 against the *same* domain and the *same* aligned tests, so the trade-off is concrete rather than
 theoretical. This document states the pros and cons; every claim points at a specific test method,
-an `CustomerSearchAgentExtraIT` case, or a `04-ollama-benchmark` figure. The per-query-type
+an `CustomerSearchAgentExtraIT` case, or a `05-ollama-benchmark` figure. The per-query-type
 breakdown lives in the companion [capability matrix](capability-matrix.md).
 
 ## The two approaches in one paragraph each
@@ -105,7 +105,7 @@ output's single-shot JSON is simply less prone to that kind of drift than a free
 
 ## Token cost and request duration
 
-The `04-ollama-benchmark` figures above are *tokens/s* and *median latency* read straight from
+The `05-ollama-benchmark` figures above are *tokens/s* and *median latency* read straight from
 Ollama. A second, complementary lens comes from the **`TokenUsageRecorder`** (present in both
 modules): it reads Spring AI's `Usage` on the *real application path* and logs, per request, the
 prompt / completion / total tokens and the wall-clock time, then prints a per-IT-class summary. The

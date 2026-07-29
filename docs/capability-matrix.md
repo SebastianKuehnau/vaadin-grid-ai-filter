@@ -1,7 +1,7 @@
 # Capability matrix: tool calling (02) vs. structured output (03)
 
 Which query types each approach can express and how reliably it does so, derived strictly from the
-two modules' integration-test suites and the `04-ollama-benchmark` harness. Companion to
+two modules' integration-test suites and the `05-ollama-benchmark` harness. Companion to
 [tool-calling-vs-structured-output.md](tool-calling-vs-structured-output.md).
 
 - **02 = `02-ai-agent-filter`** — tool calling; the LLM calls `@Tool searchCustomers(...)` (one flat
@@ -14,7 +14,7 @@ filter type. Every cell points at a test method (`Class#method`) or a benchmark 
 
 Configured default model for **both** modules: `qwen3:8b`, temperature 0
 (`src/main/resources/application-ollama.properties`). Reliability figures below are mean pass-rates
-from `04-ollama-benchmark` at `--approach=both --runs=5` (full 36-case set) on `qwen3:8b` and, to
+from `05-ollama-benchmark` at `--approach=both --runs=5` (full 36-case set) on `qwen3:8b` and, to
 show the model-dependence, `llama3.1:8b`. **Token-consumption and per-request duration** figures are
 *not* in this matrix (they do not change what a query type can express or how reliably); they are
 measured by the `TokenUsageRecorder` on the real application path and reported in

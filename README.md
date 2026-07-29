@@ -7,7 +7,7 @@ It is a **Maven multi-module reactor**: a root parent POM aggregates three self-
 Vaadin applications. They share the same `Customer`/`Address` data model and the
 `dev.demo.vaadin.aigridfilter` package, and are meant to be read and run in order. Each module runs on
 its own port, so several can run at the same time. A fourth, non-Maven directory,
-`04-ollama-benchmark`, holds a standalone script for benchmarking local Ollama models.
+`05-ollama-benchmark`, holds a standalone script for benchmarking local Ollama models.
 
 ## Stack
 
@@ -24,7 +24,7 @@ its own port, so several can run at the same time. A fourth, non-Maven directory
 | --- | --- | --- |
 | `01-non-ai-filter` | 8081 | Two non-AI baseline views: an **in-memory data provider** filtered with plain Java (a `Stream` over all rows), and a **lazy-loading grid** with a per-column filter form whose state is turned into a JPA `Specification`, so filtering and paging happen as SQL queries in the database. |
 | `02-ai-agent-filter` | 8082 | A first take on **natural-language filtering using AI tool calling**. The LLM calls a `@Tool` method and passes the filter values; the query is built from those values. |
-| `03-ai-structured-filter` | 8083 | Filtering with a **local LLM**, where the AI generates the filter as **structured output**. A side challenge here is finding a suitable local model — see `04-ollama-benchmark`. |
+| `03-ai-structured-filter` | 8083 | Filtering with a **local LLM**, where the AI generates the filter as **structured output**. A side challenge here is finding a suitable local model — see `05-ollama-benchmark`. |
 
 - **`01-non-ai-filter`** — The non-AI baseline, as two views. `InMemoryCustomerListView` (route `/`,
   alias `/in-memory`) loads all customers into memory and filters with a single `TextField` via a Java
@@ -43,9 +43,9 @@ its own port, so several can run at the same time. A fourth, non-Maven directory
   while still expressing negation and per-field operators. The module is layered (`ui` / `ai` / `data`)
   so the AI layer is testable in isolation. See `03-ai-structured-filter/README.md` for the flat
   filter schema and the Ollama integration test architecture.
-- **`04-ollama-benchmark`** — Not a Maven module: a standalone, dependency-free script that compares
+- **`05-ollama-benchmark`** — Not a Maven module: a standalone, dependency-free script that compares
   local Ollama models on `03-ai-structured-filter`'s natural-language-to-filter task. See
-  `04-ollama-benchmark/README.md`.
+  `05-ollama-benchmark/README.md`.
 
 In every AI module the LLM only produces filter *intent*; it never sees the customer data and never
 writes the final query — Java turns the intent into a `Specification` and the database executes it.
@@ -112,7 +112,7 @@ around relative-date queries.
 See `03-ai-structured-filter/README.md` for details, including the flat filter schema and the
 Ollama integration test architecture.
 
-### 04-ollama-benchmark
+### 05-ollama-benchmark
 
-Not part of the Maven reactor — see `04-ollama-benchmark/README.md` for how to run
+Not part of the Maven reactor — see `05-ollama-benchmark/README.md` for how to run
 `BenchmarkLocalModels.java` and the recorded comparison of local models.
