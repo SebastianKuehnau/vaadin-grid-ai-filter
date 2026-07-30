@@ -6,8 +6,9 @@ a plain text filter to natural-language filtering driven by an LLM.
 It is a **Maven multi-module reactor**: a root parent POM aggregates four self-contained Spring Boot +
 Vaadin applications. They share the same `Customer`/`Address` data model and the
 `dev.demo.vaadin.aigridfilter` package, and are meant to be read and run in order. Each module runs on
-its own port, so several can run at the same time. A fifth, non-Maven directory,
-`05-ollama-benchmark`, holds a standalone script for benchmarking local Ollama models.
+its own port, so several can run at the same time. The reactor also builds `canonical-query-testkit`,
+a small test-only module the AI modules share. A further, non-Maven directory, `ollama-benchmark`,
+holds a standalone script for benchmarking local Ollama models.
 
 ## The escalation ladder
 
@@ -48,7 +49,7 @@ that argument through in detail; it used to be a design note about a change nobo
 | --- | --- | --- |
 | `01-non-ai-filter` | 8081 | Two non-AI baseline views: an **in-memory data provider** filtered with plain Java (a `Stream` over all rows), and a **lazy-loading grid** with a per-column filter form whose state is turned into a JPA `Specification`, so filtering and paging happen as SQL queries in the database. |
 | `02-ai-agent-filter` | 8082 | **Natural-language filtering via AI tool calling**, in two variants behind two routes of one running app: 02(a) with one scalar value per field, 02(b) with a value, an operator and a negate flag per field. |
-| `03-ai-structured-filter` | 8083 | Filtering with a **local LLM**, where the AI returns the filter as **structured output** — one `CustomerFilter` holding a flat list of conditions. A side challenge here is finding a suitable local model — see `05-ollama-benchmark`. |
+| `03-ai-structured-filter` | 8083 | Filtering with a **local LLM**, where the AI returns the filter as **structured output** — one `CustomerFilter` holding a flat list of conditions. A side challenge here is finding a suitable local model — see `ollama-benchmark`. |
 | `04-ai-hybrid-filter` | 8084 | **Tool calling with 03's filter type**: the model calls `@Tool searchCustomers(List<Condition>)`, i.e. the same payload 03 returns. The step that separates capability from delivery. |
 
 - **`01-non-ai-filter`** — The non-AI baseline, as two views. `InMemoryCustomerListView` (route `/`,
@@ -75,9 +76,13 @@ that argument through in detail; it used to be a design note about a change nobo
   from the very same Jackson annotations that drive 03's response format, so the model sees the same
   vocabulary either way. Since 04 can express everything 03 can, while 02(a)/02(b) cannot, the ladder
   ends with a conclusion rather than a preference. See `04-ai-hybrid-filter/README.md`.
-- **`05-ollama-benchmark`** — Not a Maven module: a standalone, dependency-free script that compares
+- **`canonical-query-testkit`** — The one shared module: the canonical query set, the customer sets
+  each query must produce, and the assert/log step all four canonical-query ITs run. Everything else
+  in this repository stays duplicated per module on purpose; this is test infrastructure, where five
+  copies of eight query strings were five chances to drift. See `canonical-query-testkit/README.md`.
+- **`ollama-benchmark`** — Not a Maven module: a standalone, dependency-free script that compares
   local Ollama models on the natural-language-to-filter task, for all four AI approaches, using the
-  same queries the modules' integration tests use. See `05-ollama-benchmark/README.md`.
+  same queries the modules' integration tests use. See `ollama-benchmark/README.md`.
 
 In every AI module the LLM only produces filter *intent*; it never sees the customer data and never
 writes the final query — Java turns the intent into a `Specification` and the database executes it.
@@ -155,7 +160,7 @@ customer set — including the queries a variant cannot express, which are asser
 non-erroring failures. See each module's README for its remaining test classes, and
 `02-ai-agent-filter/README.md` for a known model-capability limitation around relative-date queries.
 
-### 05-ollama-benchmark
+### ollama-benchmark
 
-Not part of the Maven reactor — see `05-ollama-benchmark/README.md` for how to run
+Not part of the Maven reactor — see `ollama-benchmark/README.md` for how to run
 `BenchmarkLocalModels.java` across all four AI approaches and the recorded comparison of local models.

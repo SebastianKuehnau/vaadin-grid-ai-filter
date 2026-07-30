@@ -16,9 +16,9 @@ Each of the four modules above is a standalone Spring Boot app (`<ModuleName>App
 its own `data.sql`. For a module's architecture details, see `<module>/README.md` — do **not**
 duplicate them here.
 
-`05-ollama-benchmark` is **not** a Maven module (no `pom.xml`, not in the root `<modules>` list):
+`ollama-benchmark` is **not** a Maven module (no `pom.xml`, not in the root `<modules>` list):
 it's a standalone, dependency-free script benchmarking local Ollama models against all four AI
-approaches. See `05-ollama-benchmark/README.md`.
+approaches. See `ollama-benchmark/README.md`.
 
 The eight natural-language queries all AI modules are measured with live in
 `docs/canonical-query-set.md` — the single source of truth; see the Definition of Done below.
@@ -46,7 +46,7 @@ A task is only finished when:
    `ScalarCanonicalQueryIT`/`OperatorCanonicalQueryIT` in 02), plus the module's browserless IT for
    UI→AI changes. 03 additionally has `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
-   every module's canonical-query IT and into `05-ollama-benchmark/BenchmarkLocalModels.java` —
+   every module's canonical-query IT and into `ollama-benchmark/BenchmarkLocalModels.java` —
    verbatim in all copies. `CanonicalQuerySetConsistencyTest` fails the build if they drift apart,
    so all copies are always updated together.
 

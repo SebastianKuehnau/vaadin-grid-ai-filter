@@ -1,4 +1,4 @@
-# 05-ollama-benchmark
+# ollama-benchmark
 
 A standalone **prompt-reliability eval** comparing local models — Ollama (default) or an MLX
 Server — for accuracy and speed on the natural-language-to-filter task, covering **all four** AI
@@ -24,7 +24,7 @@ context.
 ## Running
 
 ```bash
-cd 05-ollama-benchmark
+cd ollama-benchmark
 java BenchmarkLocalModels.java                                    # auto-discovers tool-capable models from Ollama
 java BenchmarkLocalModels.java llama3.1:8b qwen3:8b                # or benchmark specific models
 java BenchmarkLocalModels.java --runs=5                            # all four approaches (default), 5 runs/case

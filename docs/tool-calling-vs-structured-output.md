@@ -161,7 +161,7 @@ answered by the benchmark's pass-rates (`--approach=all --runs=5`), not by singl
 > described the old two-approach setup, and stale numbers are worse than none. Reproduce with:
 >
 > ```bash
-> cd 05-ollama-benchmark
+> cd ollama-benchmark
 > java BenchmarkLocalModels.java --approach=all --runs=5 qwen3:8b llama3.1:8b
 > ```
 

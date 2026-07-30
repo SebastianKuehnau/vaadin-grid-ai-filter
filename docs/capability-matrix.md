@@ -1,7 +1,7 @@
 # Capability matrix: the four AI approaches
 
 Which query types each approach can express, and how reliably it does so — derived strictly from the
-modules' integration-test suites and the `05-ollama-benchmark` harness. Companion to
+modules' integration-test suites and the `ollama-benchmark` harness. Companion to
 [tool-calling-vs-structured-output.md](tool-calling-vs-structured-output.md) and
 [canonical-query-set.md](canonical-query-set.md).
 
@@ -93,7 +93,7 @@ The per-query breakdown lives in
 ## Reliability across models
 
 Whether an approach *reliably* produces the right filter — as opposed to being able to express it at all
-— is a per-model question, answered by `05-ollama-benchmark` (`--approach=all --runs=5`), which runs the
+— is a per-model question, answered by `ollama-benchmark` (`--approach=all --runs=5`), which runs the
 same canonical queries as the ITs plus its own legacy prompt-regression set.
 
 > **Not yet re-measured for the four-approach setup.** The harness does run all four approaches (verified
@@ -102,7 +102,7 @@ same canonical queries as the ITs plus its own legacy prompt-regression set.
 > Reproduce with:
 >
 > ```bash
-> cd 05-ollama-benchmark
+> cd ollama-benchmark
 > java BenchmarkLocalModels.java --approach=all --runs=5 qwen3:8b llama3.1:8b
 > ```
 >

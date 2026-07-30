@@ -32,7 +32,7 @@ class CanonicalQuerySetConsistencyTest {
 
     private static final String DOCUMENT = "docs/canonical-query-set.md";
 
-    private static final String BENCHMARK_SOURCE = "05-ollama-benchmark/BenchmarkLocalModels.java";
+    private static final String BENCHMARK_SOURCE = "ollama-benchmark/BenchmarkLocalModels.java";
 
     /** A fenced {@code text} block in the document — one per canonical query, in order. */
     private static final Pattern DOCUMENTED_QUERY =

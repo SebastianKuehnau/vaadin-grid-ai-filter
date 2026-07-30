@@ -74,7 +74,7 @@ Example — "customers from Berlin or Köln, not from Munich, with at least 1000
 ```
 
 Small/local models are noticeably more reliable at producing this shape than the previous
-recursive tree — see `../05-ollama-benchmark`'s recorded latency/accuracy comparison.
+recursive tree — see `../ollama-benchmark`'s recorded latency/accuracy comparison.
 
 ## Running
 
@@ -104,7 +104,7 @@ code change. `openai` speaks the OpenAI-compatible chat completions API
   ```bash
   ollama pull qwen3:8b
   ```
-  Other models benchmarked against this module in `../05-ollama-benchmark`: `qwen3.5:4b-mlx`,
+  Other models benchmarked against this module in `../ollama-benchmark`: `qwen3.5:4b-mlx`,
   `qwen3:8b`, `gemma4:26b-mlx` — swap `spring.ai.ollama.chat.model` in
   `application-ollama.properties` to try one.
 
@@ -201,5 +201,5 @@ the test config overrides it to `ollama`.
 - `src/main/java/dev/demo/vaadin/aigridfilter/data/` — the shared `Customer`/`Address` JPA model
 - `src/main/resources/data.sql` — seed data (100 customers)
 - `src/test/java/dev/demo/vaadin/aigridfilter/` — tests (see [Tests](#tests) above)
-- `../05-ollama-benchmark/` — standalone benchmark script comparing local Ollama models on this
+- `../ollama-benchmark/` — standalone benchmark script comparing local Ollama models on this
   module's natural-language-to-filter task
