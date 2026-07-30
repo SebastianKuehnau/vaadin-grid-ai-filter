@@ -21,9 +21,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration tests of the AI layer against a real Ollama, same infrastructure as
- * {@link CustomerSearchAgentIT}, but for the cases that need a capability {@code 02-ai-agent-filter}'s
- * flat {@code CustomerSearchCriteria} model cannot express at all, so they have no counterpart to
- * compare against there:
+ * {@link CustomerSearchAgentIT}, but for the cases that need a capability the per-field criteria of
+ * {@code 02-ai-agent-filter} cannot express at all — 02(a) none of them, 02(b) negation and operator
+ * precision but never a second condition on one field:
  * <ul>
  *   <li>{@code negation} — {@link dev.demo.vaadin.aigridfilter.ai.filter.Condition#negate()}</li>
  *   <li>{@code operator-precision} — STARTS_WITH/ENDS_WITH/EQUALS distinctions its CONTAINS-only
@@ -32,11 +32,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>{@code anti-hallucination} — combines an exact-numeric value check with the "no conditions
  *       outside an allow-list" guard (see {@link CustomerSearchAgentIT}'s Javadoc); {@code 02}'s model
  *       has no exact-value/no-extras contract to hold to this precision</li>
- *   <li>{@code fuzzy-match} — {@code phoneNumberContains} is expressible via 02's flat
- *       {@code CustomerSearchCriteria} too, but doesn't reliably pass there on the weaker
- *       {@code llama3.1:8b} (observed hallucinating an unrelated phone number during alignment
- *       testing), so per the "shared set = reliably-passing intersection" rule it stays here
- *       instead of {@code CustomerSearchAgentIT}</li>
+ *   <li>{@code fuzzy-match} — {@code phoneNumberContains} is expressible with per-field criteria too,
+ *       but didn't reliably pass there on the weaker {@code llama3.1:8b} (observed hallucinating an
+ *       unrelated phone number), so it stays here instead of in {@code CustomerSearchAgentIT}</li>
  * </ul>
  * Cross-field OR and arbitrary nesting are no longer part of {@link CustomerFilter} either (a
  * deliberate trade-off for faster/more reliable structured output from small/local models), so the

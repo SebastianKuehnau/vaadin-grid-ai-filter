@@ -20,11 +20,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@link Specification}) against the seeded H2 database — no LLM, no Docker. This is the safety net
  * for the flat-list translation in {@link CustomerFilterSpecifications}.
  * <p>
- * These cases use the same field values as {@code 02-ai-agent-filter}'s
- * {@code CustomerSpecificationsTest}, so the two modules' DB-level results are directly comparable.
- * Cases that need a capability {@code 02}'s flat {@code CustomerSearchCriteria} model cannot express
- * at all (negation, operator precision) have no counterpart there and live separately in
- * {@link CustomerFilterSpecificationsExtraTest}.
+ * {@code 04-ai-hybrid-filter} runs a 1:1 copy of this class against its copy of the same translation
+ * logic, so if the two modules ever diverge on a query, the cause can only be the delivery mechanism.
+ * Negation is split out into {@link CustomerFilterSpecificationsExtraTest}.
+ * <p>
+ * The multi-value (OR) and range cases below have no counterpart in {@code 02-ai-agent-filter}: neither
+ * of its per-field criteria types can hold two values or two bounds for one field.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE) // keep configured H2 + data.sql
@@ -246,8 +247,8 @@ class CustomerFilterSpecificationsTest {
 
     @Test
     void citiesWithRevenueRange() {
-        // "Berlin or Hamburg with revenue between 100000 and 500000" — same wording as
-        // 02-ai-agent-filter's CustomerSearchAgentIT.citiesWithRevenueRange, for direct comparability.
+        // "Berlin or Hamburg with revenue between 100000 and 500000" — the query that combines both
+        // capabilities the per-field variants 02(a)/02(b) lack: OR within a field and a real range.
         var result = findAll(city("Berlin", "Hamburg"),
                 revenue(Operator.GREATER_OR_EQUAL, "100000"), revenue(Operator.LESS_OR_EQUAL, "500000"));
 

@@ -3,7 +3,7 @@
 
 # Maven / Vaadin build output
 target/
-src/main/frontend/generated/
+**/src/main/frontend/generated/
 
 # Generated benchmark artifacts (see CLAUDE.md conventions)
 **/benchmark-results/
