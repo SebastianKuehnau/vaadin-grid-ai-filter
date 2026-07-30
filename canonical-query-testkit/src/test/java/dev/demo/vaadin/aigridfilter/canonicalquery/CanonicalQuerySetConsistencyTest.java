@@ -1,4 +1,4 @@
-package dev.demo.vaadin.aigridfilter;
+package dev.demo.vaadin.aigridfilter.canonicalquery;
 
 import org.junit.jupiter.api.Test;
 
@@ -15,18 +15,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Guards the canonical query set against drift. {@code docs/canonical-query-set.md} is the single source
- * of truth for the natural-language queries every AI module is tested with, and each of the five copies —
- * the four modules' IT sources plus the standalone benchmark script — has to spell them out verbatim.
- * This test compares the copies this module owns, plus the benchmark script, against that document, in
- * wording <em>and</em> order.
+ * of truth for the natural-language queries every AI module is tested with, and two places have to spell
+ * them out verbatim: {@link CanonicalQuery} — which every AI module's IT now shares — and the standalone
+ * benchmark script, which stays dependency-free and therefore keeps its own text copy.
  * <p>
  * Plain JUnit: no Spring context, no LLM, no Ollama. It therefore runs in every {@code mvn test} and
- * turns a one-word edit in any copy into a build failure instead of something a reviewer has to notice.
+ * turns a one-word edit in either copy into a build failure instead of something a reviewer has to
+ * notice.
  * <p>
- * Deliberately source-text based rather than reflective: the requirement is that the <em>source</em>
- * carries the wording (that is what a reader of the test compares against the document), and the same
- * mechanism then also covers the benchmark script, which is a dependency-free single-file program with no
- * classes to reflect on.
+ * The enum is checked <em>reflectively</em> and the benchmark script by regex, and the asymmetry is the
+ * point: the enum lives in this module, so its values can simply be read — no source parsing, no Java
+ * escape handling, and declaration order gives the ordering check for free. The benchmark script is a
+ * single-file program with no classes to reflect on, so its case list is matched as text.
  */
 class CanonicalQuerySetConsistencyTest {
 
@@ -34,38 +34,25 @@ class CanonicalQuerySetConsistencyTest {
 
     private static final String BENCHMARK_SOURCE = "05-ollama-benchmark/BenchmarkLocalModels.java";
 
-    /**
-     * The IT sources of this module that still carry their own copy of the canonical wording. Shrinks
-     * to nothing as the ITs move to {@code canonical-query-testkit}'s shared {@code CanonicalQuery};
-     * this class goes away with the last entry.
-     */
-    private static final List<String> IT_SOURCES = List.of(
-            "02-ai-agent-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/flat/FlatCanonicalQueryIT.java");
-
     /** A fenced {@code text} block in the document — one per canonical query, in order. */
     private static final Pattern DOCUMENTED_QUERY =
             Pattern.compile("```text\\R(.*?)\\R```", Pattern.DOTALL);
-
-    /** An enum constant of an IT's {@code CanonicalQuery}: {@code C1_SINGLE_VALUE("...", ...)}. */
-    private static final Pattern IT_QUERY =
-            Pattern.compile("C\\d+_[A-Z0-9_]+\\(\"((?:[^\"\\\\]|\\\\.)*)\"");
 
     /** A canonical case in the benchmark script: {@code EvalCase.canonical("C1_SINGLE_VALUE", "...", ...)}. */
     private static final Pattern BENCHMARK_QUERY =
             Pattern.compile("EvalCase\\.canonical\\(\"[A-Z0-9_]+\",\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
 
     @Test
-    void everyItSourceOfThisModuleMatchesTheDocument() throws IOException {
+    void theSharedEnumMatchesTheDocument() throws IOException {
         List<String> documented = queriesIn(DOCUMENTED_QUERY, read(DOCUMENT));
         assertThat(documented).as("%s must document at least the seven required categories", DOCUMENT)
                 .hasSizeGreaterThanOrEqualTo(7);
 
-        for (String source : IT_SOURCES) {
-            assertThat(queriesIn(IT_QUERY, read(source)))
-                    .as("%s must contain every canonical query verbatim, in the order of %s "
-                            + "(update both together, never one of them)", source, DOCUMENT)
-                    .containsExactlyElementsOf(documented);
-        }
+        assertThat(CanonicalQuery.values()).extracting(CanonicalQuery::query)
+                .as("%s must contain every canonical query verbatim, in the order of %s "
+                        + "(update both together, never one of them)",
+                        CanonicalQuery.class.getSimpleName(), DOCUMENT)
+                .containsExactlyElementsOf(documented);
     }
 
     @Test
