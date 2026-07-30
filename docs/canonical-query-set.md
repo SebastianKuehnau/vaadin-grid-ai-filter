@@ -3,21 +3,21 @@
 The **single source of truth** for the natural-language queries every AI module of this repository is
 tested with. Eight queries, one per capability category, each with the customer set it must produce.
 
-Five places use these queries **verbatim**:
+Two places use these queries **verbatim**:
 
 | Copy | File |
 |---|---|
-| 02(a) | `02-ai-agent-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/flat/FlatCanonicalQueryIT.java` |
-| 02(b) | `02-ai-agent-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/operator/OperatorCanonicalQueryIT.java` |
-| 03 | `03-ai-structured-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/CanonicalQueryIT.java` |
-| 04 | `04-ai-hybrid-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/CanonicalQueryIT.java` |
-| benchmark | `05-ollama-benchmark/BenchmarkLocalModels.java` |
+| shared enum | `canonical-query-testkit/src/main/java/dev/demo/vaadin/aigridfilter/canonicalquery/CanonicalQuery.java` |
+| benchmark | `ollama-benchmark/BenchmarkLocalModels.java` |
 
-A drift between any copy and this document fails the build: every AI module has a
+All four AI modules' canonical-query ITs share the first copy. The benchmark script keeps its own,
+because it is deliberately a standalone, dependency-free program.
+
+A drift between either copy and this document fails the build: `canonical-query-testkit` has a
 `CanonicalQuerySetConsistencyTest` (plain `mvn test`, no LLM, no Ollama) that parses the ```` ```text ````
-blocks below, compares them with its own IT's `CanonicalQuery` enum (wording **and** order) and with the
-benchmark script's case list. So the token/latency figures from the benchmark line up query-for-query
-with the pass/fail reliability results from the IT suites.
+blocks below and compares them with the shared `CanonicalQuery` enum (wording **and** order) and with
+the benchmark script's case list. So the token/latency figures from the benchmark line up
+query-for-query with the pass/fail reliability results from the IT suites.
 
 ## Why these eight
 
@@ -50,8 +50,10 @@ through the same tool, 03 and 04 through the "today" baked into their prompts.
 
 ## Expected customer sets
 
-Every query's expected result is defined as a **predicate over `Customer`**, evaluated against whatever
-`data.sql` currently seeds — never as a hard-coded list of IDs. Two reasons: C7 depends on today's date,
+Every query's expected result is defined as a **predicate over `CanonicalCustomer`** — the six-field
+projection of `Customer` the shared enum is written against, since each module owns its own entity —
+evaluated against whatever `data.sql` currently seeds, never as a hard-coded list of IDs. Two reasons:
+C7 depends on today's date,
 and each app's startup sets "Berlin Data Works"'s last order date to yesterday (see any
 `*Application.java`), so one row is deliberately not static.
 

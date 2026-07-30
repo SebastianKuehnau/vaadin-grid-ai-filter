@@ -27,6 +27,9 @@
 		<module>02-ai-agent-filter</module>
 		<module>03-ai-structured-filter</module>
 		<module>04-ai-hybrid-filter</module>
+		<!-- No numeric prefix on purpose: shared test infrastructure, not a demo step of the talk.
+		     Consumed by 02/03/04 as a test-scope dependency; see canonical-query-testkit/README.md. -->
+		<module>canonical-query-testkit</module>
 	</modules>
 
 	<dependencyManagement>

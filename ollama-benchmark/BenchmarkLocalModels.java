@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
  *
  * <p>Run directly with Java's single-file source launcher (no external dependencies, JDK stdlib only):
  * <pre>
- *   cd 05-ollama-benchmark
+ *   cd ollama-benchmark
  *   java BenchmarkLocalModels.java [options] [model1] [model2] ...
  * </pre>
  * Without model arguments, candidates are auto-discovered — from Ollama's {@code GET /api/tags}
@@ -868,7 +868,7 @@ public class BenchmarkLocalModels {
     private static Path locateSource(String module, String fileRelativeToMainJava) {
         String relative = "dev/demo/vaadin/aigridfilter/ai/" + fileRelativeToMainJava;
         List<Path> candidates = List.of(
-                Path.of("../" + module + "/src/main/java/" + relative),   // run from 05-ollama-benchmark/
+                Path.of("../" + module + "/src/main/java/" + relative),   // run from ollama-benchmark/
                 Path.of(module + "/src/main/java/" + relative)            // run from repo root
         );
         for (Path candidate : candidates) {
