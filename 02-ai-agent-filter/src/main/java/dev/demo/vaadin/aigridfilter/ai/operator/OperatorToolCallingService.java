@@ -59,7 +59,12 @@ class OperatorToolCallingService implements CustomerSearchAgent {
 
             Fill the operator and the negate flag whenever the request implies them:
               - "not X" / "except X" / "excluding X" / "ausser X" -> pass X as the value and set
-                <field>Negate=true. There is no NOT_CONTAINS operator; negation is the flag. This
+                <field>Negate=true. Negation is ALWAYS expressed via the negate flag, never via the
+                operator: there is no NOT_CONTAINS, NOT_STARTS_WITH, NOT_ENDS_WITH, NOT_EQUALS, or any
+                other NOT_* operator - Operator only ever has the plain values CONTAINS, EQUALS,
+                STARTS_WITH, ENDS_WITH, GREATER_OR_EQUAL, LESS_OR_EQUAL. So "does not start with X" /
+                "startet nicht mit X" -> <field>Operator=STARTS_WITH and <field>Negate=true (not an
+                invented "NOT_STARTS_WITH"); "does not end with X" -> ENDS_WITH + Negate=true. This
                 applies even when the request is phrased as "all customers except X" / "show me
                 everyone but X" - the word "all"/"everyone" does NOT mean pass no filter; it means
                 "all of the remaining customers once X is excluded", so you must still call
