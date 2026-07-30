@@ -120,9 +120,9 @@
 						<artifactId>maven-failsafe-plugin</artifactId>
 						<configuration>
 							<includes>
-								<include>**/ScalarCanonicalQueryIT.java</include>
+								<include>**/FlatCanonicalQueryIT.java</include>
 								<include>**/OperatorCanonicalQueryIT.java</include>
-								<include>**/ScalarCustomerListViewBrowserlessIT.java</include>
+								<include>**/FlatCustomerListViewBrowserlessIT.java</include>
 								<include>**/OperatorCustomerListViewBrowserlessIT.java</include>
 							</includes>
 						</configuration>
