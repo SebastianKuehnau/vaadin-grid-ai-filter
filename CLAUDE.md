@@ -11,9 +11,10 @@ Top priority for all code: **easy to understand, presentable, extensible** — c
 | `02-ai-agent-filter` | 8082 | AI filtering via tool calling, in two variants behind two routes of one app: 02(a) one scalar value per field (`/`), 02(b) value + operator + negate per field (`/operator`) |
 | `03-ai-structured-filter` | 8083 | AI filtering via structured output (`CustomerFilter` → JPA Specifications), against local Ollama models |
 | `04-ai-hybrid-filter` | 8084 | AI filtering via tool calling with 03's `List<Condition>` filter type, copied 1:1 — same capability, different delivery |
+| `canonical-query-testkit` | — | Shared **test** infrastructure: the canonical query set, the customer sets each query must produce, and the assert/log step the canonical-query ITs run. No numeric prefix — not a step of the talk |
 
-Each of the four modules above is a standalone Spring Boot app (`<ModuleName>Application`) with
-its own `data.sql`. For a module's architecture details, see `<module>/README.md` — do **not**
+Each of the four numbered modules above is a standalone Spring Boot app (`<ModuleName>Application`)
+with its own `data.sql`. For a module's architecture details, see `<module>/README.md` — do **not**
 duplicate them here.
 
 `ollama-benchmark` is **not** a Maven module (no `pom.xml`, not in the root `<modules>` list):
@@ -26,10 +27,13 @@ The eight natural-language queries all AI modules are measured with live in
 ## Build & Run
 
 ```bash
-./mvnw verify -pl <module>                 # build + all tests of one module
+./mvnw verify -pl <module> -am             # build + all tests of one module
 ./mvnw spring-boot:run -pl <module>        # start the app (on that module's port, see the table above)
-./mvnw test -pl <module> -Dtest=<Class>    # run a single test class
+./mvnw test -pl <module> -am -Dtest=<Class># run a single test class
 ```
+
+`-am` (also-make) is needed for `02`/`03`/`04`: they depend on `canonical-query-testkit`, which
+Maven has to build first. Without it a `-pl` build fails to resolve that dependency.
 
 AI provider is selected via Spring profiles: `openai` (default) or `ollama` (expects Ollama at
 `OLLAMA_BASE_URL`; inside the dev container this is `http://host.docker.internal:11434`).
@@ -38,17 +42,20 @@ AI provider is selected via Spring profiles: `openai` (default) or `ollama` (exp
 
 A task is only finished when:
 
-1. `./mvnw verify -pl <affected modules>` passes.
+1. `./mvnw verify -pl <affected modules> -am` passes.
 2. For UI changes: the app has been started and the change verified via a Playwright screenshot
    (save screenshots to `~/screenshots/`).
 3. For changes to filter/AI logic: the affected module's IT classes pass, run via `-Pit-local-ollama`
-   (against a native Ollama instance) — the canonical-query IT (`StructuredCanonicalQueryIT` in 03/04,
-   `ScalarCanonicalQueryIT`/`OperatorCanonicalQueryIT` in 02), plus the module's browserless IT for
-   UI→AI changes. 03 additionally has `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`.
+   (against a native Ollama instance) — the canonical-query IT (`FlatCanonicalQueryIT` and
+   `OperatorCanonicalQueryIT` in 02, `StructuredCanonicalQueryIT` in 03, `HybridCanonicalQueryIT`
+   in 04), plus the module's browserless IT for UI→AI changes. 03 additionally has
+   `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
-   every module's canonical-query IT and into `ollama-benchmark/BenchmarkLocalModels.java` —
-   verbatim in all copies. `CanonicalQuerySetConsistencyTest` fails the build if they drift apart,
-   so all copies are always updated together.
+   `canonical-query-testkit`'s `CanonicalQuery` enum and into
+   `ollama-benchmark/BenchmarkLocalModels.java` — verbatim in both copies. The testkit's
+   `CanonicalQuerySetConsistencyTest` fails the build if they drift apart. Each module's IT then has
+   to say what the new query means for its variant: the per-module `outcomeOf` is an exhaustive
+   `switch`, so all four stop compiling until that decision is made.
 
 Points 1–3 apply before **every** commit, not only at the end of the task.
 Iterate on your own until all points are met before reporting the task as done.
@@ -66,7 +73,14 @@ or file changes on your own initiative.
 - UI texts and code comments in English.
 - Changes affecting multiple modules must be applied consistently in **all** affected modules
   (01 → 02(a) → 02(b) → 03 → 04 increase in expressiveness; same domain, different filtering
-  mechanism — there is no shared Maven module, the domain classes are duplicated per module on purpose).
+  mechanism — the domain and runtime classes are duplicated per module on purpose, so each step can
+  be read on its own).
+- **One exception to that duplication:** `canonical-query-testkit`, consumed by 02/03/04 as a
+  test-scope dependency. It owns the canonical queries, their expected customer sets and the
+  assert/log step — five identical copies of eight query strings had become a drift risk with no
+  teaching value. The exception covers **test infrastructure only**; do not move domain, view or AI
+  code there. What each variant can express stays in its own IT, because that is the comparison the
+  talk is about.
 - CSS belongs in theme files, not inline in Java components.
 - Commit after every completed, verified step (Conventional Commits, no push).
 - Never commit benchmark reports, logs, or other generated artifacts unless the
