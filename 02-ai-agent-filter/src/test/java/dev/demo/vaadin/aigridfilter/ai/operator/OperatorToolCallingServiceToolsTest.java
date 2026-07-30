@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -56,7 +57,10 @@ class OperatorToolCallingServiceToolsTest {
         // An operator or negate flag alone is not a filter: without a value there is nothing to compare.
         searchByCity(null, Operator.EQUALS, true);
         assertThat(service.criteria.city()).isNull();
+    }
 
+    @Test
+    void aBlankValueStaysUnset() {
         searchByCity("   ", Operator.EQUALS, false);
         assertThat(service.criteria.city()).isNull();
     }
@@ -94,22 +98,14 @@ class OperatorToolCallingServiceToolsTest {
     }
 
     @Test
-    void aRepeatedEmptyCallDoesNotWipeTheExtractedCriteria() {
-        // A void tool is answered with a bare "Done", and a model can read that as "nothing happened"
-        // and call the tool again with no arguments. That must not clear what it just extracted.
+    void aSecondCallIsRejectedAndTheFirstCriteriaIsKept() {
+        // criteria's null/non-null lifecycle is the one-shot latch: a second call, empty or not, must
+        // not be able to overwrite what the first call already extracted.
         searchByCity("Berlin", Operator.CONTAINS, false);
-        searchByCity(null, null, null);
 
+        assertThatThrownBy(() -> searchByCity("Hamburg", Operator.EQUALS, false))
+                .isInstanceOf(IllegalStateException.class);
         assertThat(service.criteria.city()).isEqualTo(new FieldCriterion<>("Berlin", Operator.CONTAINS, false));
-    }
-
-    @Test
-    void aRepeatedNonEmptyCallStillReplacesTheCriteria() {
-        // Only empty repeat calls are ignored: a model correcting itself with real values must win.
-        searchByCity("Berlin", Operator.CONTAINS, false);
-        searchByCity("Hamburg", Operator.EQUALS, false);
-
-        assertThat(service.criteria.city()).isEqualTo(new FieldCriterion<>("Hamburg", Operator.EQUALS, false));
     }
 
     @Test

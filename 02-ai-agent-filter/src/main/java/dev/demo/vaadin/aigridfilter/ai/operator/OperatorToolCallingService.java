@@ -159,9 +159,14 @@ class OperatorToolCallingService implements CustomerSearchAgent {
             long durationMillis = (System.nanoTime() - start) / 1_000_000;
             tokenUsageRecorder.record(naturalLanguageQuery, response.getMetadata().getUsage(), durationMillis);
         } catch (Exception e) {
-            logger.warn("Could not turn query into search criteria; showing all customers. Query: '{}'",
-                    naturalLanguageQuery, e);
-            return null;
+            if (criteria != null) {
+                logger.warn("searchCustomers was called more than once; keeping the first result {}. Query: '{}'",
+                        criteria, naturalLanguageQuery, e);
+            } else {
+                logger.warn("Could not turn query into search criteria; showing all customers. Query: '{}'",
+                        naturalLanguageQuery, e);
+                return null;
+            }
         }
         logger.info("requestCriteria('{}') -> {}", naturalLanguageQuery, criteria);
         return criteria;
@@ -252,6 +257,11 @@ class OperatorToolCallingService implements CustomerSearchAgent {
             @ToolParam(description = NUMBER_OPERATOR) Operator annualRevenueOperator,
             @ToolParam(description = NEGATE) Boolean annualRevenueNegate
     ) {
+        if (criteria != null) {
+            throw new IllegalStateException(
+                    "searchCustomers was already called once for this request; rejecting repeat call");
+        }
+
         OperatorCriteria incoming = new OperatorCriteria(
                 FieldCriterion.of(companyName, companyNameOperator, companyNameNegate),
                 FieldCriterion.of(contactName, contactNameOperator, contactNameNegate),
@@ -266,15 +276,6 @@ class OperatorToolCallingService implements CustomerSearchAgent {
                 FieldCriterion.of(houseNumber, houseNumberOperator, houseNumberNegate),
                 FieldCriterion.of(creditRating, creditRatingOperator, creditRatingNegate),
                 FieldCriterion.of(annualRevenue, annualRevenueOperator, annualRevenueNegate));
-
-        // A tool call is a message the model can repeat: since the tool is void, Spring AI answers it
-        // with a bare "Done", and a model that reads that as "nothing happened" sometimes calls the tool
-        // again with no arguments, wiping the criteria it just extracted. Criteria that were already
-        // extracted are therefore never overwritten by a later empty call.
-        if (criteria != null && !criteria.isEmpty() && incoming.isEmpty()) {
-            logger.warn("Ignoring a repeated searchCustomers call with no arguments; keeping {}", criteria);
-            return;
-        }
 
         this.criteria = incoming;
         logger.info("searchCustomers -> {}", criteria);
