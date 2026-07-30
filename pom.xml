@@ -19,7 +19,7 @@
 	<properties>
 		<java.version>25</java.version>
 		<spring-ai.version>2.0.0</spring-ai.version>
-		<vaadin.version>25.2.0</vaadin.version>
+		<vaadin.version>25.2.4</vaadin.version>
 	</properties>
 
 	<modules>
