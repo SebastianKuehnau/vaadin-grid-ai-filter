@@ -45,7 +45,7 @@ ai/
 ├── CustomerSearchAgent.java            (public interface — the views' only dependency, the testability seam)
 ├── TokenUsageRecorder.java             (@Component — per-request token usage and duration)
 ├── flat/                             ← variant 02(a)
-│   ├── FlatToolCallingService.java   (@Service("flatSearchAgent") @Scope("prototype") — ChatClient, system prompt, the @Tool method)
+│   ├── FlatToolCallingService.java   (@Service("flatSearchAgent") @Scope("prototype") — ChatClient, system prompt, the @Tool method + the date tool)
 │   ├── FlatCriteria.java             (public record — one scalar value per field)
 │   └── FlatSpecifications.java       (public final utility — AND-across-fields -> Specification<Customer>)
 └── operator/                           ← variant 02(b)
@@ -108,11 +108,11 @@ What it deliberately still cannot express — its **ceiling**, and the reason th
 The system prompt therefore never teaches range phrasing: the model has no parameter to put it in, and
 pretending otherwise only produces invented values (e.g. `"100000-500000"` in a numeric field).
 
-### Relative dates need two chained tool calls (02(b) only)
+### Relative dates need two chained tool calls
 
-Variant 02(b) keeps a second tool, `currentLocalDateTime()`. For a relative date ("yesterday",
-"in the last 12 months") the model must call it first, then compute an offset and pass that computed
-date into `searchCustomers`. This two-hop chain is harder than a single tool call: a weaker model like
+Both variants keep a second tool, `currentLocalDateTime()`. For a relative date ("yesterday",
+"in the last 12 months") the model must call it first, then compute a date from its result and pass
+that into `searchCustomers`. This two-hop chain is harder than a single tool call: a weaker model like
 `llama3.1:8b` reliably fails it — it either passes a literal placeholder string instead of a computed
 date, or skips the tool call and hallucinates a stale one — while the configured default `qwen3:8b`
 handles it correctly. That is a genuine model-capability gap of the tool-calling approach, not a bug in
@@ -120,8 +120,12 @@ the tool wiring. `03-ai-structured-filter` and `04-ai-hybrid-filter` avoid the i
 "today" directly into the prompt text instead of requiring a live tool call — a good illustration of the
 trade-off between the two ways of getting a value the model cannot know at prompt time.
 
-Variant 02(a) has **no** date tool at all: with whole-year date semantics there is nothing useful a
-computed day-level date could do.
+For 02(a), the tool only fixes *which* date value the model fills in (no more guessing "today" from
+training data or context) — it does not lift the whole-year/minimum-only semantics baked into
+`FlatSpecifications`. A range query like "in the last 12 months" still needs a genuine `>=`/`<=` pair
+the per-field scalar shape cannot hold, so it stays out of reach for 02(a) regardless of the date
+tool; a single-year query like "customers since this year" is exactly the shape 02(a) can express, and
+now resolves reliably instead of by chance.
 
 ## Running
 
@@ -198,7 +202,7 @@ Without an LLM (`test`), per variant:
 - **`FlatToolCallingServiceToolsTest` / `OperatorToolCallingServiceToolsTest`** (plain JUnit, no
   Spring context) — the extraction plumbing in isolation: arguments must land verbatim in the criteria
   record, a missing operator must default to `CONTAINS`, a field without a value must stay unset, and
-  02(b)'s date tool must return the current time.
+  both variants' date tool must return the current time.
 - **`FlatCustomerListViewBrowserlessTest` / `OperatorCustomerListViewBrowserlessTest`** — [Vaadin
   Browserless testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake,
   deterministic `CustomerSearchAgent` bean, so they never call a real model. Since the view applies

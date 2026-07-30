@@ -43,9 +43,10 @@ the IT records that the produced customer set differs from the expected one, wit
 such a case unexpectedly *passes*, the test fails loudly — an accidental capability is as interesting as
 a missing one.
 
-02(a) additionally fails C7 because it has no operator (a date always means its whole calendar year) and
-no live-clock tool; 02(b) resolves relative dates through its `currentLocalDateTime()` tool, 03 and 04
-through the "today" baked into their prompts.
+02(a) additionally fails C7 because it has no operator — a date always means its whole calendar year, so
+a range like "the last 12 months" cannot be expressed even though 02(a) also has a `currentLocalDateTime()`
+tool (it resolves *which* date to use, not the range semantics C7 needs); 02(b) resolves relative dates
+through the same tool, 03 and 04 through the "today" baked into their prompts.
 
 ## Expected customer sets
 

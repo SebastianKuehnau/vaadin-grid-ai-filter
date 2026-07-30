@@ -53,13 +53,14 @@ approaches, the real `searchCustomers` tool/argument schema — extracted at run
 production source, never hard-coded, so the eval cannot drift from what the apps do:
 
 - **`02a`**: `SYSTEM_PROMPT` plus the 13 scalar `@ToolParam`s of
-  `../02-ai-agent-filter/.../ai/flat/FlatToolCallingService.java`.
+  `../02-ai-agent-filter/.../ai/flat/FlatToolCallingService.java`. Gets the second tool,
+  `currentLocalDateTime()`, same as `02b` — offered only because the source declares it. The tool fixes
+  which date value the model fills in; it does not lift the whole-year/minimum-only semantics of
+  `FlatSpecifications`, so a range query is still architecturally out of reach for this approach.
 - **`02b`**: `SYSTEM_PROMPT` plus the 39 `@ToolParam`s of
   `../02-ai-agent-filter/.../ai/operator/OperatorToolCallingService.java`. Its operator/negate
   descriptions are shared `static final String` constants in that class (13 fields would otherwise repeat
-  them); the extractor resolves those constants, so the model sees exactly the app's text. This is also
-  the only approach that gets the second tool, `currentLocalDateTime()` — offered only because the source
-  declares it.
+  them); the extractor resolves those constants, so the model sees exactly the app's text.
 - **`03`**: the `systemPrompt(LocalDate)` text block of
   `../03-ai-structured-filter/.../ai/CustomerSearchStructuredOutputService.java`, with the relative dates
   resolved the same way the module resolves them, plus the response-shape reminder Spring AI adds for
@@ -105,10 +106,15 @@ report repeats this caveat next to the matrix, so a `0/1` there is never mistake
 ### Approach performance summary
 
 The report's "Approach performance summary" table aggregates **across every tested model**, one row
-per approach: mean pass rate (canonical and legacy separately), total prompt tokens, total completion
+per approach: passed test runs (canonical and legacy separately), total prompt tokens, total completion
 tokens, total tokens, and total wall-clock time — all true sums over every call actually made for that
 approach (not medians), so it reflects the approach's real cost independent of which models were
-benchmarked. This is what makes e.g. `02b-operator`'s 39-parameter tool schema's prompt-token overhead
+benchmarked. The pass columns read `passed/performed (share)` rather than a bare percentage, because
+the percentage alone hides how many runs it rests on: one run is one case sent once to one model, so a
+group's run count is its case count times `--runs`, summed over every tested model — and a model that
+failed outright (an `ERROR` row) performs no runs and is not counted under "Models tested". A group
+that ran no cases at all (e.g. the legacy group under `--cases=canonical`) reads `n/a` instead of `0%`.
+Which individual runs failed is in the per-case tables further down the report. This is what makes e.g. `02b-operator`'s 39-parameter tool schema's prompt-token overhead
 visible against `04-hybrid`'s single-parameter one, and lets 03/04's combined canonical+legacy pass
 rate and total time be compared directly against 02(a)/02(b)'s. Ollama's native API reports
 `prompt_eval_count`/`eval_count`; the MLX (OpenAI-compatible) backend reports the equivalent

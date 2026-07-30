@@ -118,7 +118,7 @@
 						<artifactId>maven-failsafe-plugin</artifactId>
 						<configuration>
 							<includes>
-								<include>**/CanonicalQueryIT.java</include>
+								<include>**/StructuredCanonicalQueryIT.java</include>
 								<include>**/CustomerSearchAgentIT.java</include>
 								<include>**/CustomerSearchAgentExtraIT.java</include>
 								<include>**/CustomerListViewBrowserlessIT.java</include>

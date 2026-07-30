@@ -7,18 +7,20 @@ import org.junit.jupiter.api.Timeout;
 import org.springframework.ai.chat.model.ChatModel;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * Plain JUnit test (no Spring context, no LLM) of variant 02(a)'s tool in isolation: calling
+ * Plain JUnit test (no Spring context, no LLM) of variant 02(a)'s tools in isolation: calling
  * {@code searchCustomers} directly with fixed literal arguments must capture them, verbatim, into
- * {@link FlatToolCallingService#criteria}. The {@link ChatModel} and {@link TokenUsageRecorder} are
- * mocked purely to satisfy the constructor — neither is invoked (the tool never calls the model or
- * records usage).
+ * {@link FlatToolCallingService#criteria}, and {@code currentLocalDateTime} must return the actual
+ * current time. The {@link ChatModel} and {@link TokenUsageRecorder} are mocked purely to satisfy the
+ * constructor — neither is invoked (the tools never call the model or record usage).
  */
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
 class FlatToolCallingServiceToolsTest {
@@ -63,5 +65,12 @@ class FlatToolCallingServiceToolsTest {
         service.searchCustomers(null, null, null, null, null, null, null, "Hamburg", null, null, null, null, null);
 
         assertThat(service.criteria.city()).isEqualTo("Hamburg");
+    }
+
+    @Test
+    void returnsTheCurrentDateTime() {
+        LocalDateTime result = service.currentLocalDateTime();
+
+        assertThat(Duration.between(result, LocalDateTime.now()).abs()).isLessThan(Duration.ofSeconds(5));
     }
 }

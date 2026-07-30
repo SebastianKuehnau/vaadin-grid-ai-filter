@@ -199,21 +199,21 @@ public class BenchmarkLocalModels {
         // CanonicalQuerySetConsistencyTest fails the build on any drift. ---
         cases.add(EvalCase.canonical("C1_SINGLE_VALUE", "show me all customers in Berlin",
                 ALL_APPROACHES,
-                TextExpectation.of("city", new String[]{"CONTAINS", "EQUALS"}, "berlin")));
+                TextExpectation.of("city", "CONTAINS", "berlin")));
         cases.add(EvalCase.canonical("C2_MULTI_VALUE_OR", "show me customers from Berlin or Hamburg",
                 CONDITION_LIST_APPROACHES,
-                TextExpectation.of("city", new String[]{"CONTAINS", "EQUALS"}, "berlin"),
-                TextExpectation.of("city", new String[]{"CONTAINS", "EQUALS"}, "hamburg")));
+                TextExpectation.of("city", "CONTAINS", "berlin"),
+                TextExpectation.of("city", "CONTAINS", "hamburg")));
         cases.add(EvalCase.canonical("C3_NEGATION", "show me all customers except from Berlin",
                 EXCEPT_FLAT,
-                TextExpectation.of("city", new String[]{"NOT_CONTAINS", "NOT_EQUALS"}, "berlin")));
+                TextExpectation.of("city", "NOT_CONTAINS", "berlin")));
         cases.add(EvalCase.canonical("C4_OPERATOR_PRECISION",
                 "show me all customers with an \"m\" as the first character in the contact name",
                 EXCEPT_FLAT,
                 TextExpectation.of("contactName", "STARTS_WITH", "m")));
         cases.add(EvalCase.canonical("C5_COMBINED_AND", "creditworthy customers in Hamburg",
                 ALL_APPROACHES,
-                TextExpectation.of("city", new String[]{"CONTAINS", "EQUALS"}, "hamburg"),
+                TextExpectation.of("city", "CONTAINS", "hamburg"),
                 TextExpectation.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "good", "creditworthy")));
         cases.add(EvalCase.canonical("C6_REVENUE_RANGE", "customers with revenue between 100000 and 200000",
                 CONDITION_LIST_APPROACHES,
@@ -279,7 +279,7 @@ public class BenchmarkLocalModels {
                 "show me the customer with the phone number 5020000001 or similar", "fuzzy-match",
                 TextExpectation.of("phone", "CONTAINS", "5020000001")));
         cases.add(EvalCase.legacy("singleFalseCity", "show me all customers except from Berlin", "negation",
-                TextExpectation.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "berlin")));
+                TextExpectation.of("city", "NOT_CONTAINS", "berlin")));
         cases.add(EvalCase.legacy("contactNameStartsWith",
                 "show me all customers with an \"m\" as the first character in the contact name", "operator-precision",
                 TextExpectation.of("contactName", "STARTS_WITH", "m")));
@@ -304,7 +304,7 @@ public class BenchmarkLocalModels {
                 TextExpectation.of("lastOrderDate", new String[]{"LESS_OR_EQUAL"}, "2024-01-01", "2023-12-31")));
         cases.add(EvalCase.legacy("notInCityWithRevenueRange_keepsEveryCondition",
                 "companies not in Munich with revenue between 100000 and 500000", "negation",
-                TextExpectation.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "munich"),
+                TextExpectation.of("city", "NOT_CONTAINS", "munich"),
                 TextExpectation.of("annualRevenue", "GREATER_OR_EQUAL", "100000"),
                 TextExpectation.of("annualRevenue", "LESS_OR_EQUAL", "500000")));
         cases.add(EvalCase.legacy("emailEndsWith",
@@ -323,18 +323,18 @@ public class BenchmarkLocalModels {
                 TextExpectation.of("creditRating", new String[]{"EQUALS", "CONTAINS"}, "poor", "risk")));
         cases.add(EvalCase.legacy("notInCityWithRevenueRange_keepsEveryCondition_German",
                 "Alle Kunden ausser aus Hamburg mit einem Umsatz von 500000 bis 1000000", "negation",
-                TextExpectation.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "hamburg"),
+                TextExpectation.of("city", "NOT_CONTAINS", "hamburg"),
                 TextExpectation.of("annualRevenue", "GREATER_OR_EQUAL", "500000"),
                 TextExpectation.of("annualRevenue", "LESS_OR_EQUAL", "1000000")));
         cases.add(EvalCase.legacy("notInCityWithRevenueAndYear",
                 "customers who are not from Berlin, have at least 1000 in revenue, and last ordered in 2024", "negation",
-                TextExpectation.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "berlin"),
+                TextExpectation.of("city", "NOT_CONTAINS", "berlin"),
                 TextExpectation.of("annualRevenue", "GREATER_OR_EQUAL", "1000"),
                 TextExpectation.of("lastOrderDate", "GREATER_OR_EQUAL", "2024-01-01"),
                 TextExpectation.of("lastOrderDate", "LESS_OR_EQUAL", "2024-12-31")));
         cases.add(EvalCase.legacy("notInCityWithRevenueAndYear_German",
                 "Kunden, die nicht aus Berlin kommen und mind. 1000 € Umsatz haben und 2024 zuletzt gekauft haben", "negation",
-                TextExpectation.of("city", new String[]{"NOT_EQUALS", "NOT_CONTAINS"}, "berlin"),
+                TextExpectation.of("city", "NOT_CONTAINS", "berlin"),
                 TextExpectation.of("annualRevenue", "GREATER_OR_EQUAL", "1000"),
                 TextExpectation.of("lastOrderDate", "GREATER_OR_EQUAL", "2024-01-01"),
                 TextExpectation.of("lastOrderDate", "LESS_OR_EQUAL", "2024-12-31")));
@@ -441,6 +441,19 @@ public class BenchmarkLocalModels {
             if (cases.isEmpty()) return 0;
             return cases.stream().mapToDouble(c -> c.runs() == 0 ? 0 : (double) c.passes() / c.runs()).average()
                     .orElse(0);
+        }
+
+        /**
+         * How many individual test runs this model/approach performed in one case group: one run is one
+         * case sent to the model once, so this is the group's case count times {@code --runs}.
+         */
+        int performedRuns(CaseGroup group) {
+            return cases.stream().filter(c -> c.group() == group).mapToInt(CaseAggregate::runs).sum();
+        }
+
+        /** How many of {@link #performedRuns} produced exactly the expected filter, every field included. */
+        int passedRuns(CaseGroup group) {
+            return cases.stream().filter(c -> c.group() == group).mapToInt(CaseAggregate::passes).sum();
         }
 
         /** Wall-clock time spent on every call of every case/run for this model+approach, successes and
@@ -606,7 +619,7 @@ public class BenchmarkLocalModels {
         Files.writeString(txtPath, renderText(results, client.backendName(), baseUrl), StandardCharsets.UTF_8);
         System.out.println();
         System.out.println("Reports written: " + mdPath.toAbsolutePath() + ", " + txtPath.toAbsolutePath());
-        System.out.println("Wall clock: " + wallClockMs + " ms for " + selectedCases.size() + " cases"
+        System.out.println("Wall clock: " + formatWallClock(wallClockMs) + " for " + selectedCases.size() + " cases"
                 + (cli.quick() ? " (--quick)" : ""));
 
         if (cli.minPassRate() != null) {
@@ -908,8 +921,8 @@ public class BenchmarkLocalModels {
      * <p>
      * {@code conditionSrc} is the source of {@code Condition.java} for the one approach whose parameter is
      * a {@code List<Condition>} (04); {@code null} for the per-field variants. The second tool,
-     * {@code currentLocalDateTime}, is only offered if the service actually declares it — 02(b) does,
-     * 02(a) and 04 do not.
+     * {@code currentLocalDateTime}, is only offered if the service actually declares it — 02(a) and 02(b)
+     * both do, 04 does not (03 has no tool schema at all — it is structured output).
      */
     private static String buildSearchCustomersToolJson(String src, String conditionSrc) {
         int methodIdx = src.indexOf("void searchCustomers(");
@@ -1964,21 +1977,26 @@ public class BenchmarkLocalModels {
         if (usable.isEmpty()) return;
         System.out.println();
         System.out.println("Approach performance summary (across all tested models):");
-        System.out.printf("  %-16s%-8s%-12s%-10s%-14s%-14s%-14s%-10s%n",
-                "Approach", "Models", "Canon.", "Legacy", "Prompt tok", "Compl. tok", "Tokens", "Time");
+        System.out.println("  Pass columns count individual test runs as passed/performed: one run is one case "
+                + "sent once");
+        System.out.println("  to one model, so a group's run count is its cases times --runs, summed over every "
+                + "tested model.");
+        System.out.printf("  %-16s%-8s%-17s%-17s%-14s%-14s%-14s%-10s%n",
+                "Approach", "Models", "Canonical", "Legacy", "Prompt tok", "Compl. tok", "Tokens", "Time");
         for (Approach approach : Approach.values()) {
             List<ModelApproachResult> forApproach = usable.stream().filter(r -> r.approach() == approach).toList();
             if (forApproach.isEmpty()) continue;
-            double canonicalMean = forApproach.stream().mapToDouble(r -> r.meanPassRate(CaseGroup.CANONICAL))
-                    .average().orElse(0);
-            double legacyMean = forApproach.stream().mapToDouble(r -> r.meanPassRate(CaseGroup.LEGACY))
-                    .average().orElse(0);
+            int canonicalPassed = forApproach.stream().mapToInt(r -> r.passedRuns(CaseGroup.CANONICAL)).sum();
+            int canonicalPerformed = forApproach.stream().mapToInt(r -> r.performedRuns(CaseGroup.CANONICAL)).sum();
+            int legacyPassed = forApproach.stream().mapToInt(r -> r.passedRuns(CaseGroup.LEGACY)).sum();
+            int legacyPerformed = forApproach.stream().mapToInt(r -> r.performedRuns(CaseGroup.LEGACY)).sum();
             long promptTokens = forApproach.stream().mapToLong(ModelApproachResult::totalPromptTokens).sum();
             long completionTokens = forApproach.stream().mapToLong(ModelApproachResult::totalCompletionTokens).sum();
             long totalMs = forApproach.stream().mapToLong(ModelApproachResult::totalDurationMs).sum();
-            System.out.printf("  %-16s%-8d%-12s%-10s%-14d%-14d%-14d%-10s%n",
+            System.out.printf("  %-16s%-8d%-17s%-17s%-14d%-14d%-14d%-10s%n",
                     approach.label, forApproach.size(),
-                    "%.0f%%".formatted(canonicalMean * 100), "%.0f%%".formatted(legacyMean * 100),
+                    formatPassCount(canonicalPassed, canonicalPerformed),
+                    formatPassCount(legacyPassed, legacyPerformed),
                     promptTokens, completionTokens, promptTokens + completionTokens, formatDuration(totalMs));
         }
     }
@@ -2054,6 +2072,30 @@ public class BenchmarkLocalModels {
         return "%.1f GB".formatted(mb / 1024.0);
     }
 
+    /**
+     * A pass figure of the approach summary as {@code passed/performed (share)}. The counts are what make
+     * the figure checkable — a bare percentage hides whether it rests on two runs or two hundred. Reads
+     * {@code n/a} when the group ran no cases at all (e.g. under {@code --cases=canonical}), so an
+     * untested group cannot be misread as a 0% failure.
+     */
+    private static String formatPassCount(int passedRuns, int performedRuns) {
+        if (performedRuns == 0) return "n/a";
+        return "%d/%d (%.0f%%)".formatted(passedRuns, performedRuns, 100.0 * passedRuns / performedRuns);
+    }
+
+    /**
+     * The run's total wall clock as {@code 1h 05m 18s 773ms}, with the raw millisecond count kept in
+     * parentheses. Unlike {@link #formatDuration}, which drops to the coarsest fitting unit for the
+     * per-approach time column, this always spells out all four units, so the figure has the same shape
+     * in every report and stays comparable at a glance across runs of very different length.
+     */
+    private static String formatWallClock(long ms) {
+        long hours = ms / 3_600_000;
+        long minutes = ms / 60_000 % 60;
+        long seconds = ms / 1000 % 60;
+        return "%dh %02dm %02ds %03dms (%d ms)".formatted(hours, minutes, seconds, ms % 1000, ms);
+    }
+
     private static String formatDuration(long ms) {
         if (ms < 1000) return ms + " ms";
         double seconds = ms / 1000.0;
@@ -2075,26 +2117,30 @@ public class BenchmarkLocalModels {
         if (usable.isEmpty()) return;
 
         sb.append("\n## Approach performance summary (across all tested models)\n\n");
-        sb.append("Mean pass rate is the average of each tested model's mean pass rate for that approach ")
-          .append("(one model = one data point); token and time totals are true sums over every call made ")
-          .append("for that approach, across every model, case and run.\n\n");
-        sb.append("| Approach | Models tested | Mean pass rate (canonical) | Mean pass rate (legacy) | ")
+        sb.append("The pass columns read `passed/performed (share)` and count individual test runs: one run is ")
+          .append("one case sent once to one model, so a group's run count is its case count times `--runs`, ")
+          .append("summed over every tested model. A run counts as passed only if every field of the expected ")
+          .append("filter matches — see the per-case tables below for which runs failed. A model that failed ")
+          .append("outright (an `ERROR` row further down) performs no runs and is not counted under *Models ")
+          .append("tested*, so both counts describe only what actually ran. Token and time totals are true ")
+          .append("sums over every call made for that approach, across every model, case and run.\n\n");
+        sb.append("| Approach | Models tested | Canonical passed | Legacy passed | ")
           .append("Prompt tokens (Σ) | Completion tokens (Σ) | Tokens (Σ) | Time (Σ) |\n");
         sb.append("|---|---|---|---|---|---|---|---|\n");
         for (Approach approach : Approach.values()) {
             List<ModelApproachResult> forApproach = usable.stream().filter(r -> r.approach() == approach).toList();
             if (forApproach.isEmpty()) continue;
-            double canonicalMean = forApproach.stream().mapToDouble(r -> r.meanPassRate(CaseGroup.CANONICAL))
-                    .average().orElse(0);
-            double legacyMean = forApproach.stream().mapToDouble(r -> r.meanPassRate(CaseGroup.LEGACY))
-                    .average().orElse(0);
+            int canonicalPassed = forApproach.stream().mapToInt(r -> r.passedRuns(CaseGroup.CANONICAL)).sum();
+            int canonicalPerformed = forApproach.stream().mapToInt(r -> r.performedRuns(CaseGroup.CANONICAL)).sum();
+            int legacyPassed = forApproach.stream().mapToInt(r -> r.passedRuns(CaseGroup.LEGACY)).sum();
+            int legacyPerformed = forApproach.stream().mapToInt(r -> r.performedRuns(CaseGroup.LEGACY)).sum();
             long promptTokens = forApproach.stream().mapToLong(ModelApproachResult::totalPromptTokens).sum();
             long completionTokens = forApproach.stream().mapToLong(ModelApproachResult::totalCompletionTokens).sum();
             long totalMs = forApproach.stream().mapToLong(ModelApproachResult::totalDurationMs).sum();
             sb.append("| ").append(approach.label)
               .append(" | ").append(forApproach.size())
-              .append(" | ").append("%.0f%%".formatted(canonicalMean * 100))
-              .append(" | ").append("%.0f%%".formatted(legacyMean * 100))
+              .append(" | ").append(formatPassCount(canonicalPassed, canonicalPerformed))
+              .append(" | ").append(formatPassCount(legacyPassed, legacyPerformed))
               .append(" | ").append(promptTokens)
               .append(" | ").append(completionTokens)
               .append(" | ").append(promptTokens + completionTokens)
@@ -2113,7 +2159,7 @@ public class BenchmarkLocalModels {
         sb.append("Runs per case: ").append(cli.runs())
           .append(", Cases: ").append(caseCount).append(" (").append(cli.cases())
           .append(cli.quick() ? ", --quick" : "").append(")")
-          .append(", Wall clock: ").append(wallClockMs).append(" ms\n\n");
+          .append(", Wall clock: ").append(formatWallClock(wallClockMs)).append("\n\n");
         if (cli.thinkDisabled()) {
             sb.append("Thinking: disabled (--think=off; /no_think appended to MLX queries)\n\n");
         }
