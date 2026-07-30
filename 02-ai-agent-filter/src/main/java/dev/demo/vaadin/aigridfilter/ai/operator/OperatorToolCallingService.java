@@ -59,10 +59,24 @@ class OperatorToolCallingService implements CustomerSearchAgent {
 
             Fill the operator and the negate flag whenever the request implies them:
               - "not X" / "except X" / "excluding X" / "ausser X" -> pass X as the value and set
-                <field>Negate=true. There is no NOT_CONTAINS operator; negation is the flag.
+                <field>Negate=true. There is no NOT_CONTAINS operator; negation is the flag. This
+                applies even when the request is phrased as "all customers except X" / "show me
+                everyone but X" - the word "all"/"everyone" does NOT mean pass no filter; it means
+                "all of the remaining customers once X is excluded", so you must still call
+                searchCustomers with X as the value and <field>Negate=true, never with every
+                parameter null.
               - "begins with" / "first character/letter is X" -> <field>Operator=STARTS_WITH;
-                "ends with" -> ENDS_WITH; "is exactly" / "is X" -> EQUALS; a plain partial match ->
-                CONTAINS (the default).
+                "ends with" -> ENDS_WITH; "is exactly" / "precisely X" -> EQUALS; a plain partial
+                match -> CONTAINS (the default).
+              - city, country, and street are components of a larger address, so a plain "in X" /
+                "from X" / "is X" phrasing (e.g. "customers in Berlin") always means
+                <field>Operator=CONTAINS (the default) for these three fields, never EQUALS - reserve
+                EQUALS for these fields for explicit exact-match wording only ("exactly Berlin",
+                "precisely Berlin").
+              - a bare place name is a CITY, never a country, unless it unambiguously names a country
+                (e.g. "Germany", "France") or both are given together (e.g. "Hamburg, Germany"): put
+                "Hamburg", "Berlin", "Munich" etc. into city, not into country. When in doubt, prefer
+                city over country - city is the field actually shown in the grid.
               - dates: an exact day ("on 2024-03-15", "yesterday", "today") -> EQUALS;
                 "since" / "after" / "from" -> GREATER_OR_EQUAL; "before" / "until" -> LESS_OR_EQUAL.
               - annualRevenue: "at least" / "over" / "more than" -> GREATER_OR_EQUAL;
@@ -197,11 +211,15 @@ class OperatorToolCallingService implements CustomerSearchAgent {
             @ToolParam(description = DATE_OPERATOR) Operator lastOrderDateOperator,
             @ToolParam(description = NEGATE) Boolean lastOrderDateNegate,
 
-            @ToolParam(description = "country to match") String country,
+            @ToolParam(description = """
+                    country to match, e.g. "Germany" or "France". A bare city name (Hamburg, Berlin,
+                    Munich, ...) is NOT a country - put it in the city parameter instead.""") String country,
             @ToolParam(description = TEXT_OPERATOR) Operator countryOperator,
             @ToolParam(description = NEGATE) Boolean countryNegate,
 
-            @ToolParam(description = "city to match") String city,
+            @ToolParam(description = """
+                    city to match, e.g. "Hamburg" or "Berlin". A bare place name defaults to city
+                    unless it unambiguously names a country.""") String city,
             @ToolParam(description = TEXT_OPERATOR) Operator cityOperator,
             @ToolParam(description = NEGATE) Boolean cityNegate,
 

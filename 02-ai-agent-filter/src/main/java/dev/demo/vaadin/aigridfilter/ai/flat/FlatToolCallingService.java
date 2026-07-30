@@ -18,11 +18,15 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * Variant <b>02(a)</b> of the tool-calling AI layer — the simplest rung of the escalation ladder:
  * the model calls one {@code searchCustomers} tool with <em>one scalar value per field</em>. No
- * {@code List} parameter (so no OR within a field), no operator, no negation, and no live-clock tool.
+ * {@code List} parameter (so no OR within a field) and no operator/negation. It does have a
+ * {@code currentLocalDateTime} tool (mirroring variant 02(b)'s), so that a relative date ("this
+ * year", "last week") is resolved from an actual clock reading instead of guessed — the whole-year
+ * date semantics are unaffected, only the year/day *value* the model fills in changes.
  * Everything the filter can mean is baked into {@link FlatSpecifications}.
  * <p>
  * Variant 02(b) ({@code ai/operator}) is the same delivery mechanism with an operator and a negate
@@ -52,6 +56,11 @@ class FlatToolCallingService implements CustomerSearchAgent {
             no way to pass a second value for the same field. If a request mentions several values for
             one field (e.g. two cities), pass the first one and accept that the rest cannot be
             expressed - do not call the tool again for them.
+
+            For a relative date ("yesterday", "this year", "last week", "in the last 12 months"), you
+            MUST call the currentLocalDateTime tool first and compute the date from its result - NEVER
+            guess or assume today's date from memory or context. Only after that call, call
+            searchCustomers with the computed date.
             """;
 
     private final ChatClient chatClient;
@@ -129,13 +138,19 @@ class FlatToolCallingService implements CustomerSearchAgent {
                     'customer since' year to match, or null. Matches customers who became a customer
                     anywhere in that year. An ISO yyyy-MM-dd date; interpret ambiguous user input as
                     day-first (German format), e.g. '03.05.05' -> "2005-05-03", and "since 2020" ->
-                    "2020-01-01".""") LocalDate customerSince,
+                    "2020-01-01". For a relative date ("this year"), call currentLocalDateTime
+                    first.""") LocalDate customerSince,
             @ToolParam(description = """
                     last-order year to match, or null. Matches customers whose last order falls
                     anywhere in that year. An ISO yyyy-MM-dd date; interpret ambiguous user input as
-                    day-first (German format), e.g. '03.05.05' -> "2005-05-03".""") LocalDate lastOrderDate,
-            @ToolParam(description = "country") String country,
-            @ToolParam(description = "city") String city,
+                    day-first (German format), e.g. '03.05.05' -> "2005-05-03". For a relative date
+                    ("yesterday", "last week"), call currentLocalDateTime first.""") LocalDate lastOrderDate,
+            @ToolParam(description = """
+                    country, e.g. "Germany" or "France". A bare city name (Hamburg, Berlin, Munich,
+                    ...) is NOT a country - put it in the city parameter instead.""") String country,
+            @ToolParam(description = """
+                    city, e.g. "Hamburg" or "Berlin". A bare place name defaults to city unless it
+                    unambiguously names a country.""") String city,
             @ToolParam(description = "postal code") String postalCode,
             @ToolParam(description = "street") String street,
             @ToolParam(description = "house number") String houseNumber,
@@ -161,5 +176,10 @@ class FlatToolCallingService implements CustomerSearchAgent {
 
         this.criteria = incoming;
         logger.info("searchCustomers -> {}", criteria);
+    }
+
+    @Tool(description = "Current date and time")
+    LocalDateTime currentLocalDateTime() {
+        return LocalDateTime.now();
     }
 }
