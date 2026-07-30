@@ -106,10 +106,12 @@
 
 	<profiles>
 		<profile>
-			<!-- Enables CustomerSearchAgentIT + CustomerListViewBrowserlessIT. The default test
+			<!-- Enables both variants' canonical-query and browserless ITs. The default test
 			     Spring profile is ollama (src/test/resources/application.properties), targeting a
 			     native Ollama instance at OLLAMA_BASE_URL; pass -DAI_TEST_PROFILE=openai (or set it
-			     as an env var) to target the real OpenAI API instead. -->
+			     as an env var) to target the real OpenAI API instead. Includes are listed one by one
+			     rather than as **/*IT.java, so adding an IT class is a deliberate decision about what
+			     the Ollama suite costs. -->
 			<id>it-local-ollama</id>
 			<build>
 				<plugins>
@@ -118,8 +120,10 @@
 						<artifactId>maven-failsafe-plugin</artifactId>
 						<configuration>
 							<includes>
-								<include>**/CustomerSearchAgentIT.java</include>
-								<include>**/CustomerListViewBrowserlessIT.java</include>
+								<include>**/ScalarCanonicalQueryIT.java</include>
+								<include>**/OperatorCanonicalQueryIT.java</include>
+								<include>**/ScalarCustomerListViewBrowserlessIT.java</include>
+								<include>**/OperatorCustomerListViewBrowserlessIT.java</include>
 							</includes>
 						</configuration>
 					</plugin>

@@ -12,10 +12,9 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Deterministic, fast test of the one filter capability {@code 02-ai-agent-filter}'s flat
- * {@code CustomerSearchCriteria} model cannot express at all — negation ({@link Condition#negate()})
- * — so it has no counterpart there. Split out from {@link CustomerFilterSpecificationsTest}, which
- * holds the cases both modules share.
+ * Deterministic, fast test of negation ({@link Condition#negate()}), split out from
+ * {@link CustomerFilterSpecificationsTest}. Variant 02(b) of {@code 02-ai-agent-filter} has since gained
+ * a per-field negate flag as well; what it still cannot express is more than one condition per field.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE) // keep configured H2 + data.sql

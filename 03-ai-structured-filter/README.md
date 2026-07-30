@@ -2,9 +2,14 @@
 
 Natural-language filtering of a Vaadin `Grid` of `Customer` records via **AI structured output**:
 the LLM returns a single `CustomerFilter` JSON object (instead of calling a tool), which Java
-translates into a JPA `Specification`. Second step in this tutorial towards filtering data with
-natural language — compare with the tool-calling approach in `02-ai-agent-filter` and the non-AI
-baselines in `01-non-ai-filter`.
+translates into a JPA `Specification`.
+
+Step 4 of this tutorial's escalation ladder, and the step where the filter *type* changes: the two
+tool-calling variants before it (`02-ai-agent-filter`) carry one value — or one value, operator and
+negate flag — per field, which cannot express multi-value OR or a range on one field. A flat list of
+conditions can. `04-ai-hybrid-filter` then delivers this very same filter type through a tool call, which
+is how the repository separates "what a filter can express" from "how the model hands it over". Compare
+also with the non-AI baselines in `01-non-ai-filter`; the root `README.md` has the whole ladder.
 
 ## View
 
@@ -47,9 +52,14 @@ all conditions together. An empty (or `null`) conditions list matches every cust
 This is deliberately less expressive than a recursive AND/OR/NOT tree: **cross-field OR** (e.g.
 `city = Berlin OR annualRevenue >= 1000000`) and **arbitrary nesting** are not representable — a
 conscious trade-off for a shape that's far easier for a small/local model to produce correctly,
-at the cost of that expressiveness. `02-ai-agent-filter`'s flat `CustomerSearchCriteria` remains
-the point of comparison, though its model is simpler still (no explicit operator/negate — semantics
-are baked into each field's predicate builder).
+at the cost of that expressiveness.
+
+The comparison downwards is with `02-ai-agent-filter`'s per-field criteria: 02(a) has one scalar value per
+field with the semantics baked into each field's predicate builder, and 02(b) adds an operator and a
+negate flag per field — but neither can hold two values or two bounds for *one* field, so multi-value OR
+and ranges are impossible there, not merely unreliable. `04-ai-hybrid-filter` uses the same
+`CustomerFilter`/`Condition`/`Operator` types as this module, copied 1:1, and reaches them through a tool
+call instead.
 
 Example — "customers from Berlin or Köln, not from Munich, with at least 100000 revenue":
 
@@ -64,7 +74,7 @@ Example — "customers from Berlin or Köln, not from Munich, with at least 1000
 ```
 
 Small/local models are noticeably more reliable at producing this shape than the previous
-recursive tree — see `../04-ollama-benchmark`'s recorded latency/accuracy comparison.
+recursive tree — see `../05-ollama-benchmark`'s recorded latency/accuracy comparison.
 
 ## Running
 
@@ -94,7 +104,7 @@ code change. `openai` speaks the OpenAI-compatible chat completions API
   ```bash
   ollama pull qwen3:8b
   ```
-  Other models benchmarked against this module in `../04-ollama-benchmark`: `qwen3.5:4b-mlx`,
+  Other models benchmarked against this module in `../05-ollama-benchmark`: `qwen3.5:4b-mlx`,
   `qwen3:8b`, `gemma4:26b-mlx` — swap `spring.ai.ollama.chat.model` in
   `application-ollama.properties` to try one.
 
@@ -119,7 +129,7 @@ block per call; a non-reasoning model like `llama3.1:8b` ignores the flag anyway
 
 ```bash
 ./mvnw -pl 03-ai-structured-filter test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
-./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama                            # CustomerSearchAgentIT(+Extra) + CustomerListViewBrowserlessIT vs native Ollama (ollama is the default test profile)
+./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama                            # CanonicalQueryIT + CustomerSearchAgentIT(+Extra) + CustomerListViewBrowserlessIT vs native Ollama (ollama is the default test profile)
 ./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API
 ```
 
@@ -137,22 +147,31 @@ the test config overrides it to `ollama`.
 > range. This is a model-capability gap, not a bug in the prompt/schema; keep the configured default
 > (or swap the model in `application-ollama.properties`) if you hit it during a demo.
 
+- **`CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the build if this
+  module's `StructuredCanonicalQueryIT` or the benchmark script stops matching `docs/canonical-query-set.md`
+  verbatim, in wording or order.
 - **`CustomerFilterSpecificationsTest`** (`@DataJpaTest`, no LLM) — deterministic test of the flat
-  translation against the seeded H2 data. The single-field, multi-value-OR, and AND-across-fields
-  cases use the same field values as `02-ai-agent-filter`'s `CustomerSpecificationsTest`, so
-  DB-level results are directly comparable.
-- **`CustomerFilterSpecificationsExtraTest`** (`@DataJpaTest`, no LLM) — the one case split out of
-  the class above that `02-ai-agent-filter`'s flat model cannot express at all: negation
-  (`Condition.negate()`).
+  translation against the seeded H2 data. `04-ai-hybrid-filter` runs a 1:1 copy of it against its copy of
+  the same translation logic, so a divergence between the two modules can only come from the delivery
+  mechanism.
+- **`CustomerFilterSpecificationsExtraTest`** (`@DataJpaTest`, no LLM) — negation
+  (`Condition.negate()`), split out of the class above.
+- **`StructuredCanonicalQueryIT`** — the eight queries of `docs/canonical-query-set.md`, each scored on the
+  **resulting customer set**: the returned `Specification` is executed against the seeded database and the
+  matching ids are compared with those of a reference predicate. All eight are expected to pass here;
+  `02-ai-agent-filter`'s two variants and `04-ai-hybrid-filter` run the identical queries, which is what
+  makes the capability matrix a measurement rather than a claim.
 - **`CustomerSearchAgentIT`** — natural-language queries against a native Ollama instance.
   Assertions are tolerant of LLM non-determinism: they check that an expected condition is
   present *somewhere* in the flat conditions list, ignoring extras. Every case here uses the
-  exact same wording/values as one of `02-ai-agent-filter`'s `CustomerSearchAgentIT` cases, so
-  the two modules' results and timings are directly comparable by running this class alone
-  (`-Dit.test=CustomerSearchAgentIT`).
-- **`CustomerSearchAgentExtraIT`** — the cases that need a capability `02-ai-agent-filter`'s flat
-  model cannot express at all: negation, STARTS_WITH/ENDS_WITH/EQUALS operator precision, and
-  arbitrary date bounds (tagged `negation`/`operator-precision`/`relative-date` respectively).
+  exact same wording/values it had when `02-ai-agent-filter` still used one list-based tool call, and it
+  stays as this module's broader prompt-regression net alongside the canonical set. Run it alone with
+  `-Dit.test=CustomerSearchAgentIT`.
+- **`CustomerSearchAgentExtraIT`** — the cases that need a capability `02-ai-agent-filter`'s per-field
+  criteria cannot express at all: negation, STARTS_WITH/ENDS_WITH/EQUALS operator precision, and
+  arbitrary date bounds (tagged `negation`/`operator-precision`/`relative-date` respectively). 02(b) has
+  since gained negation and operator precision — but still not multi-value OR or ranges, so most of these
+  remain 03/04-only.
   Cross-field OR and arbitrary nesting are no longer part of `CustomerFilter` either, so the cases
   that used to need them (tagged `cross-field-or`/`nested-tree`) were removed rather than moved
   here — a deliberate trade-off for faster/more reliable structured output, not an oversight.
@@ -163,16 +182,16 @@ the test config overrides it to `ollama`.
   `MockVaadin.runUIQueue()` (to flush the queued `ui.access()` command) inside an Awaitility
   `pollInSameThread()` loop (so the flush runs on the thread holding the UI `ThreadLocal`) —
   needed because a plain synchronous assertion races the background search thread. Includes the
-  same multi-value OR-within-field case as `02-ai-agent-filter`'s equivalent test, expressed via
-  `CustomerFilter`'s flat conditions list instead of a criteria record.
+  same multi-value OR-within-field case as `04-ai-hybrid-filter`'s equivalent test — a query neither
+  02 variant can express at all.
 - **`CustomerListViewBrowserlessIT`** — same Browserless setup, but against a real native Ollama
   instance instead of a fake agent bean (it fails rather than skipping if unreachable, like
   `CustomerSearchAgentIT`), exercising the full `TextField` → structured-output AI layer → `Grid`
   pipeline end to end. Since the real model's result size isn't known upfront, the wait condition
   is "the filter field is re-enabled" (it's disabled for the duration of a search) rather than a
-  fixed grid size. `02-ai-agent-filter` has an identical test with the same 7 queries, so the two
+  fixed grid size. `04-ai-hybrid-filter` has an identical test with the same 7 queries, so the two
   modules' `-Pit-local-ollama` runs are directly comparable on speed (per-test elapsed time in
-  `target/failsafe-reports/`) and result quality between tool calling and structured output.
+  `target/failsafe-reports/`) and result quality between structured output and tool calling.
 
 ## Sources
 
@@ -182,5 +201,5 @@ the test config overrides it to `ollama`.
 - `src/main/java/dev/demo/vaadin/aigridfilter/data/` — the shared `Customer`/`Address` JPA model
 - `src/main/resources/data.sql` — seed data (100 customers)
 - `src/test/java/dev/demo/vaadin/aigridfilter/` — tests (see [Tests](#tests) above)
-- `../04-ollama-benchmark/` — standalone benchmark script comparing local Ollama models on this
+- `../05-ollama-benchmark/` — standalone benchmark script comparing local Ollama models on this
   module's natural-language-to-filter task

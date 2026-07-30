@@ -1,8 +1,13 @@
 # 01-non-ai-filter
 
-The non-AI baseline for this tutorial: two ways to filter a Vaadin `Grid` of `Customer` records
-without any LLM involved, so they can be compared against the AI-driven approaches in
-`02-ai-agent-filter` and `03-ai-structured-filter`.
+Step 1 of this tutorial's escalation ladder and its non-AI baseline: two ways to filter a Vaadin `Grid`
+of `Customer` records without any LLM involved, so they can be compared against the three AI-driven
+steps that follow — `02-ai-agent-filter` (tool calling, in two variants), `03-ai-structured-filter`
+(structured output) and `04-ai-hybrid-filter` (tool calling with 03's filter type). The root
+`README.md` has the whole ladder in one table.
+
+The per-column filter form of `/lazy` is also the yardstick for what the AI steps have to reach: it can
+express everything a user can type into it, but only because a human filled in every field by hand.
 
 ## Views
 
