@@ -17,6 +17,10 @@
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
 		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>com.vaadin</groupId>
 			<artifactId>vaadin-dev</artifactId>
 			<optional>true</optional>
@@ -120,9 +124,9 @@
 						<artifactId>maven-failsafe-plugin</artifactId>
 						<configuration>
 							<includes>
-								<include>**/ScalarCanonicalQueryIT.java</include>
+								<include>**/FlatCanonicalQueryIT.java</include>
 								<include>**/OperatorCanonicalQueryIT.java</include>
-								<include>**/ScalarCustomerListViewBrowserlessIT.java</include>
+								<include>**/FlatCustomerListViewBrowserlessIT.java</include>
 								<include>**/OperatorCustomerListViewBrowserlessIT.java</include>
 							</includes>
 						</configuration>
