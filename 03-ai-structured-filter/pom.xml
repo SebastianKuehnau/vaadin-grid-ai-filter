@@ -77,15 +77,6 @@
 			<artifactId>awaitility</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<dependency>
-			<!-- The canonical query set, its expected result sets and the shared IT runner. One of the
-			     repository's two shared modules (demo-commons is the other, for runtime code); what each
-			     variant can express stays in this module's own ITs. -->
-			<groupId>dev.demo.vaadin</groupId>
-			<artifactId>canonical-query-testkit</artifactId>
-			<version>${project.version}</version>
-			<scope>test</scope>
-		</dependency>
 	</dependencies>
 
 	<build>

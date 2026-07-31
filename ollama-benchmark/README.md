@@ -87,7 +87,7 @@ report repeats this caveat next to the matrix, so a `0/1` there is never mistake
 
 - **Canonical query set** (primary): the eight queries of `../docs/canonical-query-set.md`, the same ones
   all four modules' canonical-query ITs run. Their wording lives verbatim in this script, and every
-  module's `CanonicalQuerySetConsistencyTest` fails the build if it drifts from the document — which is
+  `demo-commons`' `CanonicalQuerySetConsistencyTest` fails the build if it drifts from the document — which is
   what makes these token/latency figures comparable query-for-query with the ITs' pass/fail results.
   Each canonical case names the approaches whose filter type can express it at all; for the others the
   case is reported as `n/a` (and listed on stdout), because an architectural limit is not a reliability

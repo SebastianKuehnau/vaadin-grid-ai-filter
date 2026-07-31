@@ -136,7 +136,7 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
 ./mvnw -pl 04-ai-hybrid-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API
 ```
 
-- **`CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the build if this
+- **`demo-commons`' `CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the build if this
   module's `HybridCanonicalQueryIT` or the benchmark script stops matching `docs/canonical-query-set.md`
   verbatim, in wording or order.
 - The translation from conditions to a `Specification` is **not** re-tested here. This module's

@@ -194,7 +194,7 @@ the test config overrides it to `ollama`.
 
 Without an LLM (`test`), per variant:
 
-- **`CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring) — fails the build if either variant's
+- **`demo-commons`' `CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring) — fails the build if either variant's
   canonical-query IT, or the benchmark script, stops matching `docs/canonical-query-set.md` verbatim, in
   wording or order.
 - **`CustomerSpecificationsTest` / `CustomerSpecificationsTest`** (`@DataJpaTest`) — the filter

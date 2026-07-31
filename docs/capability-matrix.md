@@ -26,7 +26,7 @@ Configured default model for all four modules: `qwen3:8b`, temperature 0
 ## The canonical query set — measured on the resulting customer set
 
 These are the eight queries of [canonical-query-set.md](canonical-query-set.md), run by every module's
-canonical-query IT with **identical wording** (a per-module `CanonicalQuerySetConsistencyTest` fails the
+canonical-query IT with **identical wording** (`demo-commons`' `CanonicalQuerySetConsistencyTest` fails the
 build if any copy drifts). Each case is scored on the *resulting customer set*: the returned
 `Specification` is executed against the seeded database and the matching customer ids are compared with
 those of a reference predicate — not on whether the extracted filter "looks right".

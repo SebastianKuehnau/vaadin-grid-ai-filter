@@ -151,7 +151,7 @@ the test config overrides it to `ollama`.
 > range. This is a model-capability gap, not a bug in the prompt/schema; keep the configured default
 > (or swap the model in `application-ollama.properties`) if you hit it during a demo.
 
-- **`CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the build if this
+- **`demo-commons`' `CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the build if this
   module's `StructuredCanonicalQueryIT` or the benchmark script stops matching `docs/canonical-query-set.md`
   verbatim, in wording or order.
 - **`CustomerFilterSpecificationsTest`** (`@DataJpaTest`, no LLM) — deterministic test of the flat

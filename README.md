@@ -7,10 +7,10 @@ It is a **Maven multi-module reactor**: a root parent POM aggregates four Spring
 applications, meant to be read and run in order. Each runs on its own port, so several can run at the
 same time. Two further modules carry no step number because they are not steps: `demo-commons` holds
 what all four apps genuinely share at runtime (the `Customer`/`Address` domain model, `data.sql`, the
-`Grid` itself), and `canonical-query-testkit` holds the shared test infrastructure. Everything that *is*
-the comparison — each approach's AI service, filter type and prompt — stays inside its own module, so a
-step can still be read on its own. A further, non-Maven directory, `ollama-benchmark`, holds a standalone
-script for benchmarking local Ollama models.
+`Grid` itself). Everything that *is* the comparison — each approach's AI service, filter type, prompt and
+its table of canonical queries — stays inside its own module, so a step can still be read on its own. A
+further, non-Maven directory, `ollama-benchmark`, holds a standalone script for benchmarking local Ollama
+models.
 
 ## The escalation ladder
 
@@ -77,9 +77,6 @@ attached, query type by query type.
   from the very same Jackson annotations that drive 03's response format, so the model sees the same
   vocabulary either way. Since 04 can express everything 03 can, while 02(a)/02(b) cannot, the ladder
   ends with a conclusion rather than a preference. See `04-ai-hybrid-filter/README.md`.
-- **`canonical-query-testkit`** — Shared *test* infrastructure: the canonical query set, the customer
-  sets each query must produce, and the assert/log step all four canonical-query ITs run. Five copies
-  of eight query strings were five chances to drift. See `canonical-query-testkit/README.md`.
 - **`demo-commons`** — Shared *runtime* infrastructure: the domain layer and `data.sql`, the
   `CustomerGrid` and the search view all four apps show, the one-method `CustomerSearchAgent` seam and
   the token measurement. Deliberately never an AI service, a filter type or a system prompt — those are
@@ -104,7 +101,7 @@ writes the final query — Java turns the intent into a `Specification` and the 
 ## Running
 
 Use the root Maven wrapper (`./mvnw`) from the repository root. Every app depends on `demo-commons`
-(and the AI ones on `canonical-query-testkit` for tests), so a single-module build needs `-am`:
+so a single-module build needs `-am`:
 `./mvnw verify -pl 03-ai-structured-filter -am`. `spring-boot:run` cannot use `-am` and resolves from
 `~/.m2`, so run `./mvnw install -DskipTests` once first.
 

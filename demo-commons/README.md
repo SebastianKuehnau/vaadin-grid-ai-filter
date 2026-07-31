@@ -3,10 +3,12 @@
 Shared **runtime** infrastructure for all four apps. No numeric prefix, because this is not a step of the
 talk — it is the scaffolding the four steps stand on.
 
-This module and `canonical-query-testkit` are the repository's **two deliberate exceptions** to its
-"duplication per module is on purpose" rule. The testkit holds shared *test* infrastructure; this module
-holds shared *runtime* infrastructure. Everything else stays duplicated, so each numbered module can be
-read on its own.
+This module is the repository's **one deliberate exception** to its "duplication per module is on
+purpose" rule. Everything else stays duplicated, so each numbered module can be read on its own.
+
+Its own test sources hold one thing that is not runtime scaffolding: `CanonicalQuerySetConsistencyTest`,
+which guards the four AI modules' copies of the canonical query set against `docs/canonical-query-set.md`.
+It lives here because this is the module every build touches and the invariant is repo-wide.
 
 ## What is in here
 

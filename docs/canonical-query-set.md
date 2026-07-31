@@ -3,21 +3,24 @@
 The **single source of truth** for the natural-language queries every AI module of this repository is
 tested with. Eight queries, one per capability category, each with the customer set it must produce.
 
-Two places use these queries **verbatim**:
+Five places spell these queries out **verbatim**:
 
 | Copy | File |
 |---|---|
-| shared enum | `canonical-query-testkit/src/main/java/dev/demo/vaadin/aigridfilter/canonicalquery/CanonicalQuery.java` |
+| 02(a) IT | `02-ai-agent-filter/src/test/java/.../ai/flat/FlatCanonicalQueryIT.java` |
+| 02(b) IT | `02-ai-agent-filter/src/test/java/.../ai/operator/OperatorCanonicalQueryIT.java` |
+| 03 IT | `03-ai-structured-filter/src/test/java/.../ai/StructuredCanonicalQueryIT.java` |
+| 04 IT | `04-ai-hybrid-filter/src/test/java/.../ai/HybridCanonicalQueryIT.java` |
 | benchmark | `ollama-benchmark/BenchmarkLocalModels.java` |
 
-All four AI modules' canonical-query ITs share the first copy. The benchmark script keeps its own,
-because it is deliberately a standalone, dependency-free program.
+Each IT carries its own table of query, expected outcome and reference predicate, so opening one class
+tells you what runs and what a correct answer looks like without chasing a shared type in another module.
+The benchmark script keeps its own copy because it is deliberately standalone and dependency-free.
 
-A drift between either copy and this document fails the build: `canonical-query-testkit` has a
+A drift between any copy and this document fails the build: `demo-commons` has a
 `CanonicalQuerySetConsistencyTest` (plain `mvn test`, no LLM, no Ollama) that parses the ```` ```text ````
-blocks below and compares them with the shared `CanonicalQuery` enum (wording **and** order) and with
-the benchmark script's case list. So the token/latency figures from the benchmark line up
-query-for-query with the pass/fail reliability results from the IT suites.
+blocks below and compares them with all five copies, wording **and** order. So the token/latency figures
+from the benchmark line up query-for-query with the pass/fail reliability results from the IT suites.
 
 ## Why these eight
 
@@ -50,9 +53,8 @@ through the same tool, 03 and 04 through the "today" baked into their prompts.
 
 ## Expected customer sets
 
-Every query's expected result is defined as a **predicate over `CanonicalCustomer`** — the six-field
-projection of `Customer` the shared enum is written against, which keeps the testkit free of JPA —
-evaluated against whatever `data.sql` currently seeds, never as a hard-coded list of IDs. Two reasons:
+Every query's expected result is defined as a **predicate over `Customer`**, evaluated against whatever
+`data.sql` currently seeds, never as a hard-coded list of IDs. Two reasons:
 C7 depends on today's date,
 and each app's startup sets "Berlin Data Works"'s last order date to yesterday (see any
 `*Application.java`), so one row is deliberately not static.

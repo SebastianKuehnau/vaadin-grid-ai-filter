@@ -11,7 +11,6 @@ Top priority for all code: **easy to understand, presentable, extensible** — c
 | `02-ai-agent-filter` | 8082 | AI filtering via tool calling, in two variants behind two routes of one app: 02(a) one scalar value per field (`/`), 02(b) value + operator + negate per field (`/operator`) |
 | `03-ai-structured-filter` | 8083 | AI filtering via structured output (`CustomerFilter` → JPA Specifications), against local Ollama models |
 | `04-ai-hybrid-filter` | 8084 | AI filtering via tool calling with 03's `List<Condition>` filter type, copied 1:1 — same capability, different delivery |
-| `canonical-query-testkit` | — | Shared **test** infrastructure: the canonical query set, the customer sets each query must produce, and the assert/log step the canonical-query ITs run. No numeric prefix — not a step of the talk |
 | `demo-commons` | — | Shared **runtime** infrastructure: the domain layer (`Customer`, `Address`, `CreditRating`, `CustomerRepository`, `data.sql`), the shared Vaadin components (`CustomerGrid`, `AbstractCustomerSearchView`) and the AI layer's seam plus token measurement (`CustomerSearchAgent`, `TokenUsageAdvisor`, `TokenUsageRecorder`). No numeric prefix — not a step of the talk. See `demo-commons/README.md` for the rule on what must never move there |
 
 Each of the four numbered modules above is a standalone Spring Boot app (`<ModuleName>Application`).
@@ -35,9 +34,8 @@ The eight natural-language queries all AI modules are measured with live in
 ./mvnw test -pl <module> -am -Dtest=<Class># run a single test class
 ```
 
-`-am` (also-make) is needed for **all four** apps: every one of them depends on `demo-commons`, and
-`02`/`03`/`04` additionally on `canonical-query-testkit`. Without it a `-pl` build fails to resolve
-those dependencies.
+`-am` (also-make) is needed for **all four** apps: every one of them depends on `demo-commons`, which
+Maven has to build first. Without it a `-pl` build fails to resolve that dependency.
 
 `spring-boot:run` cannot use `-am` (it would try to run the shared modules too) and resolves
 dependencies from `~/.m2`, so the shared modules have to be installed once — `./mvnw install
@@ -58,11 +56,10 @@ A task is only finished when:
    `OperatorCanonicalQueryIT` in 02, `StructuredCanonicalQueryIT` in 03, `HybridCanonicalQueryIT`
    in 04), plus the module's browserless IT for UI→AI changes.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
-   `canonical-query-testkit`'s `CanonicalQuery` enum and into
-   `ollama-benchmark/BenchmarkLocalModels.java` — verbatim in both copies. The testkit's
-   `CanonicalQuerySetConsistencyTest` fails the build if they drift apart. Each module's IT then has
-   to say what the new query means for its variant: the per-module `outcomeOf` is an exhaustive
-   `switch`, so all four stop compiling until that decision is made.
+   all four modules' canonical-query ITs and into `ollama-benchmark/BenchmarkLocalModels.java` —
+   verbatim in all five copies. `demo-commons`' `CanonicalQuerySetConsistencyTest` fails the build if
+   they drift apart. Each IT's own table is also where that query's outcome for its variant is
+   decided: `EXPRESSIBLE` or `NOT_EXPRESSIBLE`, with the reference predicate next to it.
 
 Points 1–3 apply before **every** commit, not only at the end of the task.
 Iterate on your own until all points are met before reporting the task as done.
@@ -82,19 +79,16 @@ or file changes on your own initiative.
   (01 → 02(a) → 02(b) → 03 → 04 increase in expressiveness; same domain, different filtering
   mechanism — everything that *is* the comparison stays duplicated per module on purpose, so each
   step can be read on its own).
-- **Two exceptions to that duplication**, one for shared test and one for shared runtime
-  infrastructure. Both exist because identical copies had become a drift risk with no teaching value;
-  neither may ever grow to hold something the talk compares:
-  - `canonical-query-testkit`, a **test**-scope dependency of 02/03/04. It owns the canonical
-    queries, their expected customer sets and the assert/log step — five identical copies of eight
-    query strings. What each variant can *express* stays in its own IT, because that is the
-    comparison the talk is about.
-  - `demo-commons`, a compile dependency of all four apps. It owns the domain layer, the shared
-    Vaadin components, the `CustomerSearchAgent` seam and the token measurement. **Never** the AI
-    services, the `Criteria`/`Condition`/`Specifications` types, the `SYSTEM_PROMPT`s, the tool
-    signatures or any `@Route` view. The rule when in doubt: if a reader of the talk would need to
-    see it on a slide to understand the difference between two approaches, it stays in its module.
-    See `demo-commons/README.md`.
+- **One exception to that duplication:** `demo-commons`, a compile dependency of all four apps. It
+  owns the domain layer, the shared Vaadin components, the `CustomerSearchAgent` seam and the token
+  measurement. **Never** the AI services, the `Criteria`/`Condition`/`Specifications` types, the
+  `SYSTEM_PROMPT`s, the tool signatures or any `@Route` view. The rule when in doubt: if a reader of
+  the talk would need to see it on a slide to understand the difference between two approaches, it
+  stays in its module. See `demo-commons/README.md`.
+- The canonical queries are duplicated on purpose too: each module's canonical-query IT carries its
+  own table of query, outcome and reference predicate, so the IT is readable on its own.
+  `demo-commons`' `CanonicalQuerySetConsistencyTest` is what makes the copies safe — it fails the
+  build the moment one drifts from `docs/canonical-query-set.md`.
 - CSS belongs in theme files, not inline in Java components.
 - Commit after every completed, verified step (Conventional Commits, no push).
 - Never commit benchmark reports, logs, or other generated artifacts unless the

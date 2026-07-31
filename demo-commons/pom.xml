@@ -48,6 +48,19 @@
 			<artifactId>micrometer-core</artifactId>
 			<optional>true</optional>
 		</dependency>
+
+		<!-- Only for this module's own CanonicalQuerySetConsistencyTest, which guards the four ITs' copies
+		     of the canonical query set against docs/canonical-query-set.md. -->
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.assertj</groupId>
+			<artifactId>assertj-core</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 </project>
