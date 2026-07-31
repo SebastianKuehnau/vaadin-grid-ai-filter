@@ -8,6 +8,7 @@ import org.springframework.ai.chat.client.advisor.api.CallAdvisor;
 import org.springframework.ai.chat.client.advisor.api.CallAdvisorChain;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.core.Ordered;
+import org.springframework.stereotype.Component;
 
 /**
  * The repository's whole token and latency measurement: passed to
@@ -20,12 +21,13 @@ import org.springframework.core.Ordered;
  * a nine-token epilogue — and miss the one that produced the filter. So {@code requests} counts model
  * calls, not queries, exactly as the Micrometer counter this class replaces did.
  * <p>
- * Deliberately <b>not</b> a {@code @Component}: it needs Spring AI, and {@code 01-non-ai-filter} depends
- * on this module without it. A component scan reads annotations from ASM metadata without loading the
- * class, so Spring would find the annotation there too and then fail with {@code NoClassDefFoundError}.
- * Each of {@code 02}/{@code 03}/{@code 04} declares the bean itself. Synchronized because searches run
- * off the UI thread.
+ * A {@code @Component}, so all four apps get the bean from the component scan — including
+ * {@code 01-non-ai-filter}, which creates it and never calls it, because no {@code ChatClient} exists
+ * there. That is the deliberate cost of declaring the wiring once instead of in three identical
+ * {@code @Configuration} classes; {@code demo-commons/README.md} records the trade. Synchronized because
+ * searches run off the UI thread.
  */
+@Component
 public class TokenUsageAdvisor implements CallAdvisor {
 
     private static final Logger logger = LoggerFactory.getLogger(TokenUsageAdvisor.class);

@@ -30,8 +30,8 @@ filter comes into being:
 - **`ui/AbstractCustomerSearchView`** — the natural-language filter field above that grid plus the async
   plumbing behind it (off the UI thread, applied through `ui.access(...)`, error as a notification). Used
   by `02`/`03`/`04`; `01` has no AI layer and uses `CustomerGrid` alone.
-- **`ai/CustomerSearchAgent`** — the one-method seam between view and AI layer. It names no Spring AI type,
-  which is what lets `01` depend on this module without resolving Spring AI.
+- **`ai/CustomerSearchAgent`** — the one-method seam between view and AI layer. It names no Spring AI type
+  at all: everything about the model lives behind it, in each module's own `CustomerSearchService`.
 - **`ai/TokenUsageAdvisor`** — the whole token and latency measurement, as a `ChatClient` advisor.
   Keeping it here is what leaves each `CustomerSearchService` with nothing but its prompt and its tool.
   It sits *innermost* in the advisor chain on purpose: Spring AI's tool loop re-enters the chain for the
@@ -54,18 +54,24 @@ The views are a borderline case worth spelling out. `AbstractCustomerSearchView`
 *plumbing* is identical and invisible — but each module keeps its own `@Route`-annotated subclass, because
 which `CustomerSearchAgent` gets injected there is exactly the difference being demonstrated.
 
-## Two constraints this module has to respect
+## One trade this module makes, on purpose
 
-**`01-non-ai-filter` must resolve neither Spring AI nor Micrometer.** It is the non-AI baseline, and its
-dependency tree is checked for it. So both are declared `<optional>true</optional>` here, which stops them
-propagating to consumers; `02`/`03`/`04` declare their own starters and actuator, as they always have.
+`spring-ai-client-chat` is a **regular** dependency here, not `<optional>`, which is what lets
+`TokenUsageAdvisor` be a plain `@Component`: it sits in `dev.demo.vaadin.aigridfilter.ai`, every app scans
+that package, and one annotation replaces the three identical `@Configuration` classes `02`/`03`/`04` used
+to carry.
 
-**Hence: no `@Component` on `TokenUsageAdvisor`.** A component scan reads
-annotations from ASM metadata *without loading the class*, so Spring would find a `@Component` here while
-running `01` and then fail to instantiate the bean with `NoClassDefFoundError`. Each of `02`/`03`/`04`
-declares the recorder in its own 21-line `TokenUsageConfiguration`. An `@AutoConfiguration` with
-`@ConditionalOnClass` would work too and was rejected on purpose: auto-configuration magic is the wrong
-thing to explain from a stage.
+The cost lands on `01-non-ai-filter`, which resolves **17 further artefacts** through that line — the four
+Spring AI jars plus `jtokkit`, the victools JSON-Schema modules, ANTLR/ST4, `micrometer-core` and
+`spring-messaging`. It is still the non-AI baseline in every sense that matters: no Spring AI code, no
+`spring-ai-starter-model-*`, so no autoconfiguration and no `ChatModel`. The only reachable thing is a
+`TokenUsageAdvisor` bean that is created and never called — verified on a running app.
+
+Making the dependency `<optional>` again is possible, and brings the three configuration classes straight
+back: with `01` scanning the same package, an annotated class there is found from ASM metadata and then
+fails to instantiate with `NoClassDefFoundError`. That trade — 17 artefacts against 54 lines — was weighed
+and settled in favour of the annotation. An `@AutoConfiguration` with `@ConditionalOnClass` would avoid
+both, and was rejected on purpose: auto-configuration magic is the wrong thing to explain from a stage.
 
 ## Build
 

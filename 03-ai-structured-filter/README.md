@@ -32,7 +32,6 @@ also with the non-AI baselines in `01-non-ai-filter`; the root `README.md` has t
 ```
 ai/
 ├── CustomerSearchService.java            (@Service — ChatClient, system prompt, structured-output call)
-├── TokenUsageConfiguration.java          (@Configuration — declares demo-commons' TokenUsageAdvisor bean)
 └── filter/
     ├── CustomerFilter.java                (public record — a flat list of conditions, ALL combined with AND)
     ├── Condition.java                     (public record — one field/operator/values/negate condition, with the nested Operator enum)

@@ -39,7 +39,7 @@ attached, query type by query type.
 
 - **Java 25**, **Spring Boot 4.1.0**
 - **Vaadin 25.2.0** (Flow — server-side Java UI, Aura theme)
-- **Spring AI 2.0.0** (modules 2, 3 and 4)
+- **Spring AI 2.0.0** — used by modules 2, 3 and 4; on every classpath via `demo-commons`
 - **Spring Data JPA** + **H2** in-memory database, seeded from `data.sql` on startup
 - **Vaadin Browserless Testing** (`browserless-test-spring`, all four modules) — drives real Vaadin
   views and Grid interactions without a browser or servlet container

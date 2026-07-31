@@ -28,20 +28,19 @@
 			<artifactId>vaadin-spring-boot-starter</artifactId>
 		</dependency>
 
-		<!-- Optional on purpose: 01-non-ai-filter consumes this module for the domain layer and
-		     CustomerGrid, and it must keep resolving no Spring AI at all (it is the non-AI baseline —
-		     see the dependency:tree check in CLAUDE.md's Definition of Done). <optional>true</optional>
-		     stops it from propagating to consumers, so 02/03/04 declare their own Spring AI starters as
-		     they always have.
+		<!-- A regular dependency, not <optional>, so that TokenUsageAdvisor can simply be a @Component:
+		     it lives in dev.demo.vaadin.aigridfilter.ai, every app scans that package, and one annotation
+		     replaces the three identical @Configuration classes 02/03/04 used to need.
 
-		     This is also why TokenUsageAdvisor carries no @Component: a component scan reads annotations
-		     from ASM metadata without loading the class, so Spring would find the annotation in 01 too
-		     and then fail to instantiate the bean with NoClassDefFoundError. Each of 02/03/04 declares
-		     that bean in its own small @Configuration instead. -->
+		     The price is deliberate and measured: 01-non-ai-filter resolves 17 further artefacts through
+		     this line (the four Spring AI jars plus jtokkit, the victools JSON-Schema modules, ANTLR/ST4,
+		     micrometer-core, spring-messaging). It writes no Spring AI code and autoconfigures no
+		     ChatModel — no spring-ai-starter-model-* is on its classpath — so nothing there is reachable
+		     except an idle TokenUsageAdvisor bean. Making it <optional> again would bring the three
+		     configuration classes back; that trade was weighed and settled, see demo-commons/README.md. -->
 		<dependency>
 			<groupId>org.springframework.ai</groupId>
 			<artifactId>spring-ai-client-chat</artifactId>
-			<optional>true</optional>
 		</dependency>
 
 		<!-- Only for this module's own CanonicalQuerySetConsistencyTest, which guards the four ITs' copies

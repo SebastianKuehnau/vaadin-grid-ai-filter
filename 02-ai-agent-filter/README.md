@@ -46,7 +46,6 @@ view's point of view. Because there are two implementations, each view injects i
 
 ```
 ai/
-├── TokenUsageConfiguration.java      (@Configuration — declares demo-commons' TokenUsageAdvisor bean)
 ├── flat/                             ← variant 02(a)
 │   ├── CustomerSearchService.java    (@Service("flatSearchAgent") @Scope("prototype") — ChatClient, system prompt, the @Tool method + the date tool)
 │   ├── CustomerCriteria.java         (public record — one scalar value per field)

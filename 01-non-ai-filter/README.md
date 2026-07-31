@@ -53,10 +53,12 @@ default (the backend sorting the AI modules use):
 ./mvnw -pl 01-non-ai-filter spring-boot:run   # http://localhost:8081
 ```
 
-This module has **no** Spring AI and **no** Micrometer dependency, and that is checked rather than
-assumed — it is the non-AI baseline, and the comparison only means something if the baseline really is
-one. It does depend on `demo-commons` for the domain and the grid, whose Spring AI and Micrometer
-dependencies are `<optional>` precisely so that they stop there.
+This module contains **no Spring AI code**, declares no model starter, and therefore autoconfigures no
+`ChatModel` — it is the non-AI baseline, and the comparison only means something if the baseline really is
+one. What it does inherit through `demo-commons` are the Spring AI *classes* on its classpath, because that
+module declares `spring-ai-client-chat` regularly so its `TokenUsageAdvisor` can be a single `@Component`
+instead of three copies of a configuration class. The one visible consequence is an idle
+`TokenUsageAdvisor` bean in this app, which nothing ever calls. See `demo-commons/README.md` for the trade.
 
 ## Sources
 
