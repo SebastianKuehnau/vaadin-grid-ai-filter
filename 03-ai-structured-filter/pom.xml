@@ -118,7 +118,8 @@
 
 	<profiles>
 		<profile>
-			<!-- Enables StructuredCanonicalQueryIT + CustomerListViewBrowserlessIT. The default test
+			<!-- Enables StructuredCanonicalQueryIT + PromptRobustnessIT + CustomerListViewBrowserlessIT.
+			     The default test
 			     Spring profile is ollama (src/test/resources/application.properties), targeting a
 			     native Ollama instance at OLLAMA_BASE_URL; pass -DAI_TEST_PROFILE=openai (or set it
 			     as an env var) to target the real OpenAI API instead. Includes are listed one by one
@@ -133,6 +134,7 @@
 						<configuration>
 							<includes>
 								<include>**/StructuredCanonicalQueryIT.java</include>
+								<include>**/PromptRobustnessIT.java</include>
 								<include>**/CustomerListViewBrowserlessIT.java</include>
 							</includes>
 						</configuration>

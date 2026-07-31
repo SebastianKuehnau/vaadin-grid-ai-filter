@@ -129,7 +129,7 @@ block per call; a non-reasoning model like `llama3.1:8b` ignores the flag anyway
 
 ```bash
 ./mvnw -pl 03-ai-structured-filter test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
-./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama                            # StructuredCanonicalQueryIT + CustomerListViewBrowserlessIT vs native Ollama (ollama is the default test profile)
+./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama                            # StructuredCanonicalQueryIT + PromptRobustnessIT + CustomerListViewBrowserlessIT vs native Ollama (ollama is the default test profile)
 ./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API
 ```
 
@@ -162,6 +162,10 @@ the test config overrides it to `ollama`.
   matching ids are compared with those of a reference predicate. All eight are expected to pass here;
   `02-ai-agent-filter`'s two variants and `04-ai-hybrid-filter` run the identical queries, which is what
   makes the capability matrix a measurement rather than a claim.
+- **`PromptRobustnessIT`** — the opposite direction, which the canonical set does not probe: small talk,
+  an unrelated question, "show me all customers" and an explicit reset must each leave the grid
+  *unfiltered* rather than produce a hallucinated condition, and one German query must filter the same as
+  its English equivalent. Expectations are computed from the seeded data, not hard-coded.
 - **`CustomerListViewBrowserlessTest`** — [Vaadin Browserless
   testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake, deterministic
   `CustomerSearchAgent` bean, so it never calls a real model. Since the view applies results
