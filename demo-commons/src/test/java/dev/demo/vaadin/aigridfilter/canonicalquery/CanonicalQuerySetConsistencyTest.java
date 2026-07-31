@@ -14,19 +14,18 @@ import java.util.regex.Pattern;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Guards the canonical query set against drift. {@code docs/canonical-query-set.md} is the single source
- * of truth for the natural-language queries every AI module is tested with, and five places spell them
- * out verbatim: the four modules' canonical-query ITs, and the standalone benchmark script.
+ * Guards the canonical query set against drift. {@code docs/canonical-query-set.md} is the single source of
+ * truth, and two places spell the queries out verbatim: {@link CanonicalQuery} — which every AI module's
+ * integration tests share, through the service and through the UI — and the standalone benchmark script,
+ * which stays dependency-free and therefore keeps its own text copy.
  * <p>
- * Those copies exist on purpose. Each IT carries its own table of queries, expected outcome and reference
- * predicates, so opening one class tells you what runs and what a correct answer looks like without
- * chasing a shared enum in another module. This test is the price of that legibility: the copies are
- * allowed, but the build fails the moment one of them differs from the document, in wording or order.
+ * The enum is checked <em>reflectively</em> and the benchmark script by regex, and the asymmetry is the
+ * point: the enum lives in this module, so its values can simply be read — no source parsing, no Java
+ * escape handling, and declaration order gives the ordering check for free. The benchmark script is a
+ * single-file program with no classes to reflect on, so its case list is matched as text.
  * <p>
- * It lives in {@code demo-commons} because that is the module every build touches, and because the
- * invariant is repo-wide rather than any one module's business. Plain JUnit — no Spring context, no LLM,
- * no Ollama — so it runs in every {@code mvn test} and turns a one-word edit into a build failure instead
- * of something a reviewer has to notice.
+ * Plain JUnit: no Spring context, no LLM, no Ollama. It runs in every {@code mvn test} and turns a one-word
+ * edit in either copy into a build failure instead of something a reviewer has to notice.
  */
 class CanonicalQuerySetConsistencyTest {
 
@@ -34,40 +33,25 @@ class CanonicalQuerySetConsistencyTest {
 
     private static final String BENCHMARK_SOURCE = "ollama-benchmark/BenchmarkLocalModels.java";
 
-    private static final List<String> IT_SOURCES = List.of(
-            "02-ai-agent-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/flat/FlatCanonicalQueryIT.java",
-            "02-ai-agent-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/operator/OperatorCanonicalQueryIT.java",
-            "03-ai-structured-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/StructuredCanonicalQueryIT.java",
-            "04-ai-hybrid-filter/src/test/java/dev/demo/vaadin/aigridfilter/ai/HybridCanonicalQueryIT.java");
-
     /** A fenced {@code text} block in the document — one per canonical query, in order. */
     private static final Pattern DOCUMENTED_QUERY =
             Pattern.compile("```text\\R(.*?)\\R```", Pattern.DOTALL);
-
-    /**
-     * A case in an IT's table: {@code new Case("C1_SINGLE_VALUE", EXPRESSIBLE, "show me all …",}. The
-     * query sits on the line after the outcome flag, so the pattern spans lines.
-     */
-    private static final Pattern IT_QUERY = Pattern.compile(
-            "new Case\\(\"[A-Z0-9_]+\",\\s*(?:NOT_EXPRESSIBLE|EXPRESSIBLE),\\s*\"((?:[^\"\\\\]|\\\\.)*)\"",
-            Pattern.DOTALL);
 
     /** A canonical case in the benchmark script: {@code EvalCase.canonical("C1_SINGLE_VALUE", "...", ...)}. */
     private static final Pattern BENCHMARK_QUERY =
             Pattern.compile("EvalCase\\.canonical\\(\"[A-Z0-9_]+\",\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
 
     @Test
-    void everyItMatchesTheDocument() throws IOException {
+    void theSharedEnumMatchesTheDocument() throws IOException {
         List<String> documented = queriesIn(DOCUMENTED_QUERY, read(DOCUMENT));
         assertThat(documented).as("%s must document at least the seven required categories", DOCUMENT)
                 .hasSizeGreaterThanOrEqualTo(7);
 
-        for (String source : IT_SOURCES) {
-            assertThat(queriesIn(IT_QUERY, read(source)))
-                    .as("%s must carry every canonical query verbatim, in the order of %s "
-                                    + "(update all copies together, never one of them)", source, DOCUMENT)
-                    .containsExactlyElementsOf(documented);
-        }
+        assertThat(CanonicalQuery.values()).extracting(CanonicalQuery::query)
+                .as("%s must contain every canonical query verbatim, in the order of %s "
+                                + "(update both together, never one of them)",
+                        CanonicalQuery.class.getSimpleName(), DOCUMENT)
+                .containsExactlyElementsOf(documented);
     }
 
     @Test
