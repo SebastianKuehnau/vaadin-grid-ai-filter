@@ -58,6 +58,10 @@ class CustomerFilterSpecificationsTest {
         return new Condition("contactName", Operator.CONTAINS, List.of(value), false);
     }
 
+    private static Condition contactName(Operator operator, String value) {
+        return new Condition("contactName", operator, List.of(value), false);
+    }
+
     private static Condition email(String value) {
         return new Condition("email", Operator.CONTAINS, List.of(value), false);
     }
@@ -113,6 +117,27 @@ class CustomerFilterSpecificationsTest {
         var result = findAll(contactName("laura"));
         assertThat(result).isNotEmpty();
         assertThat(result).allSatisfy(c -> assertThat(c.getContactName().toLowerCase()).contains("laura"));
+    }
+
+    /*
+     * STARTS_WITH and ENDS_WITH are the two text operators no canonical query pins down end to end:
+     * C4 covers STARTS_WITH through the LLM, ENDS_WITH is never exercised there at all. Both cases
+     * mirror 02(b)'s OperatorSpecificationsTest query for query, so the two filter types stay directly
+     * comparable on the same seeded data.
+     */
+
+    @Test
+    void contactNameStartsWithMatchesThePrefix() {
+        var result = findAll(contactName(Operator.STARTS_WITH, "m"));
+        assertThat(result).isNotEmpty();
+        assertThat(result).allSatisfy(c -> assertThat(c.getContactName().toLowerCase()).startsWith("m"));
+    }
+
+    @Test
+    void contactNameEndsWithMatchesTheSuffix() {
+        var result = findAll(contactName(Operator.ENDS_WITH, "schmidt"));
+        assertThat(result).isNotEmpty();
+        assertThat(result).allSatisfy(c -> assertThat(c.getContactName().toLowerCase()).endsWith("schmidt"));
     }
 
     @Test
