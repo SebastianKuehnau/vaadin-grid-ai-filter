@@ -37,9 +37,12 @@ The eight natural-language queries all AI modules are measured with live in
 `-am` (also-make) is needed for **all four** apps: every one of them depends on `demo-commons`, which
 Maven has to build first. Without it a `-pl` build fails to resolve that dependency.
 
-`spring-boot:run` cannot use `-am` (it would try to run the shared modules too) and resolves
-dependencies from `~/.m2`, so the shared modules have to be installed once — `./mvnw install
--DskipTests` — and again after changing one of them.
+`spring-boot:run` cannot use `-am` (it would try to run `demo-commons` too) and resolves dependencies
+from `~/.m2`, so `demo-commons` has to be installed once — `./mvnw install -DskipTests` — and again after
+every change to it. With a running app, `./mvnw install -pl demo-commons -DskipTests` is enough: each app
+watches `../demo-commons/target/classes` (`spring.devtools.restart.additional-paths`), so devtools
+restarts it and picks up the new jar. Use `install`, not `compile` — `compile` fires the trigger but
+leaves the jar the app loads untouched.
 
 AI provider is selected via Spring profiles: `openai` (default) or `ollama` (expects Ollama at
 `OLLAMA_BASE_URL`; inside the dev container this is `http://host.docker.internal:11434`).

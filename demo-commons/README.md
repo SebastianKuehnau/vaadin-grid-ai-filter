@@ -82,5 +82,12 @@ the classpath would be executed as well. There must be exactly one, and it is th
 
 ```bash
 ./mvnw verify -pl demo-commons
-./mvnw install -DskipTests     # needed before spring-boot:run of any app, and after changing this module
+./mvnw install -DskipTests                      # once, before the first spring-boot:run of any app
+./mvnw install -pl demo-commons -DskipTests     # after changing this module — restarts a running app
 ```
+
+The apps reach this module as a jar from `~/.m2`, and `spring-boot-devtools` watches directories rather
+than jars — so on its own, reinstalling while an app runs would change nothing visible. Each app therefore
+sets `spring.devtools.restart.additional-paths=../demo-commons/target/classes`: that gives devtools the
+trigger it lacks, and the restart then loads the freshly installed jar. Verified on all four apps.
+`compile` is not enough — it updates the watched directory but not the jar.
