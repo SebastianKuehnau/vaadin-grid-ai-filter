@@ -129,7 +129,7 @@ block per call; a non-reasoning model like `llama3.1:8b` ignores the flag anyway
 
 ```bash
 ./mvnw -pl 03-ai-structured-filter test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
-./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama                            # CanonicalQueryIT + CustomerSearchAgentIT(+Extra) + CustomerListViewBrowserlessIT vs native Ollama (ollama is the default test profile)
+./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama                            # StructuredCanonicalQueryIT + CustomerListViewBrowserlessIT vs native Ollama (ollama is the default test profile)
 ./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API
 ```
 
@@ -162,20 +162,6 @@ the test config overrides it to `ollama`.
   matching ids are compared with those of a reference predicate. All eight are expected to pass here;
   `02-ai-agent-filter`'s two variants and `04-ai-hybrid-filter` run the identical queries, which is what
   makes the capability matrix a measurement rather than a claim.
-- **`CustomerSearchAgentIT`** — natural-language queries against a native Ollama instance.
-  Assertions are tolerant of LLM non-determinism: they check that an expected condition is
-  present *somewhere* in the flat conditions list, ignoring extras. Every case here uses the
-  exact same wording/values it had when `02-ai-agent-filter` still used one list-based tool call, and it
-  stays as this module's broader prompt-regression net alongside the canonical set. Run it alone with
-  `-Dit.test=CustomerSearchAgentIT`.
-- **`CustomerSearchAgentExtraIT`** — the cases that need a capability `02-ai-agent-filter`'s per-field
-  criteria cannot express at all: negation, STARTS_WITH/ENDS_WITH/EQUALS operator precision, and
-  arbitrary date bounds (tagged `negation`/`operator-precision`/`relative-date` respectively). 02(b) has
-  since gained negation and operator precision — but still not multi-value OR or ranges, so most of these
-  remain 03/04-only.
-  Cross-field OR and arbitrary nesting are no longer part of `CustomerFilter` either, so the cases
-  that used to need them (tagged `cross-field-or`/`nested-tree`) were removed rather than moved
-  here — a deliberate trade-off for faster/more reliable structured output, not an oversight.
 - **`CustomerListViewBrowserlessTest`** — [Vaadin Browserless
   testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake, deterministic
   `CustomerSearchAgent` bean, so it never calls a real model. Since the view applies results
@@ -186,8 +172,8 @@ the test config overrides it to `ollama`.
   same multi-value OR-within-field case as `04-ai-hybrid-filter`'s equivalent test — a query neither
   02 variant can express at all.
 - **`CustomerListViewBrowserlessIT`** — same Browserless setup, but against a real native Ollama
-  instance instead of a fake agent bean (it fails rather than skipping if unreachable, like
-  `CustomerSearchAgentIT`), exercising the full `TextField` → structured-output AI layer → `Grid`
+  instance instead of a fake agent bean (it fails rather than skipping if unreachable, like the
+  canonical-query IT), exercising the full `TextField` → structured-output AI layer → `Grid`
   pipeline end to end. Since the real model's result size isn't known upfront, the wait condition
   is "the filter field is re-enabled" (it's disabled for the duration of a search) rather than a
   fixed grid size. `04-ai-hybrid-filter` has an identical test with the same 7 queries, so the two

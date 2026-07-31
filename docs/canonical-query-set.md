@@ -62,6 +62,12 @@ only — the tests compute them, they do not hard-code them.
 
 ## The queries
 
+Each entry names where its wording came from. Several cite `CustomerSearchAgentIT` /
+`CustomerSearchAgentExtraIT` — 03's pre-canonical LLM integration tests, which this query set
+superseded and which have since been removed. Those citations are **historical**: they record which
+earlier test's wording a canonical query inherited, so the two are known to be comparable. Look them up
+in the git history; nothing in the repository runs them any more.
+
 ### C1 — single value
 
 Category: single value. Wording reused from 02's and 03's aligned `CustomerSearchAgentIT#singleCity`.

@@ -93,8 +93,10 @@ report repeats this caveat next to the matrix, so a `0/1` there is never mistake
   case is reported as `n/a` (and listed on stdout), because an architectural limit is not a reliability
   problem. The report's "Canonical query set" section is the resulting matrix: one row per query, one
   column per approach.
-- **Legacy set**: the older prompt-regression cases mirroring `03-ai-structured-filter`'s
-  `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`. Unlike the canonical set, they run against **all
+- **Legacy set**: the older prompt-regression cases that used to mirror `03-ai-structured-filter`'s
+  `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`. Those two IT classes were superseded by the
+  canonical query set and removed, so this script is now the only place the cases still run — which is
+  the main reason to keep them. Unlike the canonical set, they run against **all
   four** approaches without pre-classifying which ones can express them — they were written for the
   condition-list filter type, so a case needing negation, a second value for one field, or a range shows
   up as a low or zero pass rate for `02a`/`02b` rather than as `n/a`. They are kept because they are the

@@ -48,8 +48,7 @@ A task is only finished when:
 3. For changes to filter/AI logic: the affected module's IT classes pass, run via `-Pit-local-ollama`
    (against a native Ollama instance) — the canonical-query IT (`FlatCanonicalQueryIT` and
    `OperatorCanonicalQueryIT` in 02, `StructuredCanonicalQueryIT` in 03, `HybridCanonicalQueryIT`
-   in 04), plus the module's browserless IT for UI→AI changes. 03 additionally has
-   `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`.
+   in 04), plus the module's browserless IT for UI→AI changes.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
    `canonical-query-testkit`'s `CanonicalQuery` enum and into
    `ollama-benchmark/BenchmarkLocalModels.java` — verbatim in both copies. The testkit's

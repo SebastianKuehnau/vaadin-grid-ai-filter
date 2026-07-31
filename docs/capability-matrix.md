@@ -149,12 +149,23 @@ Structured output cannot run into any of the three: one response, one filter, no
 ## Older observations, kept for context
 
 These divergences were recorded while the repository still had a single, list-based tool-calling module
-(the predecessor of today's 02(a)/02(b)) and are preserved in
-`03-ai-structured-filter/src/test/java/.../CustomerSearchAgentIT`'s Javadoc. They remain the sharpest
-illustration that *reliability* is model-dependent rather than approach-inherent — on the weaker
-`llama3.1:8b`, structured output echoed a raw phone number instead of E.164, collapsed "2020 or 2021"
-into a single range, and returned no conditions at all for one German query, while that tool-calling
-layer passed all three; in the opposite direction, tool calling hallucinated an unrelated phone number
-for a fuzzy phone query that structured output handled. Those cases live in
-`CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT` (03's and 04's legacy sets), not in the canonical
-set.
+(the predecessor of today's 02(a)/02(b)), on the weaker `llama3.1:8b` — 03's default model at the time;
+it is `qwen3:8b` today. They remain the sharpest illustration that *reliability* is model-dependent
+rather than approach-inherent.
+
+Three cases structured output could not pass reliably (a single `-Pit-local-ollama` run, 100%
+reproducible on retry) while that tool-calling layer passed them every time:
+
+- **German phone number normalized to E.164** — the model echoed the raw, un-normalized phone string
+  instead of the expected E.164 digits.
+- **Multi-value "customer since" years** — "2020 or 2021" came back as a single
+  `[2020-01-01, 2021-12-31]` range instead of two disjoint lower-bound conditions.
+- **Cities plus credit rating, asked in German** — the model returned `conditions=null`.
+
+In the opposite direction, tool calling hallucinated an unrelated phone number for a fuzzy phone query
+that structured output handled.
+
+None of this is part of the canonical query set, and none of it is covered by a test any more: it was
+recorded by 03's pre-canonical `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`, which the canonical
+query set superseded and which have since been removed — see the git history for the original suites.
+The observations are kept here rather than in a Javadoc so they survive the test that produced them.
