@@ -1,6 +1,7 @@
 package dev.demo.vaadin.aigridfilter.ai.operator;
 
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
+import dev.demo.vaadin.aigridfilter.ai.TokenUsageAdvisor;
 import dev.demo.vaadin.aigridfilter.ai.TokenUsageRecorder;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
@@ -9,7 +10,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.context.annotation.Scope;
@@ -118,13 +118,13 @@ class CustomerSearchService implements CustomerSearchAgent {
             Berlin", "except Hamburg"); false or null otherwise.""";
 
     private final ChatClient chatClient;
-    private final TokenUsageRecorder tokenUsageRecorder;
+    private final TokenUsageAdvisor tokenUsageAdvisor;
 
     CustomerCriteria criteria;
 
     CustomerSearchService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
         this.chatClient = ChatClient.builder(chatModel).build();
-        this.tokenUsageRecorder = tokenUsageRecorder;
+        this.tokenUsageAdvisor = new TokenUsageAdvisor(tokenUsageRecorder);
     }
 
     /**
@@ -145,19 +145,16 @@ class CustomerSearchService implements CustomerSearchAgent {
     CustomerCriteria requestCriteria(String naturalLanguageQuery) {
         criteria = null;
         try {
-            // Capture the ChatResponse (instead of discarding .content()) to read its token usage.
-            // With tool calling the model does several round trips; both the OpenAI and Ollama chat
-            // models accumulate usage across them, so this final response's usage is the request total.
-            long start = System.nanoTime();
-            ChatResponse response = chatClient.prompt()
+            // The tool call is the point: by the time this returns, searchCustomers(...) has already
+            // written into `criteria`, so the model's answer text is irrelevant. Token usage and
+            // duration are recorded by tokenUsageAdvisor, not here.
+            chatClient.prompt()
                     .system(SYSTEM_PROMPT)
                     .user(naturalLanguageQuery)
                     .tools(this)
-                    .advisors(SimpleLoggerAdvisor.builder().build())
+                    .advisors(SimpleLoggerAdvisor.builder().build(), tokenUsageAdvisor)
                     .call()
                     .chatResponse();
-            long durationMillis = (System.nanoTime() - start) / 1_000_000;
-            tokenUsageRecorder.record(naturalLanguageQuery, response.getMetadata().getUsage(), durationMillis);
         } catch (Exception e) {
             if (criteria != null) {
                 logger.warn("searchCustomers was called more than once; keeping the first result {}. Query: '{}'",

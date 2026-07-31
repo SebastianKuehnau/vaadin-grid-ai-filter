@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.context.annotation.Scope;
@@ -57,14 +56,14 @@ public class CustomerSearchService implements CustomerSearchAgent {
     private static final Logger logger = LoggerFactory.getLogger(CustomerSearchService.class);
 
     private final ChatClient chatClient;
-    private final TokenUsageRecorder tokenUsageRecorder;
+    private final TokenUsageAdvisor tokenUsageAdvisor;
 
     /** What the model passed to {@link #searchCustomers}; {@code null} until the tool is called. */
     CustomerFilter filter;
 
     public CustomerSearchService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
         this.chatClient = ChatClient.builder(chatModel).build();
-        this.tokenUsageRecorder = tokenUsageRecorder;
+        this.tokenUsageAdvisor = new TokenUsageAdvisor(tokenUsageRecorder);
     }
 
     /**
@@ -87,21 +86,18 @@ public class CustomerSearchService implements CustomerSearchAgent {
     CustomerFilter requestFilter(String naturalLanguageQuery) {
         filter = null;
         try {
-            // Capture the ChatResponse (instead of discarding .content()) to read its token usage.
-            // With tool calling the model does several round trips; both the OpenAI and Ollama chat
-            // models accumulate usage across them, so this final response's usage is the request total.
-            long start = System.nanoTime();
-            ChatResponse response = chatClient.prompt()
+            // The tool call is the point: by the time this returns, searchCustomers(...) has already
+            // written into `criteria`, so the model's answer text is irrelevant. Token usage and
+            // duration are recorded by tokenUsageAdvisor, not here.
+            chatClient.prompt()
                     .system(systemPrompt(LocalDate.now()))
                     .user(naturalLanguageQuery)
                     .tools(this)
-                    .advisors(SimpleLoggerAdvisor.builder().build())
+                    .advisors(SimpleLoggerAdvisor.builder().build(), tokenUsageAdvisor)
                     // Temperature (0 for deterministic structure) is set per active profile in
                     // application-<provider>.properties, not here.
                     .call()
                     .chatResponse();
-            long durationMillis = (System.nanoTime() - start) / 1_000_000;
-            tokenUsageRecorder.record(naturalLanguageQuery, response.getMetadata().getUsage(), durationMillis);
         } catch (Exception e) {
             logger.warn("Could not turn query into a filter; showing all customers. Query: '{}'",
                     naturalLanguageQuery, e);

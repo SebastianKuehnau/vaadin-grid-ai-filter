@@ -8,7 +8,6 @@ import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.metadata.Usage;
-import org.springframework.stereotype.Component;
 
 /**
  * Records the token usage and processing time of each AI request: it logs a per-request line
@@ -27,12 +26,18 @@ import org.springframework.stereotype.Component;
  * values as a baseline; {@link #totalTokens()}, {@link #requestCount()} and {@link #logSummary}
  * report the delta since that baseline rather than resetting the meters themselves.
  * <p>
- * A single shared bean used both by the AI service (which records every request) and by the
+ * A single shared bean used both by {@link TokenUsageAdvisor} (which records every request) and by the
  * integration tests (which reset it before a class and log the summary after all cases). Access is
- * synchronized because {@code CustomerListView} runs searches off the UI thread, so several sessions
- * may record concurrently.
+ * synchronized because the views run searches off the UI thread, so several sessions may record
+ * concurrently.
+ * <p>
+ * Deliberately <b>not</b> annotated with {@code @Component}: this class lives in {@code demo-commons},
+ * which {@code 01-non-ai-filter} also depends on, and it needs Micrometer — a dependency that module
+ * must not have. A component scan reads annotations from ASM metadata without loading the class, so
+ * Spring would find a {@code @Component} here in {@code 01} too and then fail to create the bean with a
+ * {@code NoClassDefFoundError}. Each of {@code 02}/{@code 03}/{@code 04} declares this bean in its own
+ * {@code TokenUsageConfiguration} instead, which is also the more honest place to look for it.
  */
-@Component
 public class TokenUsageRecorder {
 
     private static final Logger logger = LoggerFactory.getLogger(TokenUsageRecorder.class);

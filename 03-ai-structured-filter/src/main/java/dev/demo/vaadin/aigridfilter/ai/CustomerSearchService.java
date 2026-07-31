@@ -29,11 +29,11 @@ public class CustomerSearchService implements CustomerSearchAgent {
     private static final Logger logger = LoggerFactory.getLogger(CustomerSearchService.class);
 
     private final ChatClient chatClient;
-    private final TokenUsageRecorder tokenUsageRecorder;
+    private final TokenUsageAdvisor tokenUsageAdvisor;
 
     public CustomerSearchService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
         this.chatClient = ChatClient.builder(chatModel).build();
-        this.tokenUsageRecorder = tokenUsageRecorder;
+        this.tokenUsageAdvisor = new TokenUsageAdvisor(tokenUsageRecorder);
     }
 
     /**
@@ -53,21 +53,17 @@ public class CustomerSearchService implements CustomerSearchAgent {
      */
     CustomerFilter requestFilter(String naturalLanguageQuery) {
         try {
-            // responseEntity(...) gives both the parsed entity and the ChatResponse, so we can read
-            // the token usage alongside the structured result (plain .entity(...) would drop it).
-            long start = System.nanoTime();
-            var responseEntity = chatClient.prompt()
-                    .advisors(SimpleLoggerAdvisor.builder().build())
+            // .entity(...) asks Spring AI for the filter and nothing else: the model returns one JSON
+            // object matching CustomerFilter's schema, which is the whole mechanism of this variant.
+            // Token usage and duration are recorded by tokenUsageAdvisor.
+            CustomerFilter filter = chatClient.prompt()
+                    .advisors(SimpleLoggerAdvisor.builder().build(), tokenUsageAdvisor)
                     .system(systemPrompt(LocalDate.now()))
                     .user(naturalLanguageQuery)
                     // Temperature (0 for deterministic structure) is set per active profile in
                     // application-<provider>.properties, not here.
                     .call()
-                    .responseEntity(CustomerFilter.class);
-            long durationMillis = (System.nanoTime() - start) / 1_000_000;
-            CustomerFilter filter = responseEntity.entity();
-            tokenUsageRecorder.record(naturalLanguageQuery, responseEntity.response().getMetadata().getUsage(),
-                    durationMillis);
+                    .entity(CustomerFilter.class);
             logger.info("requestFilter('{}') -> {}", naturalLanguageQuery, filter);
             return filter;
         } catch (Exception e) {
