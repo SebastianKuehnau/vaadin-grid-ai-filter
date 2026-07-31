@@ -13,6 +13,15 @@
 
 	<dependencies>
 		<dependency>
+			<!-- The domain layer, CustomerGrid and data.sql, shared by all four apps. This module's
+			     Spring AI and Micrometer dependencies are <optional> there, so the starters below stay
+			     this module's own explicit choice. See demo-commons/README.md for what may never move
+			     into it: the AI service, the filter type, the system prompt, the tool signature. -->
+			<groupId>dev.demo.vaadin</groupId>
+			<artifactId>demo-commons</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
@@ -119,10 +128,9 @@
 	<profiles>
 		<profile>
 			<!-- Enables StructuredCanonicalQueryIT + PromptRobustnessIT + CustomerListViewBrowserlessIT.
-			     The default test
-			     Spring profile is ollama (src/test/resources/application.properties), targeting a
-			     native Ollama instance at OLLAMA_BASE_URL; pass -DAI_TEST_PROFILE=openai (or set it
-			     as an env var) to target the real OpenAI API instead. Includes are listed one by one
+			     The default test Spring profile is ollama (src/test/resources/application.properties),
+			     targeting a native Ollama instance at OLLAMA_BASE_URL; pass -DAI_TEST_PROFILE=openai
+			     (or set it as an env var) to target the real OpenAI API instead. Includes are listed one by one
 			     rather than as **/*IT.java, so adding an IT class is a deliberate decision about what
 			     the Ollama suite costs. -->
 			<id>it-local-ollama</id>
