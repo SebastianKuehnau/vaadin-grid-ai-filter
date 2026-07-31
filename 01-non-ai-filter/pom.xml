@@ -13,6 +13,15 @@
 
 	<dependencies>
 		<dependency>
+			<!-- The domain layer, CustomerGrid and data.sql, shared by all four apps. Brings
+			     spring-boot-starter-data-jpa and vaadin-spring-boot-starter transitively; its Spring AI
+			     and Micrometer dependencies are <optional> there, so this non-AI baseline resolves
+			     neither. See demo-commons/README.md. -->
+			<groupId>dev.demo.vaadin</groupId>
+			<artifactId>demo-commons</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>

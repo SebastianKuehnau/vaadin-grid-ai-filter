@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>dev.demo.vaadin</groupId>
+		<artifactId>grid-ai-filter-parent</artifactId>
+		<version>1.0.0-SNAPSHOT</version>
+		<relativePath>../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>demo-commons</artifactId>
+	<name>demo commons</name>
+	<description>Shared runtime infrastructure: the domain layer, the shared Vaadin components, the AI
+		layer's seam towards the view and the token measurement. No numeric prefix — this is not a demo
+		step. Never holds an AI service, a filter type, a system prompt or a @Route; see its README.</description>
+
+	<!-- A plain jar on purpose: no spring-boot-maven-plugin (nothing to repackage, no main class) and
+	     no vaadin-maven-plugin (this module contributes no @Route and no frontend resources, so
+	     build-frontend has nothing extra to do). -->
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.vaadin</groupId>
+			<artifactId>vaadin-spring-boot-starter</artifactId>
+		</dependency>
+
+		<!-- Optional on purpose: 01-non-ai-filter consumes this module for the domain layer and
+		     CustomerGrid, and it must keep resolving neither Spring AI nor Micrometer (it is the
+		     non-AI baseline — see the dependency:tree check in CLAUDE.md's Definition of Done).
+		     <optional>true</optional> stops both from propagating to consumers, so 02/03/04 declare
+		     their own Spring AI starters and actuator as they always have.
+
+		     This is also why TokenUsageAdvisor and TokenUsageRecorder carry no @Component: a component
+		     scan reads annotations from ASM metadata without loading the class, so Spring would find
+		     the annotation in 01 too and then fail to instantiate the bean with NoClassDefFoundError.
+		     Each of 02/03/04 declares those two beans in its own small @Configuration instead. -->
+		<dependency>
+			<groupId>org.springframework.ai</groupId>
+			<artifactId>spring-ai-client-chat</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-core</artifactId>
+			<optional>true</optional>
+		</dependency>
+	</dependencies>
+
+</project>

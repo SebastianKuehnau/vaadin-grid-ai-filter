@@ -27,9 +27,13 @@
 		<module>02-ai-agent-filter</module>
 		<module>03-ai-structured-filter</module>
 		<module>04-ai-hybrid-filter</module>
-		<!-- No numeric prefix on purpose: shared test infrastructure, not a demo step of the talk.
-		     Consumed by 02/03/04 as a test-scope dependency; see canonical-query-testkit/README.md. -->
+		<!-- The two modules below carry no numeric prefix on purpose: neither is a demo step of the
+		     talk, and both are deliberate exceptions to this repository's "duplication per module is
+		     on purpose" rule — one for shared test infrastructure, one for shared runtime
+		     infrastructure. Everything that *is* the comparison (the AI services, the filter types,
+		     the system prompts, the tool signatures, the views) stays duplicated per module. -->
 		<module>canonical-query-testkit</module>
+		<module>demo-commons</module>
 	</modules>
 
 	<dependencyManagement>
