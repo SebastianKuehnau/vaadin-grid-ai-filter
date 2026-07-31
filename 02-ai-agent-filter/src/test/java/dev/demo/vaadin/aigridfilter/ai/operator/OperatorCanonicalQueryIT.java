@@ -37,25 +37,20 @@ import static org.assertj.core.api.Assertions.assertThat;
  * hold is a second value (C2) or a second bound (C6, C8) — that is this variant's ceiling and the reason
  * the ladder continues.
  * <p>
- * The eight cases below are the canonical query set of {@code docs/canonical-query-set.md}, spelled out
- * here rather than shared, so this class tells you on its own which queries run, what this variant is
- * expected to do with them, and which customers count as a correct answer. Every other AI module's
- * canonical-query IT carries the same eight queries verbatim;
- * {@code demo-commons}' {@code CanonicalQuerySetConsistencyTest} fails the build the moment one copy
- * drifts from the document.
+ * The eight cases below are {@code docs/canonical-query-set.md}, spelled out here rather than shared so
+ * this class stands on its own. Every AI module's IT carries the same eight verbatim, and
+ * {@code demo-commons}' {@code CanonicalQuerySetConsistencyTest} fails the build the moment one drifts.
  * <p>
- * Run with {@code -Pit-local-ollama}, which targets a native Ollama instance at
- * {@code OLLAMA_BASE_URL} by default (pass {@code -DAI_TEST_PROFILE=openai} to target the real OpenAI
- * API instead). There is no reachability probe — if the backend isn't reachable, the run fails rather
- * than skipping.
+ * Run with {@code -Pit-local-ollama} (native Ollama at {@code OLLAMA_BASE_URL};
+ * {@code -DAI_TEST_PROFILE=openai} targets the real API). No reachability probe — an unreachable backend
+ * fails the run rather than skipping it.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
         "spring.autoconfigure.exclude=com.vaadin.flow.spring.SpringBootAutoConfiguration"
 })
-// Generous on purpose: a query a variant cannot express is also its slowest (the model keeps trying to
-// place the part it had to drop), and a cold model load costs another few seconds. Answer length is
-// bounded by num-predict in application-ollama.properties, so this timeout only has to absorb the round
-// trips — the suite should fail on wrong results, not on slowness.
+// Generous on purpose: an inexpressible query is also the slowest (the model keeps trying to place the
+// part it had to drop) and a cold model load adds a few seconds. The suite should fail on wrong results,
+// not on slowness; num-predict bounds the answer length.
 @Timeout(value = 300, unit = TimeUnit.SECONDS)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class OperatorCanonicalQueryIT {
@@ -66,11 +61,7 @@ class OperatorCanonicalQueryIT {
     private static final boolean EXPRESSIBLE = true;
     private static final boolean NOT_EXPRESSIBLE = false;
 
-    /**
-     * One canonical case: the query verbatim, whether this variant's filter type can express it at all,
-     * and the reference predicates whose result sets count as a correct answer (usually one — C7 accepts
-     * two readings of "the last 12 months").
-     */
+    /** Query verbatim, whether this filter type can express it, and the acceptable result sets. */
     private record Case(String name, boolean expressible, String query,
                         List<Predicate<Customer>> acceptable) {
 

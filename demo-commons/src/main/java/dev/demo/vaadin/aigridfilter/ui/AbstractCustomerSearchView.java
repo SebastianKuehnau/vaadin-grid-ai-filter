@@ -19,25 +19,19 @@ import java.util.concurrent.CompletionException;
 
 /**
  * The view every AI module shows: one natural-language {@link TextField} above the shared
- * {@link CustomerGrid}, and the plumbing that gets from the one to the other.
+ * {@link CustomerGrid}, plus the plumbing between them — {@link CustomerSearchAgent#resolveFilter} blocks
+ * on the model, so it runs off the UI thread and applies its result through {@code ui.access(...)}, the
+ * field is disabled while a search is in flight, and a failure becomes a notification rather than a broken
+ * view. All three AI modules differ only in which agent Spring injects, and that is invisible from here —
+ * itself one of the repository's findings.
  * <p>
- * That plumbing is the same in all three AI modules and says nothing about any of them:
- * {@link CustomerSearchAgent#resolveFilter} blocks on the model, so it runs off the UI thread and the
- * result is applied through {@code ui.access(...)}; the filter field is disabled while a search is in
- * flight; a failure becomes an error notification instead of a broken view. What differs between the
- * modules is only which {@link CustomerSearchAgent} Spring injects — and that difference is invisible
- * from here, which is itself one of the repository's findings.
+ * Subclasses add their {@code @Route} and heading, and may insert content above the filter field with
+ * {@link #addComponentAtIndex} — {@code 02-ai-agent-filter} does, for its variant switcher.
  * <p>
- * Subclasses add their own {@code @Route} and heading, and may insert content between the heading and the
- * filter field with {@link #addComponentAtIndex} — {@code 02-ai-agent-filter} uses that for its variant
- * switcher, since it serves two variants from one application.
- * <p>
- * {@link #grid} and {@link #filterField} are {@code public} rather than package-private on purpose. The
- * browserless tests reach for them, and they now live in a different jar than the subclasses: with
- * {@code spring-boot-devtools} active, this jar is loaded by the base classloader while the module's
- * classes go through the restart classloader, which makes the two <em>different runtime packages</em> —
- * package-private access across them fails with an {@code IllegalAccessError} at runtime, not at compile
- * time.
+ * {@link #grid} and {@link #filterField} are {@code public} on purpose: the browserless tests reach for
+ * them, and the declaration now sits in another jar. Under {@code spring-boot-devtools} that jar and the
+ * subclasses land in different classloaders — hence different runtime packages — and package-private
+ * access across them fails with an {@code IllegalAccessError} at runtime, which no compiler would catch.
  */
 public abstract class AbstractCustomerSearchView extends VerticalLayout {
 

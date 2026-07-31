@@ -12,21 +12,14 @@ import java.text.NumberFormat;
 import java.util.Locale;
 
 /**
- * The {@code Grid<Customer>} every module of this repository shows: the same columns, the same revenue
- * formatting, the same credit-rating indicator and the same responsive show/hide behaviour.
+ * The {@code Grid<Customer>} every module shows. Shared because it is <em>not</em> what the talk compares:
+ * however a filter comes into being, it ends as the same {@code Specification} against this grid.
  * <p>
- * It is shared because it is <em>not</em> what the talk compares. What differs between the modules is how
- * a filter comes into being — a per-column form, a tool call, structured output — and every one of those
- * ends in the same {@code Specification} against the same grid. Four byte-identical copies of this class
- * only made each approach look like it had more moving parts than it does.
- * <p>
- * <b>Sorting is configured here, filter fields are not.</b> The sort configuration is what all four
- * modules agree on: {@code annualRevenue} sortable, {@code address} sorted by country/city/postal code
- * and {@code creditRating} by the underlying score. A view is free to override it — {@code 01}'s
- * in-memory view replaces those columns' sorting with {@code Comparator}s, because it sorts a list rather
- * than issuing a query, and {@code Column.setComparator(...)} wins over the sort property for an
- * in-memory data provider. Per-column filter fields are a different matter and stay out: only {@code 01}
- * has them, in its own {@code FilterableCustomerGrid} subclass.
+ * <b>Sorting is configured here, per-column filter fields are not.</b> The sort setup is what all four
+ * modules agree on; a view may override it, and {@code 01}'s in-memory view does, with
+ * {@code Comparator}s — {@code Column.setComparator(...)} wins over a sort property once the data
+ * provider is a list rather than a query. Filter fields stay out because only {@code 01} has them, in its
+ * own {@code FilterableCustomerGrid}.
  */
 public class CustomerGrid extends Grid<Customer> {
 
@@ -82,9 +75,9 @@ public class CustomerGrid extends Grid<Customer> {
     }
 
     /**
-     * The credit-rating cell: a coloured dot plus the rating's label. The colour comes from
-     * {@code credit-score-indicator.css}, which ships in this module's {@code META-INF/resources/} and is
-     * served from the jar by Spring Boot's default static-resource locations.
+     * The credit-rating cell: a coloured dot plus the label. The colour comes from
+     * {@code credit-score-indicator.css} in this module's {@code META-INF/resources/}, which Spring Boot
+     * serves straight out of the jar.
      */
     @StyleSheet("credit-score-indicator.css")
     static class CreditScoreIndicator extends Span {

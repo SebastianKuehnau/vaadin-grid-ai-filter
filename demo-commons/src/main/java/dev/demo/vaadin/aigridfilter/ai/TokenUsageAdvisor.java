@@ -10,41 +10,21 @@ import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.core.Ordered;
 
 /**
- * Measures every chat request — tokens and wall-clock time — and keeps the running totals a test run
- * needs. Passed to {@code ChatClient.prompt().advisors(...)}, it is the whole measurement apparatus of
- * this repository.
+ * The repository's whole token and latency measurement: passed to
+ * {@code ChatClient.prompt().advisors(...)}, it keeps the running totals the ITs report, and leaves each
+ * {@code CustomerSearchService} with nothing but its prompt and its tool.
  * <p>
- * Doing it in an advisor keeps it out of the four files the talk puts on a slide: each
- * {@code CustomerSearchService} is left with its prompt and its tool, and nothing about counting.
+ * <b>{@link #getOrder()} decides what gets counted.</b> Spring AI's tool loop re-enters the advisor chain
+ * for the follow-up call, so a tool-calling query passes through twice. Innermost, this advisor sees both
+ * and its totals are the real cost of a query; outermost it would see only the final round trip — for 04
+ * a nine-token epilogue — and miss the one that produced the filter. So {@code requests} counts model
+ * calls, not queries, exactly as the Micrometer counter this class replaces did.
  * <p>
- * Implemented as a plain {@link CallAdvisor} rather than a {@code BaseAdvisor}, because that one splits
- * the work into {@code before} and {@code after} while the duration has to be measured around the call.
- * <p>
- * <b>{@link #getOrder()} decides what gets counted, and it is not a formality.</b> Spring AI's
- * tool-execution loop re-enters the advisor chain for the follow-up call, so a tool-calling query passes
- * through it twice: once for the response that carries the {@code searchCustomers} call, and once for the
- * response after the tool result. This advisor sits <em>innermost</em>
- * ({@link Ordered#LOWEST_PRECEDENCE}) so that it sees both, and its totals are the real cost of a query.
- * Placed outermost it would see only the final round trip — for 04 that is a nine-token epilogue, while
- * the round trip that actually produced the filter would go unmeasured, making tool calling look about
- * half as expensive as it is. Each provider bills both prompts; the second contains the first as history,
- * which does not make it free.
- * <p>
- * So {@code requests} counts model calls, not user queries: for the tool-calling variants it is a multiple
- * of the number of queries. That is the same thing Micrometer's {@code gen_ai.client.token.usage} counter
- * used to report — this class replaces it, and reproduces its figures exactly, which is why
- * {@code demo-commons} needs no Micrometer and the apps no Actuator.
- * <p>
- * Access is synchronized because the views run searches off the UI thread, so several sessions may record
- * concurrently. A single shared bean, used both by the services and by the ITs, which reset it before a
- * class and log the summary after all cases.
- * <p>
- * Deliberately <b>not</b> annotated with {@code @Component}: this class lives in {@code demo-commons},
- * which {@code 01-non-ai-filter} also depends on, and it needs Spring AI — which that module must not
- * have. A component scan reads annotations from ASM metadata without loading the class, so Spring would
- * find a {@code @Component} here in {@code 01} too and then fail to create the bean with a
- * {@code NoClassDefFoundError}. Each of {@code 02}/{@code 03}/{@code 04} declares the bean in its own
- * {@code TokenUsageConfiguration} instead.
+ * Deliberately <b>not</b> a {@code @Component}: it needs Spring AI, and {@code 01-non-ai-filter} depends
+ * on this module without it. A component scan reads annotations from ASM metadata without loading the
+ * class, so Spring would find the annotation there too and then fail with {@code NoClassDefFoundError}.
+ * Each of {@code 02}/{@code 03}/{@code 04} declares the bean itself. Synchronized because searches run
+ * off the UI thread.
  */
 public class TokenUsageAdvisor implements CallAdvisor {
 
@@ -64,7 +44,7 @@ public class TokenUsageAdvisor implements CallAdvisor {
         return response;
     }
 
-    /** Snapshots away everything recorded so far, so a fresh batch of requests starts from zero. */
+    /** Zeroes the totals, so a fresh batch of requests starts from scratch. */
     public synchronized void reset() {
         requests = 0;
         promptTokens = 0;
@@ -73,10 +53,7 @@ public class TokenUsageAdvisor implements CallAdvisor {
         durationMillis = 0;
     }
 
-    /**
-     * Logs a summary of all requests recorded since the last {@link #reset()}: total tokens and time,
-     * request count, and averages per request.
-     */
+    /** Totals and per-request averages since the last {@link #reset()}. */
     public synchronized void logSummary(String label) {
         long averageTokens = requests == 0 ? 0 : Math.round((double) totalTokens / requests);
         long averageMillis = requests == 0 ? 0 : Math.round((double) durationMillis / requests);
@@ -136,11 +113,7 @@ public class TokenUsageAdvisor implements CallAdvisor {
         return "tokenUsage";
     }
 
-    /**
-     * Innermost, so that the tool-execution loop's follow-up calls pass through this advisor too — see the
-     * class Javadoc for why that is what makes the totals correct. The measured duration is then per model
-     * call; since the calls are sequential, their sum is still what a user waits for.
-     */
+    /** Innermost, so the tool loop's follow-up calls are measured too — see the class Javadoc. */
     @Override
     public int getOrder() {
         return Ordered.LOWEST_PRECEDENCE;

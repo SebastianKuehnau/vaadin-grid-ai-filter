@@ -5,9 +5,8 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Declares the token measurement this module borrows from {@code demo-commons}.
- * <p>
- * {@link TokenUsageAdvisor} is deliberately not a {@code @Component} — see its Javadoc for why, and why
- * every module that wants it says so explicitly here.
+ * {@link TokenUsageAdvisor} carries no {@code @Component} — see its Javadoc for why every module that
+ * wants it has to say so here.
  */
 @Configuration
 class TokenUsageConfiguration {
