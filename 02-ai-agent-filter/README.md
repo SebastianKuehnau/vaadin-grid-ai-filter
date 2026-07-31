@@ -195,15 +195,11 @@ Without an LLM (`test`), per variant:
 - **`demo-commons`' `CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring) — fails the build if either variant's
   canonical-query IT, or the benchmark script, stops matching `docs/canonical-query-set.md` verbatim, in
   wording or order.
-- **`CustomerSpecificationsTest` / `CustomerSpecificationsTest`** (`@DataJpaTest`) — the filter
-  translation against the seeded H2 data: one test per field group, AND-across-fields, and
-  null-matches-all. Each also **asserts the variant's ceiling** (02(a): a date is always a whole year,
-  revenue is always a minimum; 02(b): one operator per field means no range), so the limits are pinned
-  down by tests rather than only described in prose.
-- **`CustomerSearchServiceToolsTest`** (one per variant, `ai/flat` and `ai/operator`; plain JUnit, no
-  Spring context) — the extraction plumbing in isolation: arguments must land verbatim in the criteria
-  record, a missing operator must default to `CONTAINS`, a field without a value must stay unset, and
-  both variants' date tool must return the current time.
+- **`CustomerSearchServiceToolsTest`** (one per variant, `ai/flat` and `ai/operator`) (plain JUnit, no Spring, no LLM) — the one tool-calling failure
+  mode this repository has observed and mitigated: a `void` tool is answered with a bare "Done", which a
+  model can read as "nothing happened" and call again with no arguments. The guard must keep what the
+  first call extracted. Nothing else about the tool is tested — asserting that arguments land in a record
+  was plumbing.
 
 Against a real model (`verify -Pit-local-ollama`):
 

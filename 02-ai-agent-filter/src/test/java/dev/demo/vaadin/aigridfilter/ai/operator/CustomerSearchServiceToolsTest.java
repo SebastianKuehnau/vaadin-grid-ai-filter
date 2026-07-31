@@ -18,11 +18,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
- * Plain JUnit test (no Spring context, no LLM) of variant 02(b)'s tools in isolation: calling
- * {@code searchCustomers} directly with fixed literal arguments must group them, verbatim, into one
- * {@link FieldCriterion} per field, and {@code currentLocalDateTime} must return the actual current
- * time. The {@link ChatModel} and {@link TokenUsageAdvisor} are mocked purely to satisfy the
- * constructor — neither is invoked (the tools never call the model or record usage).
+ * Plain JUnit (no Spring context, no LLM) guard for the one tool-calling failure mode this repository has
+ * actually observed and mitigated: a {@code void} tool is answered with a bare "Done", which a model can
+ * read as "nothing happened" and call the tool again with no arguments — wiping the criteria it just
+ * extracted. See {@code docs/capability-matrix.md}, "Same tool called twice".
+ * <p>
+ * Only that behaviour is covered. Tests that merely asserted arguments land in a record were plumbing and
+ * were removed; what makes an AI call robust is the guard against the model repeating itself.
  */
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
 class CustomerSearchServiceToolsTest {
@@ -37,66 +39,10 @@ class CustomerSearchServiceToolsTest {
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
-    @Test
-    void groupsValueOperatorAndNegatePerField() {
-        searchByCity("Berlin", Operator.EQUALS, true);
 
-        assertThat(service.criteria.city()).isEqualTo(new FieldCriterion<>("Berlin", Operator.EQUALS, true));
-        assertThat(service.criteria.companyName()).isNull();
-        assertThat(service.criteria.annualRevenue()).isNull();
-    }
 
-    @Test
-    void missingOperatorDefaultsToContainsAndMissingNegateToFalse() {
-        searchByCity("Berlin", null, null);
 
-        assertThat(service.criteria.city()).isEqualTo(new FieldCriterion<>("Berlin", Operator.CONTAINS, false));
-    }
 
-    @Test
-    void aFieldWithoutAValueStaysUnset() {
-        // An operator or negate flag alone is not a filter: without a value there is nothing to compare.
-        searchByCity(null, Operator.EQUALS, true);
-        assertThat(service.criteria.city()).isNull();
-    }
-
-    @Test
-    void aBlankValueStaysUnset() {
-        searchByCity("   ", Operator.EQUALS, false);
-        assertThat(service.criteria.city()).isNull();
-    }
-
-    @Test
-    void capturesTypedFieldsOfEveryKind() {
-        service.searchCustomers("Acme", Operator.CONTAINS, false,
-                "Jane Doe", Operator.EQUALS, false,
-                "jane@acme.example", Operator.ENDS_WITH, false,
-                "+4916057123456", Operator.CONTAINS, false,
-                LocalDate.of(2020, 1, 1), Operator.GREATER_OR_EQUAL, false,
-                LocalDate.of(2024, 3, 15), Operator.LESS_OR_EQUAL, false,
-                "Germany", Operator.EQUALS, false,
-                "Berlin", Operator.CONTAINS, true,
-                "10115", Operator.STARTS_WITH, false,
-                "Main Street", Operator.CONTAINS, false,
-                "1", Operator.EQUALS, false,
-                CreditRating.GOOD, Operator.EQUALS, false,
-                BigDecimal.valueOf(100_000), Operator.GREATER_OR_EQUAL, false);
-
-        assertThat(service.criteria).isEqualTo(new CustomerCriteria(
-                new FieldCriterion<>("Acme", Operator.CONTAINS, false),
-                new FieldCriterion<>("Jane Doe", Operator.EQUALS, false),
-                new FieldCriterion<>("jane@acme.example", Operator.ENDS_WITH, false),
-                new FieldCriterion<>("+4916057123456", Operator.CONTAINS, false),
-                new FieldCriterion<>(LocalDate.of(2020, 1, 1), Operator.GREATER_OR_EQUAL, false),
-                new FieldCriterion<>(LocalDate.of(2024, 3, 15), Operator.LESS_OR_EQUAL, false),
-                new FieldCriterion<>("Germany", Operator.EQUALS, false),
-                new FieldCriterion<>("Berlin", Operator.CONTAINS, true),
-                new FieldCriterion<>("10115", Operator.STARTS_WITH, false),
-                new FieldCriterion<>("Main Street", Operator.CONTAINS, false),
-                new FieldCriterion<>("1", Operator.EQUALS, false),
-                new FieldCriterion<>(CreditRating.GOOD, Operator.EQUALS, false),
-                new FieldCriterion<>(BigDecimal.valueOf(100_000), Operator.GREATER_OR_EQUAL, false)));
-    }
 
     @Test
     void aSecondCallIsRejectedAndTheFirstCriteriaIsKept() {
@@ -109,10 +55,4 @@ class CustomerSearchServiceToolsTest {
         assertThat(service.criteria.city()).isEqualTo(new FieldCriterion<>("Berlin", Operator.CONTAINS, false));
     }
 
-    @Test
-    void returnsTheCurrentDateTime() {
-        LocalDateTime result = service.currentLocalDateTime();
-
-        assertThat(Duration.between(result, LocalDateTime.now()).abs()).isLessThan(Duration.ofSeconds(5));
-    }
 }

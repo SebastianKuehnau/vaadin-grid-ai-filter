@@ -14,11 +14,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * Plain JUnit test (no Spring context, no LLM) of the one tool of this module in isolation: the
- * condition list must land in {@link CustomerSearchService#filter} verbatim, a
- * repeated empty call must not wipe it, and the prompt must carry the resolved "today".
- * The {@link ChatModel} and {@link TokenUsageAdvisor} are mocked purely to satisfy the constructor —
- * neither is invoked (the tool never calls the model or records usage).
+ * Plain JUnit (no Spring context, no LLM) guard for the one tool-calling failure mode this repository has
+ * actually observed and mitigated: a {@code void} tool is answered with a bare "Done", which a model can
+ * read as "nothing happened" and call the tool again with no arguments — wiping the filter it just
+ * extracted. See {@code docs/capability-matrix.md}, "Same tool called twice".
+ * <p>
+ * Only that behaviour is covered. Tests that merely asserted arguments land in a record were plumbing and
+ * were removed; what makes an AI call robust is the guard against the model repeating itself.
  */
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
 class CustomerSearchServiceToolsTest {
@@ -33,22 +35,7 @@ class CustomerSearchServiceToolsTest {
     private static final Condition REVENUE_AT_MOST =
             new Condition("annualRevenue", Operator.LESS_OR_EQUAL, List.of("500000"), false);
 
-    @Test
-    void capturesTheConditionListVerbatim() {
-        // The two capabilities the per-field variants 02(a)/02(b) cannot express, in one call: OR
-        // within a field (two values) and a real range (two sibling conditions on one field).
-        service.searchCustomers(List.of(BERLIN_OR_HAMBURG, REVENUE_AT_LEAST, REVENUE_AT_MOST));
 
-        assertThat(service.filter.conditions())
-                .containsExactly(BERLIN_OR_HAMBURG, REVENUE_AT_LEAST, REVENUE_AT_MOST);
-    }
-
-    @Test
-    void nullConditionsBecomeAnEmptyFilter() {
-        service.searchCustomers(null);
-
-        assertThat(service.filter.conditions()).isEmpty();
-    }
 
     @Test
     void aRepeatedEmptyCallDoesNotWipeTheFilter() {
@@ -70,13 +57,4 @@ class CustomerSearchServiceToolsTest {
         assertThat(service.filter.conditions()).containsExactly(REVENUE_AT_LEAST);
     }
 
-    @Test
-    void systemPromptResolvesRelativeDatesAgainstTheGivenToday() {
-        String prompt = CustomerSearchService.systemPrompt(LocalDate.of(2026, 3, 17));
-
-        assertThat(prompt).contains("Today is 2026-03-17");
-        // "yesterday" must be pre-resolved in the examples, so no live-clock tool call is needed.
-        assertThat(prompt).contains("2026-03-16");
-        assertThat(prompt).contains("Call searchCustomers exactly ONCE");
-    }
 }

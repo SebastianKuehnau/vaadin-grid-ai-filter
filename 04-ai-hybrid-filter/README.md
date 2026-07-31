@@ -139,14 +139,11 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
 - **`demo-commons`' `CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the build if this
   module's `HybridCanonicalQueryIT` or the benchmark script stops matching `docs/canonical-query-set.md`
   verbatim, in wording or order.
-- The translation from conditions to a `Specification` is **not** re-tested here. This module's
-  `ai/filter/` package is a byte-identical copy of 03's, so a second copy of
-  `CustomerFilterSpecificationsTest` could only ever fail together with 03's; it lives in
-  `03-ai-structured-filter` alone. What this module has to prove is its *delivery* mechanism, and that
-  is what the tool test and the canonical-query IT below do.
-- **`CustomerSearchServiceToolsTest`** (plain JUnit, no Spring) — the tool in isolation:
-  the condition list must land verbatim in the filter, a repeated empty call must not wipe it, and the
-  prompt must carry the resolved "today".
+- **`CustomerSearchServiceToolsTest`** (plain JUnit, no Spring, no LLM) — the one tool-calling failure
+  mode this repository has observed and mitigated: a `void` tool is answered with a bare "Done", which a
+  model can read as "nothing happened" and call again with no arguments. The guard must keep what the
+  first call extracted. Nothing else about the tool is tested — asserting that arguments land in a record
+  was plumbing.
 - **`HybridCanonicalQueryIT`** — the eight queries of `docs/canonical-query-set.md` against a real Ollama, each
   scored on the **resulting customer set** (the `Specification` is executed against the seeded database and
   the matching ids compared with a reference predicate). All eight are expected to pass here, exactly as
