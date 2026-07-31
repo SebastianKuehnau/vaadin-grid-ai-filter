@@ -73,6 +73,15 @@
 			<artifactId>awaitility</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<!-- The shared test foundation: the canonical query set, the robustness set and the abstract
+			     ITs this module's tests extend. Published by demo-commons as a test-jar; see its pom. -->
+			<groupId>dev.demo.vaadin</groupId>
+			<artifactId>demo-commons</artifactId>
+			<version>${project.version}</version>
+			<type>test-jar</type>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
