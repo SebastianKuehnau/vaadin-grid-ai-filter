@@ -15,16 +15,16 @@ import static org.mockito.Mockito.mock;
 
 /**
  * Plain JUnit test (no Spring context, no LLM) of the one tool of this module in isolation: the
- * condition list must land in {@link CustomerSearchHybridToolCallingService#filter} verbatim, a
+ * condition list must land in {@link CustomerSearchService#filter} verbatim, a
  * repeated empty call must not wipe it, and the prompt must carry the resolved "today".
  * The {@link ChatModel} and {@link TokenUsageRecorder} are mocked purely to satisfy the constructor —
  * neither is invoked (the tool never calls the model or records usage).
  */
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
-class CustomerSearchHybridToolCallingServiceToolsTest {
+class CustomerSearchServiceToolsTest {
 
-    private final CustomerSearchHybridToolCallingService service =
-            new CustomerSearchHybridToolCallingService(mock(ChatModel.class), mock(TokenUsageRecorder.class));
+    private final CustomerSearchService service =
+            new CustomerSearchService(mock(ChatModel.class), mock(TokenUsageRecorder.class));
 
     private static final Condition BERLIN_OR_HAMBURG =
             new Condition("city", Operator.CONTAINS, List.of("Berlin", "Hamburg"), false);
@@ -72,7 +72,7 @@ class CustomerSearchHybridToolCallingServiceToolsTest {
 
     @Test
     void systemPromptResolvesRelativeDatesAgainstTheGivenToday() {
-        String prompt = CustomerSearchHybridToolCallingService.systemPrompt(LocalDate.of(2026, 3, 17));
+        String prompt = CustomerSearchService.systemPrompt(LocalDate.of(2026, 3, 17));
 
         assertThat(prompt).contains("Today is 2026-03-17");
         // "yesterday" must be pre-resolved in the examples, so no live-clock tool call is needed.

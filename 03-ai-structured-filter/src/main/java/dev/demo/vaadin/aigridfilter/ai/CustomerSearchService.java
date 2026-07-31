@@ -24,14 +24,14 @@ import java.util.List;
  * so it can be tested in isolation.
  */
 @Service
-public class CustomerSearchStructuredOutputService implements CustomerSearchAgent {
+public class CustomerSearchService implements CustomerSearchAgent {
 
-    private static final Logger logger = LoggerFactory.getLogger(CustomerSearchStructuredOutputService.class);
+    private static final Logger logger = LoggerFactory.getLogger(CustomerSearchService.class);
 
     private final ChatClient chatClient;
     private final TokenUsageRecorder tokenUsageRecorder;
 
-    public CustomerSearchStructuredOutputService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
+    public CustomerSearchService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
         this.chatClient = ChatClient.builder(chatModel).build();
         this.tokenUsageRecorder = tokenUsageRecorder;
     }

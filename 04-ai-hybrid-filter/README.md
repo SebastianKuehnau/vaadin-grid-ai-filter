@@ -35,7 +35,7 @@ its own copy of everything, as `01`/`02`/`03` already do:
 
 New, and the only interesting file in the module:
 
-- `ai/CustomerSearchHybridToolCallingService.java` — a `CustomerSearchAgent` that exposes
+- `ai/CustomerSearchService.java` — a `CustomerSearchAgent` that exposes
 
   ```java
   @Tool void searchCustomers(List<Condition> conditions)
@@ -126,7 +126,7 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
   `CustomerFilterSpecificationsTest` could only ever fail together with 03's; it lives in
   `03-ai-structured-filter` alone. What this module has to prove is its *delivery* mechanism, and that
   is what the tool test and the canonical-query IT below do.
-- **`CustomerSearchHybridToolCallingServiceToolsTest`** (plain JUnit, no Spring) — the tool in isolation:
+- **`CustomerSearchServiceToolsTest`** (plain JUnit, no Spring) — the tool in isolation:
   the condition list must land verbatim in the filter, a repeated empty call must not wipe it, and the
   prompt must carry the resolved "today".
 - **`CustomerListViewBrowserlessTest`** — [Vaadin Browserless
@@ -143,7 +143,7 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
 
 ## Sources
 
-- `src/main/java/dev/demo/vaadin/aigridfilter/ai/CustomerSearchHybridToolCallingService.java` — the one
+- `src/main/java/dev/demo/vaadin/aigridfilter/ai/CustomerSearchService.java` — the one
   file that makes this module different from 03
 - `src/main/java/dev/demo/vaadin/aigridfilter/ai/filter/` — the filter type, copied 1:1 from 03
 - `src/main/java/dev/demo/vaadin/aigridfilter/ui/` — the view and the grid

@@ -32,13 +32,13 @@ and gives every field three parameters (`city`, `cityOperator`, `cityNegate`) �
 second tool, `currentLocalDateTime()`, for relative dates. `CustomerSpecifications` chooses the predicate
 per field from its `Operator` and flips it when `negate` is set.
 
-**03 — structured output.** `CustomerSearchStructuredOutputService` calls
+**03 — structured output.** `CustomerSearchService` calls
 `.call().responseEntity(CustomerFilter.class)`: the model returns *one* JSON object — a `CustomerFilter`
 holding a flat `List<Condition>`, each condition a `(field, Operator, values, negate)` tuple — which
 `CustomerFilterSpecifications` translates. "Today" is baked into the prompt via
 `systemPrompt(LocalDate today)`; there is no live date tool call.
 
-**04 — hybrid.** `CustomerSearchHybridToolCallingService` exposes
+**04 — hybrid.** `CustomerSearchService` exposes
 `@Tool searchCustomers(List<Condition> conditions)` — 03's `Condition`, `Operator`, `CustomerFilter` and
 `CustomerFilterSpecifications`, copied 1:1, Jackson annotations included. Spring AI derives the tool's
 parameter schema from those very annotations, so the model sees the same vocabulary as in 03. The prompt

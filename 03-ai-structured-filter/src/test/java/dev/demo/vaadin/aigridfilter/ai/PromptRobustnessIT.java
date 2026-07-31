@@ -46,7 +46,7 @@ class PromptRobustnessIT {
     private static final Logger logger = LoggerFactory.getLogger(PromptRobustnessIT.class);
 
     @Autowired
-    CustomerSearchStructuredOutputService agent;
+    CustomerSearchService agent;
 
     @Autowired
     CustomerRepository customerRepository;

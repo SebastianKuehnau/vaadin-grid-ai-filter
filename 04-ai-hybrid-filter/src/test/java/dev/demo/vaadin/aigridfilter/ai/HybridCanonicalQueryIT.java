@@ -76,7 +76,7 @@ class HybridCanonicalQueryIT {
     }
 
     @Autowired
-    CustomerSearchHybridToolCallingService agent;
+    CustomerSearchService agent;
 
     @Autowired
     CustomerRepository customerRepository;

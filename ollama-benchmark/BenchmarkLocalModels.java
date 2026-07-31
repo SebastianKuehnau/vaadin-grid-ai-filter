@@ -363,8 +363,8 @@ public class BenchmarkLocalModels {
     enum Approach {
         FLAT_TOOL_CALLING("02a-flat", "02-ai-agent-filter", "flat/CustomerSearchService.java"),
         OPERATOR_TOOL_CALLING("02b-operator", "02-ai-agent-filter", "operator/CustomerSearchService.java"),
-        STRUCTURED("03-structured", "03-ai-structured-filter", "CustomerSearchStructuredOutputService.java"),
-        CONDITION_TOOL_CALLING("04-hybrid", "04-ai-hybrid-filter", "CustomerSearchHybridToolCallingService.java");
+        STRUCTURED("03-structured", "03-ai-structured-filter", "CustomerSearchService.java"),
+        CONDITION_TOOL_CALLING("04-hybrid", "04-ai-hybrid-filter", "CustomerSearchService.java");
 
         final String label;
         final String module;
@@ -830,7 +830,7 @@ public class BenchmarkLocalModels {
 
     // ---------------------------------------------------------------------------------------------
     // Structured-output approach: system prompt extracted from the real
-    // CustomerSearchStructuredOutputService.java so the eval cannot drift from production behaviour.
+    // CustomerSearchService.java so the eval cannot drift from production behaviour.
     // ---------------------------------------------------------------------------------------------
 
     /**

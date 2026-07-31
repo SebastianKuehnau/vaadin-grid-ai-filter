@@ -27,8 +27,8 @@ also with the non-AI baselines in `01-non-ai-filter`; the root `README.md` has t
 
 ```
 ai/
-├── CustomerSearchAgent.java                    (public interface — the view's only dependency, the testability seam)
-├── CustomerSearchStructuredOutputService.java  (@Service — ChatClient, system prompt, structured-output call)
+├── CustomerSearchAgent.java              (public interface — the view's only dependency, the testability seam)
+├── CustomerSearchService.java            (@Service — ChatClient, system prompt, structured-output call)
 └── filter/
     ├── CustomerFilter.java                (public record — a flat list of conditions, ALL combined with AND)
     ├── Condition.java                     (public record — one field/operator/values/negate condition)

@@ -62,11 +62,11 @@ production source, never hard-coded, so the eval cannot drift from what the apps
   descriptions are shared `static final String` constants in that class (13 fields would otherwise repeat
   them); the extractor resolves those constants, so the model sees exactly the app's text.
 - **`03`**: the `systemPrompt(LocalDate)` text block of
-  `../03-ai-structured-filter/.../ai/CustomerSearchStructuredOutputService.java`, with the relative dates
+  `../03-ai-structured-filter/.../ai/CustomerSearchService.java`, with the relative dates
   resolved the same way the module resolves them, plus the response-shape reminder Spring AI adds for
   structured output.
 - **`04`**: the `systemPrompt(LocalDate)` text block of
-  `../04-ai-hybrid-filter/.../ai/CustomerSearchHybridToolCallingService.java` (no JSON-shape tail — it
+  `../04-ai-hybrid-filter/.../ai/CustomerSearchService.java` (no JSON-shape tail — it
   calls a tool), and a `List<Condition>` parameter schema built from `Condition.java`'s own
   `@JsonClassDescription`/`@JsonPropertyDescription` texts, i.e. from the same annotations Spring AI reads
   when it generates that tool's schema at runtime.

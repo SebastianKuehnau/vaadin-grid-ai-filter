@@ -52,9 +52,9 @@ import java.util.List;
  */
 @Service
 @Scope("prototype")
-public class CustomerSearchHybridToolCallingService implements CustomerSearchAgent {
+public class CustomerSearchService implements CustomerSearchAgent {
 
-    private static final Logger logger = LoggerFactory.getLogger(CustomerSearchHybridToolCallingService.class);
+    private static final Logger logger = LoggerFactory.getLogger(CustomerSearchService.class);
 
     private final ChatClient chatClient;
     private final TokenUsageRecorder tokenUsageRecorder;
@@ -62,7 +62,7 @@ public class CustomerSearchHybridToolCallingService implements CustomerSearchAge
     /** What the model passed to {@link #searchCustomers}; {@code null} until the tool is called. */
     CustomerFilter filter;
 
-    public CustomerSearchHybridToolCallingService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
+    public CustomerSearchService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
         this.chatClient = ChatClient.builder(chatModel).build();
         this.tokenUsageRecorder = tokenUsageRecorder;
     }

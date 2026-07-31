@@ -73,7 +73,7 @@ class StructuredCanonicalQueryIT {
     }
 
     @Autowired
-    CustomerSearchStructuredOutputService agent;
+    CustomerSearchService agent;
 
     @Autowired
     CustomerRepository customerRepository;
