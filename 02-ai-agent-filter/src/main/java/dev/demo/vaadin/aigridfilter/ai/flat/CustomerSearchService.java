@@ -2,7 +2,6 @@ package dev.demo.vaadin.aigridfilter.ai.flat;
 
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
 import dev.demo.vaadin.aigridfilter.ai.TokenUsageAdvisor;
-import dev.demo.vaadin.aigridfilter.ai.TokenUsageRecorder;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import org.slf4j.Logger;
@@ -68,9 +67,9 @@ class CustomerSearchService implements CustomerSearchAgent {
 
     CustomerCriteria criteria;
 
-    CustomerSearchService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
+    CustomerSearchService(ChatModel chatModel, TokenUsageAdvisor tokenUsageAdvisor) {
         this.chatClient = ChatClient.builder(chatModel).build();
-        this.tokenUsageAdvisor = new TokenUsageAdvisor(tokenUsageRecorder);
+        this.tokenUsageAdvisor = tokenUsageAdvisor;
     }
 
     /**

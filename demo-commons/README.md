@@ -16,7 +16,7 @@ It lives here because this is the module every build touches and the invariant i
 demo-commons/
   data/       Customer · Address · CreditRating · CustomerRepository
   ui/         CustomerGrid (incl. CreditScoreIndicator) · AbstractCustomerSearchView
-  ai/         CustomerSearchAgent · TokenUsageAdvisor · TokenUsageRecorder
+  ai/         CustomerSearchAgent · TokenUsageAdvisor
   resources/  data.sql · META-INF/resources/credit-score-indicator.css
 ```
 
@@ -32,9 +32,11 @@ filter comes into being:
   by `02`/`03`/`04`; `01` has no AI layer and uses `CustomerGrid` alone.
 - **`ai/CustomerSearchAgent`** — the one-method seam between view and AI layer. It names no Spring AI type,
   which is what lets `01` depend on this module without resolving Spring AI.
-- **`ai/TokenUsageAdvisor` + `TokenUsageRecorder`** — the token and latency measurement, as a
-  `ChatClient` advisor. Keeping it here is what leaves each `CustomerSearchService` with nothing but its
-  prompt and its tool.
+- **`ai/TokenUsageAdvisor`** — the whole token and latency measurement, as a `ChatClient` advisor.
+  Keeping it here is what leaves each `CustomerSearchService` with nothing but its prompt and its tool.
+  It sits *innermost* in the advisor chain on purpose: Spring AI's tool loop re-enters the chain for the
+  follow-up call, so only an innermost advisor sees every round trip — and only then are its totals the
+  real cost of a query. See its Javadoc.
 
 ## What must never move in here
 
@@ -58,7 +60,7 @@ which `CustomerSearchAgent` gets injected there is exactly the difference being 
 dependency tree is checked for it. So both are declared `<optional>true</optional>` here, which stops them
 propagating to consumers; `02`/`03`/`04` declare their own starters and actuator, as they always have.
 
-**Hence: no `@Component` on `TokenUsageAdvisor` or `TokenUsageRecorder`.** A component scan reads
+**Hence: no `@Component` on `TokenUsageAdvisor`.** A component scan reads
 annotations from ASM metadata *without loading the class*, so Spring would find a `@Component` here while
 running `01` and then fail to instantiate the bean with `NoClassDefFoundError`. Each of `02`/`03`/`04`
 declares the recorder in its own 21-line `TokenUsageConfiguration`. An `@AutoConfiguration` with

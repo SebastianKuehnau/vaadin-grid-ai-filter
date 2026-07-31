@@ -11,7 +11,7 @@ Top priority for all code: **easy to understand, presentable, extensible** — c
 | `02-ai-agent-filter` | 8082 | AI filtering via tool calling, in two variants behind two routes of one app: 02(a) one scalar value per field (`/`), 02(b) value + operator + negate per field (`/operator`) |
 | `03-ai-structured-filter` | 8083 | AI filtering via structured output (`CustomerFilter` → JPA Specifications), against local Ollama models |
 | `04-ai-hybrid-filter` | 8084 | AI filtering via tool calling with 03's `List<Condition>` filter type, copied 1:1 — same capability, different delivery |
-| `demo-commons` | — | Shared **runtime** infrastructure: the domain layer (`Customer`, `Address`, `CreditRating`, `CustomerRepository`, `data.sql`), the shared Vaadin components (`CustomerGrid`, `AbstractCustomerSearchView`) and the AI layer's seam plus token measurement (`CustomerSearchAgent`, `TokenUsageAdvisor`, `TokenUsageRecorder`). No numeric prefix — not a step of the talk. See `demo-commons/README.md` for the rule on what must never move there |
+| `demo-commons` | — | Shared **runtime** infrastructure: the domain layer (`Customer`, `Address`, `CreditRating`, `CustomerRepository`, `data.sql`), the shared Vaadin components (`CustomerGrid`, `AbstractCustomerSearchView`) and the AI layer's seam plus token measurement (`CustomerSearchAgent`, `TokenUsageAdvisor`). No numeric prefix — not a step of the talk. See `demo-commons/README.md` for the rule on what must never move there |
 
 Each of the four numbered modules above is a standalone Spring Boot app (`<ModuleName>Application`).
 The single `data.sql` lives in `demo-commons` and is picked up from the jar (Boot's default

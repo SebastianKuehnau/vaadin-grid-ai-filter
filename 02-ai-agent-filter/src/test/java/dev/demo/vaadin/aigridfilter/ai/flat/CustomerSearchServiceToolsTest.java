@@ -1,6 +1,6 @@
 package dev.demo.vaadin.aigridfilter.ai.flat;
 
-import dev.demo.vaadin.aigridfilter.ai.TokenUsageRecorder;
+import dev.demo.vaadin.aigridfilter.ai.TokenUsageAdvisor;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -19,14 +19,14 @@ import static org.mockito.Mockito.mock;
  * Plain JUnit test (no Spring context, no LLM) of variant 02(a)'s tools in isolation: calling
  * {@code searchCustomers} directly with fixed literal arguments must capture them, verbatim, into
  * {@link CustomerSearchService#criteria}, and {@code currentLocalDateTime} must return the actual
- * current time. The {@link ChatModel} and {@link TokenUsageRecorder} are mocked purely to satisfy the
+ * current time. The {@link ChatModel} and {@link TokenUsageAdvisor} are mocked purely to satisfy the
  * constructor — neither is invoked (the tools never call the model or record usage).
  */
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
 class CustomerSearchServiceToolsTest {
 
     private final CustomerSearchService service =
-            new CustomerSearchService(mock(ChatModel.class), mock(TokenUsageRecorder.class));
+            new CustomerSearchService(mock(ChatModel.class), mock(TokenUsageAdvisor.class));
 
     @Test
     void capturesEveryArgumentIntoResult() {

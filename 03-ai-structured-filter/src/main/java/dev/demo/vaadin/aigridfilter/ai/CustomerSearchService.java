@@ -31,9 +31,9 @@ public class CustomerSearchService implements CustomerSearchAgent {
     private final ChatClient chatClient;
     private final TokenUsageAdvisor tokenUsageAdvisor;
 
-    public CustomerSearchService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
+    public CustomerSearchService(ChatModel chatModel, TokenUsageAdvisor tokenUsageAdvisor) {
         this.chatClient = ChatClient.builder(chatModel).build();
-        this.tokenUsageAdvisor = new TokenUsageAdvisor(tokenUsageRecorder);
+        this.tokenUsageAdvisor = tokenUsageAdvisor;
     }
 
     /**

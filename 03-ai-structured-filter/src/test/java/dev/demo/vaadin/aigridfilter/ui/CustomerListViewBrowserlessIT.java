@@ -4,7 +4,7 @@ import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.browserless.ViewPackages;
 import com.vaadin.browserless.internal.MockVaadin;
 import com.vaadin.flow.component.grid.GridTester;
-import dev.demo.vaadin.aigridfilter.ai.TokenUsageRecorder;
+import dev.demo.vaadin.aigridfilter.ai.TokenUsageAdvisor;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
@@ -58,16 +58,16 @@ class CustomerListViewBrowserlessIT extends SpringBrowserlessTest {
     private CustomerRepository customerRepository;
 
     @Autowired
-    private TokenUsageRecorder tokenUsageRecorder;
+    private TokenUsageAdvisor tokenUsageAdvisor;
 
     @BeforeAll
     void resetTokenUsage() {
-        tokenUsageRecorder.reset();
+        tokenUsageAdvisor.reset();
     }
 
     @AfterAll
     void logTokenSummary() {
-        tokenUsageRecorder.logSummary("CustomerListViewBrowserlessIT");
+        tokenUsageAdvisor.logSummary("CustomerListViewBrowserlessIT");
     }
 
     @Test

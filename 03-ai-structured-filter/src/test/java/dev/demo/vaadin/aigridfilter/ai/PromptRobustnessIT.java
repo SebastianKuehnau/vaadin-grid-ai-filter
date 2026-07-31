@@ -52,16 +52,16 @@ class PromptRobustnessIT {
     CustomerRepository customerRepository;
 
     @Autowired
-    TokenUsageRecorder tokenUsageRecorder;
+    TokenUsageAdvisor tokenUsageAdvisor;
 
     @BeforeAll
     void resetTokenUsage() {
-        tokenUsageRecorder.reset();
+        tokenUsageAdvisor.reset();
     }
 
     @AfterAll
     void logTokenSummary() {
-        tokenUsageRecorder.logSummary("PromptRobustnessIT");
+        tokenUsageAdvisor.logSummary("PromptRobustnessIT");
     }
 
     @Test

@@ -61,9 +61,9 @@ public class CustomerSearchService implements CustomerSearchAgent {
     /** What the model passed to {@link #searchCustomers}; {@code null} until the tool is called. */
     CustomerFilter filter;
 
-    public CustomerSearchService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
+    public CustomerSearchService(ChatModel chatModel, TokenUsageAdvisor tokenUsageAdvisor) {
         this.chatClient = ChatClient.builder(chatModel).build();
-        this.tokenUsageAdvisor = new TokenUsageAdvisor(tokenUsageRecorder);
+        this.tokenUsageAdvisor = tokenUsageAdvisor;
     }
 
     /**

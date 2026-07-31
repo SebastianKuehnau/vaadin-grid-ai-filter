@@ -84,7 +84,7 @@ the finding: 04 has 03's capabilities with 02's delivery mechanism.
 
 ## Token cost and request duration
 
-Measured by the **`TokenUsageRecorder`** (present in all four modules) on the *real application path*: it
+Measured by the **`TokenUsageAdvisor`** (shared via `demo-commons`) on the *real application path*: it
 reads Spring AI's `Usage` per request, logs prompt / completion / total tokens and the wall-clock time,
 and prints a per-IT-class summary. The figures below are that summary for each module's canonical-query
 IT — the **same eight queries** in every row — over **three consecutive `-Pit-local-ollama` runs** on the

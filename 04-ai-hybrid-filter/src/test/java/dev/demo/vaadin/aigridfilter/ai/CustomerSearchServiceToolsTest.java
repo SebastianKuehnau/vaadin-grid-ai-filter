@@ -17,14 +17,14 @@ import static org.mockito.Mockito.mock;
  * Plain JUnit test (no Spring context, no LLM) of the one tool of this module in isolation: the
  * condition list must land in {@link CustomerSearchService#filter} verbatim, a
  * repeated empty call must not wipe it, and the prompt must carry the resolved "today".
- * The {@link ChatModel} and {@link TokenUsageRecorder} are mocked purely to satisfy the constructor —
+ * The {@link ChatModel} and {@link TokenUsageAdvisor} are mocked purely to satisfy the constructor —
  * neither is invoked (the tool never calls the model or records usage).
  */
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
 class CustomerSearchServiceToolsTest {
 
     private final CustomerSearchService service =
-            new CustomerSearchService(mock(ChatModel.class), mock(TokenUsageRecorder.class));
+            new CustomerSearchService(mock(ChatModel.class), mock(TokenUsageAdvisor.class));
 
     private static final Condition BERLIN_OR_HAMBURG =
             new Condition("city", Operator.CONTAINS, List.of("Berlin", "Hamburg"), false);

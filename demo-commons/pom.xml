@@ -29,23 +29,18 @@
 		</dependency>
 
 		<!-- Optional on purpose: 01-non-ai-filter consumes this module for the domain layer and
-		     CustomerGrid, and it must keep resolving neither Spring AI nor Micrometer (it is the
-		     non-AI baseline — see the dependency:tree check in CLAUDE.md's Definition of Done).
-		     <optional>true</optional> stops both from propagating to consumers, so 02/03/04 declare
-		     their own Spring AI starters and actuator as they always have.
+		     CustomerGrid, and it must keep resolving no Spring AI at all (it is the non-AI baseline —
+		     see the dependency:tree check in CLAUDE.md's Definition of Done). <optional>true</optional>
+		     stops it from propagating to consumers, so 02/03/04 declare their own Spring AI starters as
+		     they always have.
 
-		     This is also why TokenUsageAdvisor and TokenUsageRecorder carry no @Component: a component
-		     scan reads annotations from ASM metadata without loading the class, so Spring would find
-		     the annotation in 01 too and then fail to instantiate the bean with NoClassDefFoundError.
-		     Each of 02/03/04 declares those two beans in its own small @Configuration instead. -->
+		     This is also why TokenUsageAdvisor carries no @Component: a component scan reads annotations
+		     from ASM metadata without loading the class, so Spring would find the annotation in 01 too
+		     and then fail to instantiate the bean with NoClassDefFoundError. Each of 02/03/04 declares
+		     that bean in its own small @Configuration instead. -->
 		<dependency>
 			<groupId>org.springframework.ai</groupId>
 			<artifactId>spring-ai-client-chat</artifactId>
-			<optional>true</optional>
-		</dependency>
-		<dependency>
-			<groupId>io.micrometer</groupId>
-			<artifactId>micrometer-core</artifactId>
 			<optional>true</optional>
 		</dependency>
 

@@ -1,6 +1,6 @@
 package dev.demo.vaadin.aigridfilter.ai;
 
-import dev.demo.vaadin.aigridfilter.ai.TokenUsageRecorder;
+import dev.demo.vaadin.aigridfilter.ai.TokenUsageAdvisor;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
@@ -119,16 +119,16 @@ class HybridCanonicalQueryIT {
     CustomerRepository customerRepository;
 
     @Autowired
-    TokenUsageRecorder tokenUsageRecorder;
+    TokenUsageAdvisor tokenUsageAdvisor;
 
     @BeforeAll
     void resetTokenUsage() {
-        tokenUsageRecorder.reset();
+        tokenUsageAdvisor.reset();
     }
 
     @AfterAll
     void logTokenSummary() {
-        tokenUsageRecorder.logSummary("CanonicalQueryIT");
+        tokenUsageAdvisor.logSummary("CanonicalQueryIT");
     }
 
     @ParameterizedTest(name = "{0}")

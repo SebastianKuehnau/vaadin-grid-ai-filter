@@ -66,7 +66,7 @@ behind "the delivery mechanism does not change what a filter can express".
 
 ## Token cost and latency of the same eight queries
 
-Measured by the `TokenUsageRecorder` on the real application path (the same bean the app uses), over
+Measured by the `TokenUsageAdvisor` on the real application path (the same bean the app uses), over
 **three consecutive `-Pit-local-ollama` runs** on `qwen3:8b`, averaged over all eight canonical queries —
 so every row answers the identical questions. Token counts were identical in all three runs (temperature
 0 makes each prompt deterministic); the duration column is the median of the three:
