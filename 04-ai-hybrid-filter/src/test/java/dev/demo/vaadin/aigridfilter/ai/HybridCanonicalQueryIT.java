@@ -1,6 +1,5 @@
 package dev.demo.vaadin.aigridfilter.ai;
 
-import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
 import dev.demo.vaadin.aigridfilter.canonicalquery.AbstractCanonicalQueryIT;
 import dev.demo.vaadin.aigridfilter.canonicalquery.CanonicalQuery;
 import dev.demo.vaadin.aigridfilter.canonicalquery.Outcome;
