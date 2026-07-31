@@ -67,26 +67,39 @@ behind "the delivery mechanism does not change what a filter can express".
 ## Token cost and latency of the same eight queries
 
 Measured by the `TokenUsageAdvisor` on the real application path (the same bean the app uses), over
-**three consecutive `-Pit-local-ollama` runs** on `qwen3:8b`, averaged over all eight canonical queries —
-so every row answers the identical questions. Token counts were identical in all three runs (temperature
-0 makes each prompt deterministic); the duration column is the median of the three:
+**three consecutive `-Pit-local-ollama` runs** on `qwen3:8b`, over all eight canonical queries. Token
+counts were identical in all three runs except 02(a)'s completion tokens (535 twice, 575 once — the model
+varies how much it writes after the tool call); every other figure is the median of the three.
 
-| Approach | Tool/schema shape | Tokens/request | prompt | completion | Duration/request |
-|---|---|---|---|---|---|
-| 02(a) flat | 13 flat parameters | **1154** | 1120 | 34 | 2856 ms |
-| 02(b) value+operator+negate | 39 flat parameters | **3248** | 3154 | 94 | 6071 ms |
-| 03 structured output | `CustomerFilter` response schema | **2307** | 2243 | 64 | 4089 ms |
-| 04 hybrid | 1 `List<Condition>` parameter | **2358** | 2288 | 70 | 5128 ms |
+**Read the two right-hand columns first, because they answer different questions.** A tool-calling query
+is not one model call: the model calls the tool, Java answers it, and the model is asked again — and each
+of those calls bills its own prompt. So *per model call* the four approaches differ only by their schema
+size, while *per query* the delivery mechanism shows its price.
 
-Two things this table says that the capability columns cannot:
+| Approach | Tool/schema shape | Calls per query | Tokens/call | prompt | completion | **Tokens/query** | Duration/query |
+|---|---|---|---|---|---|---|---|
+| 02(a) flat | 13 flat parameters | 2.5 | 1341 | 1314 | 27 | **3353** | 2970 ms |
+| 02(b) value+operator+negate | 39 flat parameters | 2.5 | 3648 | 3608 | 40 | **9120** | 4395 ms |
+| 03 structured output | `CustomerFilter` response schema | 1 | 2306 | 2243 | 64 | **2306** | 4087 ms |
+| 04 hybrid | 1 `List<Condition>` parameter | 2 | 2296 | 2254 | 42 | **4593** | 3694 ms |
 
-- **03 and 04 cost nearly the same** — 2243 vs 2288 prompt tokens/request (**+2.0 %**), 2307 vs 2358 in
-  total (+2.2 %). The same filter type costs the same order of tokens whether Spring AI sends it as a
-  response-format schema or as a tool-parameter schema; delivery is close to token-neutral, and the small
-  remainder is prompt wording, not mechanism.
-- **02(b) costs more than 03/04 and reaches fewer categories** — 3248 tokens for 5 of 8, against 2358 for
-  8 of 8. Per-field operator plumbing is not a cheap shortcut to expressiveness; it is the expensive way
-  to get less of it.
+Three things this table says that the capability columns cannot:
+
+- **The filter type is token-neutral across delivery mechanisms — per call.** 03 and 04 share the filter
+  type and cost 2243 vs 2254 prompt tokens per call (**+0.5 %**). Whether Spring AI sends that type as a
+  response-format schema or as a tool-parameter schema makes no measurable difference.
+- **The delivery mechanism is not free — per query.** The same filter type costs 2306 tokens as structured
+  output and **4593 as a tool call**, almost exactly double, because the second round trip resends the
+  whole conversation to collect an answer the filter no longer needs. That is the honest price of "the
+  model can act", and it is invisible if you only look at per-call figures.
+- **02(b) costs four times 03 and reaches fewer categories** — 9120 tokens per query for 5 of 8, against
+  2306 for 8 of 8. Per-field operator plumbing is not a cheap shortcut to expressiveness; it is the
+  expensive way to get less of it.
+
+`Calls per query` is not a constant of the approach but of the model's behaviour: 02(a) and 02(b) average
+2.5 because a relative-date query chains `currentLocalDateTime()` first, and 04's 2 is the tool call plus
+the epilogue that [is measured and documented](tool-calling-vs-structured-output.md) as the one place
+where delivery costs real time.
 
 The per-query breakdown lives in
 [tool-calling-vs-structured-output.md § Token cost and request duration](tool-calling-vs-structured-output.md#token-cost-and-request-duration).
