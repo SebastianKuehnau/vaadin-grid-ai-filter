@@ -151,9 +151,10 @@ the test config overrides it to `ollama`.
   module's `StructuredCanonicalQueryIT` or the benchmark script stops matching `docs/canonical-query-set.md`
   verbatim, in wording or order.
 - **`CustomerFilterSpecificationsTest`** (`@DataJpaTest`, no LLM) — deterministic test of the flat
-  translation against the seeded H2 data. `04-ai-hybrid-filter` runs a 1:1 copy of it against its copy of
-  the same translation logic, so a divergence between the two modules can only come from the delivery
-  mechanism.
+  translation against the seeded H2 data, including the `STARTS_WITH`/`ENDS_WITH` operators no canonical
+  query pins down. It is the safety net for `04-ai-hybrid-filter` too: that module's `ai/filter/` package
+  is a byte-identical copy, so a divergence between the two modules can only come from the delivery
+  mechanism, never from the translation.
 - **`CustomerFilterSpecificationsExtraTest`** (`@DataJpaTest`, no LLM) — negation
   (`Condition.negate()`), split out of the class above.
 - **`StructuredCanonicalQueryIT`** — the eight queries of `docs/canonical-query-set.md`, each scored on the

@@ -20,8 +20,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@link Specification}) against the seeded H2 database — no LLM, no Docker. This is the safety net
  * for the flat-list translation in {@link CustomerFilterSpecifications}.
  * <p>
- * {@code 04-ai-hybrid-filter} runs a 1:1 copy of this class against its copy of the same translation
- * logic, so if the two modules ever diverge on a query, the cause can only be the delivery mechanism.
+ * This is also the safety net for {@code 04-ai-hybrid-filter}, whose {@code ai/filter/} package is a
+ * byte-identical copy: a second copy of this class there could only ever fail together with this one,
+ * so the translation is tested once, here. If the two modules ever diverge on a query, the cause can
+ * therefore only be the delivery mechanism (structured output vs. tool call), never the translation.
  * Negation is split out into {@link CustomerFilterSpecificationsExtraTest}.
  * <p>
  * The multi-value (OR) and range cases below have no counterpart in {@code 02-ai-agent-filter}: neither
