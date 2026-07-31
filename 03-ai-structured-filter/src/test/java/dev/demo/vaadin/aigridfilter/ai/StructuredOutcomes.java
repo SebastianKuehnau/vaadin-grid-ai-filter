@@ -16,12 +16,12 @@ import dev.demo.vaadin.aigridfilter.canonicalquery.Outcome;
  * An exhaustive {@code switch} on purpose: adding a query to the shared set without deciding what it means
  * for this variant then fails to compile instead of failing at runtime.
  */
-final class StructuredOutcomes {
+public final class StructuredOutcomes {
 
     private StructuredOutcomes() {
     }
 
-    static Outcome of(CanonicalQuery canonical) {
+    public static Outcome of(CanonicalQuery canonical) {
         return switch (canonical) {
             case C1_SINGLE_VALUE, C2_MULTI_VALUE_OR, C3_NEGATION, C4_OPERATOR_PRECISION,
                  C5_COMBINED_AND, C6_REVENUE_RANGE, C7_RELATIVE_DATE, C8_DATE_RANGE -> Outcome.SUCCESS;
