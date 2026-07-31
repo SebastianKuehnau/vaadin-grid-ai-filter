@@ -30,7 +30,7 @@ import java.util.List;
  * schema. So this module differs from 03 in <b>one</b> respect only — how the finished filter
  * travels from the model to Java:
  * <ul>
- *   <li>03: {@code .call().responseEntity(CustomerFilter.class)} — the model <em>returns</em> the filter,</li>
+ *   <li>03: {@code .call().entity(CustomerFilter.class)} — the model <em>returns</em> the filter,</li>
  *   <li>04: {@code @Tool searchCustomers(List<Condition>)} — the model <em>calls</em> a method with it.</li>
  * </ul>
  * That makes the point the escalation ladder builds up to: what a filter can express is a property of

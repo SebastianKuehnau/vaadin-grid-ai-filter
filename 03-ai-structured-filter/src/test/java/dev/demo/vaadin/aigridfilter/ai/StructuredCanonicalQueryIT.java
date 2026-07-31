@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 /**
  * Runs the canonical query set (see {@code docs/canonical-query-set.md}) against a real Ollama and
  * scores every query on the <b>resulting customer set</b>, not on the shape of the extracted filter: the
- * query goes through structured output ({@code .responseEntity(CustomerFilter.class)}), the returned {@code Specification} is executed against the seeded
+ * query goes through structured output ({@code .entity(CustomerFilter.class)}), the returned {@code Specification} is executed against the seeded
  * database, and the resulting ids are compared with the ids a reference predicate selects.
  * <p>
  * A {@code CustomerFilter} is a flat list of conditions, each with several values (OR within a field)

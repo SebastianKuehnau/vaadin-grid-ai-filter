@@ -33,7 +33,7 @@ second tool, `currentLocalDateTime()`, for relative dates. `CustomerSpecificatio
 per field from its `Operator` and flips it when `negate` is set.
 
 **03 — structured output.** `CustomerSearchService` calls
-`.call().responseEntity(CustomerFilter.class)`: the model returns *one* JSON object — a `CustomerFilter`
+`.call().entity(CustomerFilter.class)`: the model returns *one* JSON object — a `CustomerFilter`
 holding a flat `List<Condition>`, each condition a `(field, Operator, values, negate)` tuple — which
 `CustomerFilterSpecifications` translates. "Today" is baked into the prompt via
 `systemPrompt(LocalDate today)`; there is no live date tool call.
@@ -210,5 +210,5 @@ None of the three has an equivalent in structured output: one response, one filt
   Trimming those is the highest-leverage lever; picking a delivery mechanism is not.
 
 See the [capability matrix](capability-matrix.md) for the per-query-type table with test citations, and
-[extending-tool-calling-with-operators.md](extending-tool-calling-with-operators.md) for how module 04
-came to exist — it is the change that document used to analyse without making.
+`04-ai-hybrid-filter/README.md` for how that module came to exist — it is a change this repository
+analysed in a design note before making it.

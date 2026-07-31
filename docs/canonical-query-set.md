@@ -51,7 +51,7 @@ through the same tool, 03 and 04 through the "today" baked into their prompts.
 ## Expected customer sets
 
 Every query's expected result is defined as a **predicate over `CanonicalCustomer`** — the six-field
-projection of `Customer` the shared enum is written against, since each module owns its own entity —
+projection of `Customer` the shared enum is written against, which keeps the testkit free of JPA —
 evaluated against whatever `data.sql` currently seeds, never as a hard-coded list of IDs. Two reasons:
 C7 depends on today's date,
 and each app's startup sets "Berlin Data Works"'s last order date to yesterday (see any

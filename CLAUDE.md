@@ -12,10 +12,12 @@ Top priority for all code: **easy to understand, presentable, extensible** — c
 | `03-ai-structured-filter` | 8083 | AI filtering via structured output (`CustomerFilter` → JPA Specifications), against local Ollama models |
 | `04-ai-hybrid-filter` | 8084 | AI filtering via tool calling with 03's `List<Condition>` filter type, copied 1:1 — same capability, different delivery |
 | `canonical-query-testkit` | — | Shared **test** infrastructure: the canonical query set, the customer sets each query must produce, and the assert/log step the canonical-query ITs run. No numeric prefix — not a step of the talk |
+| `demo-commons` | — | Shared **runtime** infrastructure: the domain layer (`Customer`, `Address`, `CreditRating`, `CustomerRepository`, `data.sql`), the shared Vaadin components (`CustomerGrid`, `AbstractCustomerSearchView`) and the AI layer's seam plus token measurement (`CustomerSearchAgent`, `TokenUsageAdvisor`, `TokenUsageRecorder`). No numeric prefix — not a step of the talk. See `demo-commons/README.md` for the rule on what must never move there |
 
-Each of the four numbered modules above is a standalone Spring Boot app (`<ModuleName>Application`)
-with its own `data.sql`. For a module's architecture details, see `<module>/README.md` — do **not**
-duplicate them here.
+Each of the four numbered modules above is a standalone Spring Boot app (`<ModuleName>Application`).
+The single `data.sql` lives in `demo-commons` and is picked up from the jar (Boot's default
+`optional:classpath*:data.sql`) — there must never be a second copy, or the data is seeded twice.
+For a module's architecture details, see `<module>/README.md` — do **not** duplicate them here.
 
 `ollama-benchmark` is **not** a Maven module (no `pom.xml`, not in the root `<modules>` list):
 it's a standalone, dependency-free script benchmarking local Ollama models against all four AI
@@ -28,12 +30,18 @@ The eight natural-language queries all AI modules are measured with live in
 
 ```bash
 ./mvnw verify -pl <module> -am             # build + all tests of one module
+./mvnw install -DskipTests                 # once, before the first spring-boot:run (see below)
 ./mvnw spring-boot:run -pl <module>        # start the app (on that module's port, see the table above)
 ./mvnw test -pl <module> -am -Dtest=<Class># run a single test class
 ```
 
-`-am` (also-make) is needed for `02`/`03`/`04`: they depend on `canonical-query-testkit`, which
-Maven has to build first. Without it a `-pl` build fails to resolve that dependency.
+`-am` (also-make) is needed for **all four** apps: every one of them depends on `demo-commons`, and
+`02`/`03`/`04` additionally on `canonical-query-testkit`. Without it a `-pl` build fails to resolve
+those dependencies.
+
+`spring-boot:run` cannot use `-am` (it would try to run the shared modules too) and resolves
+dependencies from `~/.m2`, so the shared modules have to be installed once — `./mvnw install
+-DskipTests` — and again after changing one of them.
 
 AI provider is selected via Spring profiles: `openai` (default) or `ollama` (expects Ollama at
 `OLLAMA_BASE_URL`; inside the dev container this is `http://host.docker.internal:11434`).
@@ -72,14 +80,21 @@ or file changes on your own initiative.
 - UI texts and code comments in English.
 - Changes affecting multiple modules must be applied consistently in **all** affected modules
   (01 → 02(a) → 02(b) → 03 → 04 increase in expressiveness; same domain, different filtering
-  mechanism — the domain and runtime classes are duplicated per module on purpose, so each step can
-  be read on its own).
-- **One exception to that duplication:** `canonical-query-testkit`, consumed by 02/03/04 as a
-  test-scope dependency. It owns the canonical queries, their expected customer sets and the
-  assert/log step — five identical copies of eight query strings had become a drift risk with no
-  teaching value. The exception covers **test infrastructure only**; do not move domain, view or AI
-  code there. What each variant can express stays in its own IT, because that is the comparison the
-  talk is about.
+  mechanism — everything that *is* the comparison stays duplicated per module on purpose, so each
+  step can be read on its own).
+- **Two exceptions to that duplication**, one for shared test and one for shared runtime
+  infrastructure. Both exist because identical copies had become a drift risk with no teaching value;
+  neither may ever grow to hold something the talk compares:
+  - `canonical-query-testkit`, a **test**-scope dependency of 02/03/04. It owns the canonical
+    queries, their expected customer sets and the assert/log step — five identical copies of eight
+    query strings. What each variant can *express* stays in its own IT, because that is the
+    comparison the talk is about.
+  - `demo-commons`, a compile dependency of all four apps. It owns the domain layer, the shared
+    Vaadin components, the `CustomerSearchAgent` seam and the token measurement. **Never** the AI
+    services, the `Criteria`/`Condition`/`Specifications` types, the `SYSTEM_PROMPT`s, the tool
+    signatures or any `@Route` view. The rule when in doubt: if a reader of the talk would need to
+    see it on a slide to understand the difference between two approaches, it stays in its module.
+    See `demo-commons/README.md`.
 - CSS belongs in theme files, not inline in Java components.
 - Commit after every completed, verified step (Conventional Commits, no push).
 - Never commit benchmark reports, logs, or other generated artifacts unless the

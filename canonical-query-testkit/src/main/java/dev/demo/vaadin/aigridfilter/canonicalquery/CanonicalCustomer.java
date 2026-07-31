@@ -6,10 +6,12 @@ import java.time.LocalDate;
 /**
  * The slice of a customer the canonical query set actually filters on — and nothing else.
  * <p>
- * Each AI module owns its own {@code Customer} entity (the domain classes are duplicated per module on
- * purpose), so a shared expectation cannot be written against any one of them. This record is the small
- * common projection instead: every module maps its own {@code Customer} onto it in a handful of lines,
- * and {@link CanonicalQuery}'s expected result sets are expressed over this type.
+ * The modules do share one {@code Customer} entity now (it lives in {@code demo-commons}), so this record
+ * is no longer about reaching across four copies. It stays for two better reasons: it keeps this testkit
+ * free of JPA — nothing here depends on Hibernate or a repository, so the expectations are plain data —
+ * and it holds {@code creditworthy} as a boolean rather than a raw score, which keeps the score threshold
+ * a rule each module states for itself. Every module maps {@code Customer} onto this projection in a
+ * handful of lines, and {@link CanonicalQuery}'s expected result sets are expressed over it.
  * <p>
  * Reading it top to bottom tells you exactly which six fields the eight canonical queries exercise.
  *

@@ -23,16 +23,20 @@ as structured output, 04 as a tool call. Compare with the non-AI baselines in `0
 
 - **`/`** (alias `/flat`) — `FlatCustomerListView`, variant 02(a).
 - **`/operator`** — `OperatorCustomerListView`, variant 02(b).
-- **`AbstractCustomerListView`** — everything the two share: one natural-language `TextField` above the
-  grid, the async search (`CompletableFuture` + `ui.access(...)`), the error notification, and a
-  variant switcher linking to the other view. The subclasses only differ in their heading and in which
-  `CustomerSearchAgent` bean Spring injects. Neither has a single Spring AI import — they only know
-  `CustomerSearchAgent` and apply the `Specification` it returns.
+- **`AbstractCustomerListView`** — what the two variants share *beyond* the shared base: a switcher
+  linking to the other variant, and a one-line description of what the variant on screen can express.
+  The subclasses differ only in their heading, that description, and which `CustomerSearchAgent` bean
+  Spring injects. Neither has a single Spring AI import — they only know `CustomerSearchAgent` and apply
+  the `Specification` it returns.
+- **`AbstractCustomerSearchView`** (in **`demo-commons`**) — the natural-language `TextField` above the
+  grid, the async search (`CompletableFuture` + `ui.access(...)`) and the error notification. Identical in
+  all three AI modules, and deliberately so: that the view cannot tell a tool call from structured output
+  is one of this repository's findings.
 - **`CustomerGrid`** — the `Grid<Customer>` itself (column config, backend sort configuration, and
-  responsive show/hide), extracted out of the view. Unlike `01-non-ai-filter`'s
-  `CustomerGrid`/`FilterableCustomerGrid` split, this module has a single fixed sort strategy and no
-  per-column filter fields (filtering is the one AI `TextField` above), so sort config lives inside
-  `CustomerGrid` rather than being applied by the view afterward.
+  responsive show/hide). It lives in **`demo-commons`**: all four apps show the same grid, and it says
+  nothing about how a filter came into being. Unlike `01-non-ai-filter`, this module needs no per-column
+  filter fields — filtering is the one AI `TextField` above — and it keeps the shared grid's backend sort
+  configuration unchanged.
 
 Both agents implement the same `CustomerSearchAgent` interface, so they are interchangeable from the
 view's point of view. Because there are two implementations, each view injects its own by **bean name**
@@ -42,8 +46,7 @@ view's point of view. Because there are two implementations, each view injects i
 
 ```
 ai/
-├── CustomerSearchAgent.java            (public interface — the views' only dependency, the testability seam)
-├── TokenUsageRecorder.java             (@Component — per-request token usage and duration)
+├── TokenUsageConfiguration.java      (@Configuration — declares demo-commons' TokenUsageRecorder bean)
 ├── flat/                             ← variant 02(a)
 │   ├── CustomerSearchService.java    (@Service("flatSearchAgent") @Scope("prototype") — ChatClient, system prompt, the @Tool method + the date tool)
 │   ├── CustomerCriteria.java         (public record — one scalar value per field)
@@ -230,9 +233,10 @@ Against a real model (`verify -Pit-local-ollama`):
 
 ## Sources
 
-- `src/main/java/dev/demo/vaadin/aigridfilter/ui/` — the two variant views, their shared base class,
-  and the grid (columns, sort, responsive layout)
+- `src/main/java/dev/demo/vaadin/aigridfilter/ui/` — the two variant views and their shared base class
+  (the variant switcher and description; the filter field, grid and async search are inherited from
+  `demo-commons`)
 - `src/main/java/dev/demo/vaadin/aigridfilter/ai/` — the AI layer, one package per variant (see above)
-- `src/main/java/dev/demo/vaadin/aigridfilter/data/` — the shared `Customer`/`Address` JPA model
-- `src/main/resources/data.sql` — seed data (100 customers)
+- `../demo-commons/` — the `Customer`/`Address` JPA model, `data.sql`, `CustomerGrid` and
+  `AbstractCustomerSearchView`, shared by all four apps
 - `src/test/java/dev/demo/vaadin/aigridfilter/` — tests (see [Tests](#tests) above)

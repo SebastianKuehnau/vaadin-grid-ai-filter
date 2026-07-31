@@ -20,18 +20,31 @@ express everything 03 can — multi-value OR, negation, operator precision, real
 
 > **Expressiveness lives in the filter *type*, not in the delivery *mechanism*.**
 
-`docs/extending-tool-calling-with-operators.md` analyzed exactly this change before it existed; this
-module is that analysis, built.
+This module started life as a design note. The since-removed `docs/extending-tool-calling-with-operators.md`
+(retrievable from the git history) asked what
+`02-ai-agent-filter` would need in order to express negation and operator precision the way
+`03-ai-structured-filter` does, answered "swap the flat per-field criteria for a condition list and keep
+the tool call as the delivery mechanism", and closed with "this is analysis only — no such change is
+made". This module *is* that change: `Condition`, `Operator`, `CustomerFilter` and
+`CustomerFilterSpecifications` copied 1:1 out of module 03, behind one
+`@Tool searchCustomers(List<Condition> conditions)`. Module 02 went a deliberately smaller way instead —
+variant 02(b), which keeps per-field parameters and merely adds an operator and a negate flag to each. So
+the repository now holds *both* answers to the note's question, and they disagree about how far you get,
+which is the finding above. The note itself has been retired now that the module answers it; see the git
+history for the original analysis.
 
 ## What is copied and what is new
 
 Copied **1:1** from `03-ai-structured-filter` (same records, same Jackson annotations, same enum
-values, same translation logic) — there is no shared Maven module in this repository, so each app keeps
-its own copy of everything, as `01`/`02`/`03` already do:
+values, same translation logic) — deliberately copied rather than shared, because the filter type *is*
+what this module demonstrates about 03, and sharing it would hide the claim being made:
 
 - `ai/filter/Condition.java`, `ai/filter/Operator.java`, `ai/filter/CustomerFilter.java`
 - `ai/filter/CustomerFilterSpecifications.java` (conditions → JPA `Specification`)
-- `ai/CustomerSearchAgent.java`, `ai/TokenUsageRecorder.java`, `data/`, `ui/`, `data.sql`
+
+What this module does *not* copy is the scaffolding around it: the domain model, `data.sql`, the grid, the
+search view, the `CustomerSearchAgent` seam and the token measurement all come from `demo-commons`, which
+all four apps depend on. None of those says anything about tool calling versus structured output.
 
 New, and the only interesting file in the module:
 
@@ -72,10 +85,15 @@ object, the enumerated `Operator` values, the `values` array and every descripti
 ## View
 
 - **`/`** — `CustomerListView`: a single natural-language `TextField` above the grid. Typing a query
-  (and blurring/pressing enter) sends it to the AI layer; a blank query resets to all rows. Identical
-  to 03's view — the delivery mechanism is invisible from up here, which is part of the point.
-- **`CustomerGrid`** — the `Grid<Customer>` itself (column config, backend sort configuration,
-  responsive show/hide).
+  (and blurring/pressing enter) sends it to the AI layer; a blank query resets to all rows. Apart from its
+  heading it is identical to 03's view, and both are now just a heading on top of the shared
+  `AbstractCustomerSearchView` — the delivery mechanism is invisible from up here, which is part of the
+  point.
+- **`CustomerGrid`** — the `Grid<Customer>` itself (column config, backend sort configuration, and
+  responsive show/hide). It lives in **`demo-commons`**: all four apps show the same grid, and it says
+  nothing about how a filter came into being. Unlike `01-non-ai-filter`, this module needs no per-column
+  filter fields — filtering is the one AI `TextField` above — and it keeps the shared grid's backend sort
+  configuration unchanged.
 
 `CustomerSearchAgent.resolveFilter(...)` never throws: on any failure (bad model response, unreachable
 model, ...) it falls back to an unrestricted specification, so the UI never breaks.
@@ -146,7 +164,8 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
 - `src/main/java/dev/demo/vaadin/aigridfilter/ai/CustomerSearchService.java` — the one
   file that makes this module different from 03
 - `src/main/java/dev/demo/vaadin/aigridfilter/ai/filter/` — the filter type, copied 1:1 from 03
-- `src/main/java/dev/demo/vaadin/aigridfilter/ui/` — the view and the grid
-- `src/main/java/dev/demo/vaadin/aigridfilter/data/` — the shared `Customer`/`Address` JPA model
-- `src/main/resources/data.sql` — seed data (100 customers), byte-identical to `01`/`02`/`03`'s
+- `src/main/java/dev/demo/vaadin/aigridfilter/ui/CustomerListView.java` — the view: a heading on top of
+  the shared `AbstractCustomerSearchView`, and otherwise identical to 03's
+- `../demo-commons/` — the `Customer`/`Address` JPA model, `data.sql`, `CustomerGrid` and
+  `AbstractCustomerSearchView`, shared by all four apps
 - `src/test/java/dev/demo/vaadin/aigridfilter/` — tests (see [Tests](#tests) above)

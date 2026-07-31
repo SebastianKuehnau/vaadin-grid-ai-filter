@@ -20,33 +20,43 @@ express everything a user can type into it, but only because a human filled in e
 
 ## Grid components
 
-Both views build on a shared pair of `Grid<Customer>` subclasses instead of assembling columns
-inline:
+Both views build on `Grid<Customer>` subclasses instead of assembling columns inline:
 
-- **`CustomerGrid`** (base) — column configuration only: keys, headers, revenue formatting, the
+- **`CustomerGrid`** (base) — column configuration: keys, headers, revenue formatting, the
   `CreditScoreIndicator` component column, and the responsive breakpoint-based show/hide behavior
-  (768px / 1200px, applied on attach and window resize). It carries no sort configuration and no
-  filter fields, so it has no opinion on *how* a view sorts or filters.
-- **`FilterableCustomerGrid extends CustomerGrid`** — adds the header-row filter field per column
-  (text / date / integer / credit-rating multi-select), owns the resulting filter state
-  (`getFilterCustomer()`, `getAddressFilter()`, `getCreditRatingFilterSet()`), and notifies
-  `addFilterChangeListener(Runnable)` listeners whenever any field changes.
+  (768px / 1200px, applied on attach and window resize). It lives in **`demo-commons`**, because all
+  four apps of this repository show the very same grid; see `demo-commons/README.md`.
+- **`FilterableCustomerGrid extends CustomerGrid`** — this module's own addition, and the thing that
+  makes step 1 step 1: a header-row filter field per column (text / date / integer / credit-rating
+  multi-select), owning the resulting filter state (`getFilterCustomer()`, `getAddressFilter()`,
+  `getCreditRatingFilterSet()`) and notifying `addFilterChangeListener(Runnable)` listeners whenever
+  any field changes. No other module has anything like it.
 
-Sort strategy stays in the views, not the grid, because the two views sort the same custom columns
-(`annualRevenue`, `address`, `creditRating`) differently:
+**Sort strategy stays with the views**, because the two views sort the same custom columns
+(`annualRevenue`, `address`, `creditRating`) differently, and the shared base can only carry one
+default (the backend sorting the AI modules use):
 
-- `InMemoryCustomerListView` uses `CustomerGrid` directly and applies in-memory `Comparator`s
-  (including the address comparator) to those columns after construction.
-- `LazyCustomerListView` uses `FilterableCustomerGrid`, applies backend `setSortProperty(...)` to
-  the same columns, and registers a filter-change listener that rebuilds its JPA `Specification`
-  (`buildCustomerSpecification()`) and refreshes the lazy data view — the `Specification`
-  construction and lazy-data-provider wiring remain the view's responsibility, not the grid's.
+- `InMemoryCustomerListView` uses `CustomerGrid` directly and *replaces* that default with in-memory
+  `Comparator`s (including the address comparator) on those three columns. That is what actually takes
+  effect for a list-backed grid: `Column.setComparator(...)` wins over a sort property, which is only
+  consulted when the data provider issues a query.
+- `LazyCustomerListView` uses `FilterableCustomerGrid`, keeps the backend sort properties, adds the one
+  for `annualRevenue` that the shared base deliberately leaves open, and registers a filter-change
+  listener that rebuilds its JPA `Specification` (`buildCustomerSpecification()`) and refreshes the lazy
+  data view — the `Specification` construction and lazy-data-provider wiring remain the view's
+  responsibility, not the grid's.
 
 ## Running
 
 ```bash
+./mvnw install -DskipTests                    # once: this app depends on demo-commons
 ./mvnw -pl 01-non-ai-filter spring-boot:run   # http://localhost:8081
 ```
+
+This module has **no** Spring AI and **no** Micrometer dependency, and that is checked rather than
+assumed — it is the non-AI baseline, and the comparison only means something if the baseline really is
+one. It does depend on `demo-commons` for the domain and the grid, whose Spring AI and Micrometer
+dependencies are `<optional>` precisely so that they stop there.
 
 ## Sources
 

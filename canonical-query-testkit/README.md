@@ -42,8 +42,8 @@ three times. Runtime and domain code stay duplicated; this piece does not.
 ./mvnw verify -pl canonical-query-testkit
 ```
 
-Because `02`/`03`/`04` now depend on this module, building one of them on its own needs `-am`
-(also-make) so Maven builds this module first:
+Because `02`/`03`/`04` depend on this module (and all four apps on `demo-commons`), building one of
+them on its own needs `-am` (also-make) so Maven builds the shared modules first:
 
 ```bash
 ./mvnw verify -pl 03-ai-structured-filter -am

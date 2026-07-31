@@ -17,18 +17,22 @@ also with the non-AI baselines in `01-non-ai-filter`; the root `README.md` has t
   query (and blurring/pressing enter) sends it to the AI layer; a blank query resets to all rows.
   The view has zero Spring AI imports — it only knows `CustomerSearchAgent` and applies the
   `Specification` it returns.
+- **`AbstractCustomerSearchView`** (in **`demo-commons`**) — the filter field, the async search
+  (`CompletableFuture` + `ui.access(...)`) and the error notification, shared with `02` and `04`. This
+  module's view is a heading on top of it, which is the point: nothing up here reveals that the model
+  returned an object rather than calling a tool.
 - **`CustomerGrid`** — the `Grid<Customer>` itself (column config, backend sort configuration, and
-  responsive show/hide), extracted out of the view. Unlike `01-non-ai-filter`'s
-  `CustomerGrid`/`FilterableCustomerGrid` split, this module has a single fixed sort strategy and no
-  per-column filter fields (filtering is the one AI `TextField` above), so sort config lives inside
-  `CustomerGrid` rather than being applied by the view afterward.
+  responsive show/hide). It lives in **`demo-commons`**: all four apps show the same grid, and it says
+  nothing about how a filter came into being. Unlike `01-non-ai-filter`, this module needs no per-column
+  filter fields — filtering is the one AI `TextField` above — and it keeps the shared grid's backend sort
+  configuration unchanged.
 
 ## AI layer (`ai` / `ai/filter`)
 
 ```
 ai/
-├── CustomerSearchAgent.java              (public interface — the view's only dependency, the testability seam)
 ├── CustomerSearchService.java            (@Service — ChatClient, system prompt, structured-output call)
+├── TokenUsageConfiguration.java          (@Configuration — declares demo-commons' TokenUsageRecorder bean)
 └── filter/
     ├── CustomerFilter.java                (public record — a flat list of conditions, ALL combined with AND)
     ├── Condition.java                     (public record — one field/operator/values/negate condition)
@@ -186,11 +190,11 @@ the test config overrides it to `ollama`.
 
 ## Sources
 
-- `src/main/java/dev/demo/vaadin/aigridfilter/ui/CustomerListView.java` — the view
-- `src/main/java/dev/demo/vaadin/aigridfilter/ui/CustomerGrid.java` — the grid (columns, sort, responsive layout)
+- `src/main/java/dev/demo/vaadin/aigridfilter/ui/CustomerListView.java` — the view: a heading on top of
+  the shared `AbstractCustomerSearchView`
 - `src/main/java/dev/demo/vaadin/aigridfilter/ai/` — the AI layer (see above)
-- `src/main/java/dev/demo/vaadin/aigridfilter/data/` — the shared `Customer`/`Address` JPA model
-- `src/main/resources/data.sql` — seed data (100 customers)
+- `../demo-commons/` — the `Customer`/`Address` JPA model, `data.sql`, `CustomerGrid` and
+  `AbstractCustomerSearchView`, shared by all four apps
 - `src/test/java/dev/demo/vaadin/aigridfilter/` — tests (see [Tests](#tests) above)
 - `../ollama-benchmark/` — standalone benchmark script comparing local Ollama models on this
   module's natural-language-to-filter task
