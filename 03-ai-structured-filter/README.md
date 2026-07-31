@@ -149,8 +149,8 @@ the test config overrides it to `ollama`.
 > range. This is a model-capability gap, not a bug in the prompt/schema; keep the configured default
 > (or swap the model in `application-ollama.properties`) if you hit it during a demo.
 
-- **`demo-commons`' `CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the build if this
-  module's `StructuredCanonicalQueryIT` or the benchmark script stops matching `docs/canonical-query-set.md`
+- **`demo-commons`' `CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the
+  build if `CanonicalQuery` or the benchmark script stops matching `docs/canonical-query-set.md`
   verbatim, in wording or order.
 - **`StructuredCanonicalQueryIT`** — the eight queries of `docs/canonical-query-set.md`, each scored on the
   **resulting customer set**: the returned `Specification` is executed against the seeded database and the
@@ -160,15 +160,22 @@ the test config overrides it to `ollama`.
 - **`PromptRobustnessIT`** — the opposite direction, which the canonical set does not probe: small talk,
   an unrelated question, "show me all customers" and an explicit reset must each leave the grid
   *unfiltered* rather than produce a hallucinated condition, and one German query must filter the same as
-  its English equivalent. Expectations are computed from the seeded data, not hard-coded.
+  its English equivalent. Expectations are computed from the seeded data, not hard-coded. None of the five
+  needs a filter type, so 02's two variants and 04 run them too and must all pass.
 - **`CustomerListViewBrowserlessIT`** — same Browserless setup, but against a real native Ollama
   instance instead of a fake agent bean (it fails rather than skipping if unreachable, like the
   canonical-query IT), exercising the full `TextField` → structured-output AI layer → `Grid`
   pipeline end to end. Since the real model's result size isn't known upfront, the wait condition
   is "the filter field is re-enabled" (it's disabled for the duration of a search) rather than a
-  fixed grid size. `04-ai-hybrid-filter` has an identical test with the same 7 queries, so the two
-  modules' `-Pit-local-ollama` runs are directly comparable on speed (per-test elapsed time in
-  `target/failsafe-reports/`) and result quality between structured output and tool calling.
+  fixed grid size. It runs the same eight queries with the same expectations as
+  `StructuredCanonicalQueryIT`, so the only variable between the two is the view layer — and every other
+  AI module runs the same eight through its UI as well, which makes the `-Pit-local-ollama` runs directly
+  comparable on speed (per-test elapsed time in `target/failsafe-reports/`) and result quality.
+
+All three IT kinds extend a base class from `demo-commons`' test-jar and share the query sets with the
+other AI modules, so what a module's ITs contain is one line: which agent or view to ask, and which
+queries its filter type can express.
+
 
 ## Sources
 

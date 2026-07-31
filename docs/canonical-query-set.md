@@ -3,23 +3,24 @@
 The **single source of truth** for the natural-language queries every AI module of this repository is
 tested with. Eight queries, one per capability category, each with the customer set it must produce.
 
-Five places spell these queries out **verbatim**:
+Two places spell these queries out **verbatim**:
 
 | Copy | File |
 |---|---|
-| 02(a) IT | `02-ai-agent-filter/src/test/java/.../ai/flat/FlatCanonicalQueryIT.java` |
-| 02(b) IT | `02-ai-agent-filter/src/test/java/.../ai/operator/OperatorCanonicalQueryIT.java` |
-| 03 IT | `03-ai-structured-filter/src/test/java/.../ai/StructuredCanonicalQueryIT.java` |
-| 04 IT | `04-ai-hybrid-filter/src/test/java/.../ai/HybridCanonicalQueryIT.java` |
+| the shared enum | `demo-commons/src/test/java/.../canonicalquery/CanonicalQuery.java` |
 | benchmark | `ollama-benchmark/BenchmarkLocalModels.java` |
 
-Each IT carries its own table of query, expected outcome and reference predicate, so opening one class
-tells you what runs and what a correct answer looks like without chasing a shared type in another module.
-The benchmark script keeps its own copy because it is deliberately standalone and dependency-free.
+`CanonicalQuery` carries each query together with the reference predicate a correct answer must satisfy,
+and is read by every AI module through the service (`*CanonicalQueryIT`) and through the UI
+(`*CustomerListViewBrowserlessIT`) — eight queries, two paths, four variants, one text. What it
+deliberately does *not* carry is the expected outcome: that depends on the asking variant's filter type,
+so each variant states it in its own `*Outcomes` class. The benchmark script keeps a separate copy because
+it is deliberately standalone and dependency-free.
 
-A drift between any copy and this document fails the build: `demo-commons` has a
+A drift between either copy and this document fails the build: `demo-commons` has a
 `CanonicalQuerySetConsistencyTest` (plain `mvn test`, no LLM, no Ollama) that parses the ```` ```text ````
-blocks below and compares them with all five copies, wording **and** order. So the token/latency figures
+blocks below and compares them with both copies, wording **and** order — the enum reflectively, the
+script by regex. So the token/latency figures
 from the benchmark line up query-for-query with the pass/fail reliability results from the IT suites.
 
 ## Why these eight

@@ -6,9 +6,35 @@ talk — it is the scaffolding the four steps stand on.
 This module is the repository's **one deliberate exception** to its "duplication per module is on
 purpose" rule. Everything else stays duplicated, so each numbered module can be read on its own.
 
-Its own test sources hold one thing that is not runtime scaffolding: `CanonicalQuerySetConsistencyTest`,
-which guards the four AI modules' copies of the canonical query set against `docs/canonical-query-set.md`.
-It lives here because this is the module every build touches and the invariant is repo-wide.
+## The test-jar
+
+Its test sources are a second, separate shared thing, published as `demo-commons-<version>-tests.jar`
+(`maven-jar-plugin`'s `test-jar` goal). 02/03/04 consume it as
+
+```xml
+<artifactId>demo-commons</artifactId>
+<type>test-jar</type><scope>test</scope>
+```
+
+A test-jar rather than ordinary main code, because otherwise JUnit, AssertJ and
+`browserless-test-spring` would become compile dependencies of this module and land in all four apps'
+runtime classpath.
+
+It holds the shared test foundation, in package `canonicalquery`:
+
+| Class | Role |
+|---|---|
+| `CanonicalQuery` | the eight queries of `docs/canonical-query-set.md`, each with the reference predicate a correct answer satisfies |
+| `RobustnessQuery` | the five cases that ask for *no* filter, plus one query in German |
+| `Outcome` | `SUCCESS` · `FAIL_BY_DESIGN` |
+| `AbstractCanonicalQueryIT` | the canonical set through a module's `CustomerSearchAgent` |
+| `AbstractCustomerListViewBrowserlessIT` | the same set through the UI: filter field in, grid rows out |
+| `AbstractPromptRobustnessIT` | the robustness set; no `Outcome`, every variant must pass all five |
+| `CanonicalQuerySetConsistencyTest` | guards `CanonicalQuery` and the benchmark script against the document |
+
+The same rule applies here as to the main sources: what a variant can *express* is the comparison the talk
+is about, so it stays in the module — as a `*Outcomes` class with an exhaustive `switch`, read by both of
+that variant's ITs.
 
 ## What is in here
 

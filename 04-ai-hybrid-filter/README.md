@@ -136,8 +136,8 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
 ./mvnw -pl 04-ai-hybrid-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API
 ```
 
-- **`demo-commons`' `CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the build if this
-  module's `HybridCanonicalQueryIT` or the benchmark script stops matching `docs/canonical-query-set.md`
+- **`demo-commons`' `CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the
+  build if `CanonicalQuery` or the benchmark script stops matching `docs/canonical-query-set.md`
   verbatim, in wording or order.
 - **`CustomerSearchServiceToolsTest`** (plain JUnit, no Spring, no LLM) — the one tool-calling failure
   mode this repository has observed and mitigated: a `void` tool is answered with a bare "Done", which a
@@ -149,9 +149,18 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
   the matching ids compared with a reference predicate). All eight are expected to pass here, exactly as
   in 03: same filter type, same prompt rules, same queries. A divergence between the two modules could
   therefore only come from the delivery mechanism.
-- **`CustomerListViewBrowserlessIT`** — the same setup against a real native Ollama instance,
-  exercising `TextField` → tool call → `Grid` end to end, with the same 7 queries as 03's equivalent IT
-  for direct comparability.
+- **`CustomerListViewBrowserlessIT`** — the same eight queries and expectations through the UI against a
+  real native Ollama instance, exercising `TextField` → tool call → `Grid` end to end. Identical input to
+  `HybridCanonicalQueryIT`, so the view layer is the only variable; identical to 03's equivalent IT too,
+  so structured output and tool calling stay directly comparable.
+- **`PromptRobustnessIT`** — the five cases the canonical set does not probe: small talk, an unrelated
+  question, "show me all customers" and an explicit reset must each leave the grid *unfiltered*, plus one
+  German query. No filter type is involved, so all five must pass, exactly as in 02 and 03.
+
+All three IT kinds extend a base class from `demo-commons`' test-jar and share the query sets with the
+other AI modules, so what a module's ITs contain is one line: which agent or view to ask, and which
+queries its filter type can express.
+
 
 ## Sources
 

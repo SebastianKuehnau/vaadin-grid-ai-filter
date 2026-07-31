@@ -55,14 +55,16 @@ A task is only finished when:
 2. For UI changes: the app has been started and the change verified via a Playwright screenshot
    (save screenshots to `~/screenshots/`).
 3. For changes to filter/AI logic: the affected module's IT classes pass, run via `-Pit-local-ollama`
-   (against a native Ollama instance) — the canonical-query IT (`FlatCanonicalQueryIT` and
-   `OperatorCanonicalQueryIT` in 02, `StructuredCanonicalQueryIT` in 03, `HybridCanonicalQueryIT`
-   in 04), plus the module's browserless IT for UI→AI changes.
+   (against a native Ollama instance). Every AI module runs three kinds, all extending a shared base
+   in `demo-commons`' test-jar: the canonical-query IT (the eight queries through the service), the
+   browserless IT (the same eight through the UI) and the prompt-robustness IT (the five cases that
+   ask for no filter). 02 has one of each per variant, so six.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
-   all four modules' canonical-query ITs and into `ollama-benchmark/BenchmarkLocalModels.java` —
-   verbatim in all five copies. `demo-commons`' `CanonicalQuerySetConsistencyTest` fails the build if
-   they drift apart. Each IT's own table is also where that query's outcome for its variant is
-   decided: `EXPRESSIBLE` or `NOT_EXPRESSIBLE`, with the reference predicate next to it.
+   `demo-commons`' `CanonicalQuery` enum and into `ollama-benchmark/BenchmarkLocalModels.java` —
+   verbatim in both copies. `demo-commons`' `CanonicalQuerySetConsistencyTest` fails the build if
+   they drift apart. Each variant then has to say what the new query means for it: the per-variant
+   `*Outcomes` class is an exhaustive `switch`, so all four stop compiling until that decision is
+   made — `SUCCESS` or `FAIL_BY_DESIGN`.
 
 Points 1–3 apply before **every** commit, not only at the end of the task.
 Iterate on your own until all points are met before reporting the task as done.
@@ -88,10 +90,11 @@ or file changes on your own initiative.
   `SYSTEM_PROMPT`s, the tool signatures or any `@Route` view. The rule when in doubt: if a reader of
   the talk would need to see it on a slide to understand the difference between two approaches, it
   stays in its module. See `demo-commons/README.md`.
-- The canonical queries are duplicated on purpose too: each module's canonical-query IT carries its
-  own table of query, outcome and reference predicate, so the IT is readable on its own.
-  `demo-commons`' `CanonicalQuerySetConsistencyTest` is what makes the copies safe — it fails the
-  build the moment one drifts from `docs/canonical-query-set.md`.
+- The test layer is the second exception, and it is shared through `demo-commons`' **test-jar**
+  (`<type>test-jar</type><scope>test</scope>`), never through `src/main` — otherwise JUnit and
+  browserless would land in all four apps' runtime classpath. It owns the query sets and the three
+  abstract ITs. What stays per module is the one thing that differs: a `*Outcomes` class saying which
+  queries that variant's filter type can express.
 - CSS belongs in theme files, not inline in Java components.
 - Commit after every completed, verified step (Conventional Commits, no push).
 - Never commit benchmark reports, logs, or other generated artifacts unless the

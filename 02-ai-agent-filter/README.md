@@ -192,8 +192,8 @@ the test config overrides it to `ollama`.
 
 Without an LLM (`test`), per variant:
 
-- **`demo-commons`' `CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring) — fails the build if either variant's
-  canonical-query IT, or the benchmark script, stops matching `docs/canonical-query-set.md` verbatim, in
+- **`demo-commons`' `CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring) — fails the build if
+  `CanonicalQuery`, or the benchmark script, stops matching `docs/canonical-query-set.md` verbatim, in
   wording or order.
 - **`CustomerSearchServiceToolsTest`** (one per variant, `ai/flat` and `ai/operator`) (plain JUnit, no Spring, no LLM) — the one tool-calling failure
   mode this repository has observed and mitigated: a `void` tool is answered with a bare "Done", which a
@@ -206,17 +206,27 @@ Against a real model (`verify -Pit-local-ollama`):
 - **`FlatCanonicalQueryIT` / `OperatorCanonicalQueryIT`** — the eight queries of
   `docs/canonical-query-set.md`, each scored on the **resulting customer set**: the variant's
   `Specification` is executed against the seeded database and the matching customer ids are compared with
-  those of a reference predicate. Queries the variant cannot express are marked `FAILS_BY_DESIGN` and
+  those of a reference predicate. Queries the variant cannot express are marked `FAIL_BY_DESIGN` and
   asserted to produce a *different* set — so 02(a)'s two reachable categories and 02(b)'s five are pinned
   down by tests, and an accidental pass fails the build instead of going unnoticed. `03-ai-structured-filter`
   and `04-ai-hybrid-filter` run the identical queries, which is what makes the capability matrix a
   measurement.
-- **`FlatCustomerListViewBrowserlessIT` / `OperatorCustomerListViewBrowserlessIT`** — the same
-  Browserless setup, but against a real native Ollama instance instead of a fake agent bean (they fail
-  rather than skipping if unreachable), exercising the full `TextField` → tool-calling AI layer → `Grid`
-  pipeline end to end. Since the real model's result size isn't known upfront, the wait condition is
-  "the filter field is re-enabled" (it's disabled for the duration of a search) rather than a fixed grid
-  size. Each IT only asks what its variant can express; 02(b)'s adds a negation and a STARTS_WITH case.
+- **`FlatCustomerListViewBrowserlessIT` / `OperatorCustomerListViewBrowserlessIT`** — the same eight
+  queries and the same expectations, but through the UI and against a real native Ollama instance
+  instead of a fake agent bean (they fail rather than skipping if unreachable), exercising the full
+  `TextField` → tool-calling AI layer → `Grid` pipeline end to end. Since the real model's result size
+  isn't known upfront, the wait condition is "the filter field is re-enabled" (it's disabled for the
+  duration of a search) rather than a fixed grid size. Because the pair runs identical input, the only
+  variable left between them is the view layer.
+- **`FlatPromptRobustnessIT` / `OperatorPromptRobustnessIT`** — the five cases the canonical set does not
+  probe: small talk, an unrelated question, "show me all customers" and an explicit reset must each leave
+  the grid *unfiltered* rather than produce a hallucinated condition, plus one German query. None of them
+  needs a filter type, so both variants must pass all five.
+
+All three IT kinds extend a base class from `demo-commons`' test-jar and share the query sets with the
+other AI modules, so what a module's ITs contain is one line: which agent or view to ask, and which
+queries its filter type can express.
+
 
 ## Sources
 
