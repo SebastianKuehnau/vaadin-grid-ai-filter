@@ -39,7 +39,7 @@ Copied **1:1** from `03-ai-structured-filter` (same records, same Jackson annota
 values, same translation logic) — deliberately copied rather than shared, because the filter type *is*
 what this module demonstrates about 03, and sharing it would hide the claim being made:
 
-- `ai/filter/Condition.java`, `ai/filter/Operator.java`, `ai/filter/CustomerFilter.java`
+- `ai/filter/Condition.java` (with its nested `Operator`), `ai/filter/CustomerFilter.java`
 - `ai/filter/CustomerFilterSpecifications.java` (conditions → JPA `Specification`)
 
 What this module does *not* copy is the scaffolding around it: the domain model, `data.sql`, the grid, the

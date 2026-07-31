@@ -1,5 +1,6 @@
 package dev.demo.vaadin.aigridfilter.ai;
 
+import dev.demo.vaadin.aigridfilter.ai.filter.Condition.Operator;
 import dev.demo.vaadin.aigridfilter.ai.filter.CustomerFilter;
 import dev.demo.vaadin.aigridfilter.ai.filter.CustomerFilterSpecifications;
 import dev.demo.vaadin.aigridfilter.data.Customer;

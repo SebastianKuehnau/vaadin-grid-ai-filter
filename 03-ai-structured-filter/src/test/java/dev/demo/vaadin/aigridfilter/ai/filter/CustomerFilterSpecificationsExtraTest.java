@@ -1,5 +1,6 @@
 package dev.demo.vaadin.aigridfilter.ai.filter;
 
+import dev.demo.vaadin.aigridfilter.ai.filter.Condition.Operator;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
 import org.junit.jupiter.api.Test;

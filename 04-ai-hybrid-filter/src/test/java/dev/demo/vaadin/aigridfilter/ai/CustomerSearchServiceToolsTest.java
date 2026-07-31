@@ -1,7 +1,7 @@
 package dev.demo.vaadin.aigridfilter.ai;
 
 import dev.demo.vaadin.aigridfilter.ai.filter.Condition;
-import dev.demo.vaadin.aigridfilter.ai.filter.Operator;
+import dev.demo.vaadin.aigridfilter.ai.filter.Condition.Operator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.ai.chat.model.ChatModel;

@@ -1,5 +1,6 @@
 package dev.demo.vaadin.aigridfilter.ai.operator;
 
+import dev.demo.vaadin.aigridfilter.ai.operator.FieldCriterion.Operator;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;

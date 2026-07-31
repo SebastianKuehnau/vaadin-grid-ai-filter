@@ -234,7 +234,7 @@ instead of `child`, truncated/unbalanced JSON, or fields returned as unstructure
 
 `--mode=schema` instead constrains generation with a hand-rolled JSON Schema for the flat
 conditions list (a single `conditions` array, no `$ref`/`oneOf`/recursion at all), enforcing the
-same shape production defines in `CustomerFilter.java`/`Condition.java`/`Operator.java`:
+same shape production defines in `CustomerFilter.java`/`Condition.java` (whose nested `Operator` carries the six values):
 
 - **Ollama**: the schema is passed directly in the native `/api/chat` request's `"format"` field
   (grammar-constrained decoding) instead of the generic `"format":"json"` string. This works for

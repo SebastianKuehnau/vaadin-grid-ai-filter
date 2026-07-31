@@ -35,8 +35,7 @@ ai/
 ├── TokenUsageConfiguration.java          (@Configuration — declares demo-commons' TokenUsageAdvisor bean)
 └── filter/
     ├── CustomerFilter.java                (public record — a flat list of conditions, ALL combined with AND)
-    ├── Condition.java                     (public record — one field/operator/values/negate condition)
-    ├── Operator.java                      (enum — CONTAINS, EQUALS, GREATER_OR_EQUAL, ...)
+    ├── Condition.java                     (public record — one field/operator/values/negate condition, with the nested Operator enum)
     └── CustomerFilterSpecifications.java  (public final utility — flat conditions -> Specification<Customer>)
 ```
 

@@ -53,8 +53,7 @@ ai/
 │   └── CustomerSpecifications.java   (public final utility — AND-across-fields -> Specification<Customer>)
 └── operator/                           ← variant 02(b)
     ├── CustomerSearchService.java     (@Service("operatorSearchAgent") @Scope("prototype") — 39 flat @ToolParams + the date tool)
-    ├── Operator.java                  (public enum — CONTAINS, EQUALS, GREATER_OR_EQUAL, LESS_OR_EQUAL, STARTS_WITH, ENDS_WITH)
-    ├── FieldCriterion.java            (public record — one field's value + operator + negate)
+    ├── FieldCriterion.java            (public record — one field's value + operator + negate, with the nested Operator enum)
     ├── CustomerCriteria.java          (public record — one FieldCriterion per field)
     └── CustomerSpecifications.java    (public final utility — operator-driven predicates, negate via cb.not)
 ```
