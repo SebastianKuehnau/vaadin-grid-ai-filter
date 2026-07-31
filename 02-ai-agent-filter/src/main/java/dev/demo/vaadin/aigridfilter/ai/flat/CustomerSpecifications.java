@@ -12,11 +12,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Translates a {@link FlatCriteria} into a JPA {@link Specification}: one predicate per non-null
+ * Translates a {@link CustomerCriteria} into a JPA {@link Specification}: one predicate per non-null
  * field, all AND-combined. {@code null} criteria (e.g. when the LLM never called the search tool)
  * matches every customer.
  * <p>
- * Because {@link FlatCriteria} carries no operator, every field's comparison is hard-wired here:
+ * Because {@link CustomerCriteria} carries no operator, every field's comparison is hard-wired here:
  * <ul>
  *   <li>text fields — case-insensitive substring match,</li>
  *   <li>{@code customerSince} / {@code lastOrderDate} — the whole calendar year the given date falls
@@ -28,12 +28,12 @@ import java.util.List;
  * These baked-in semantics are exactly what variant 02(b) replaces with an explicit
  * {@code Operator} per field.
  */
-public final class FlatSpecifications {
+public final class CustomerSpecifications {
 
-    private FlatSpecifications() {
+    private CustomerSpecifications() {
     }
 
-    public static Specification<Customer> from(FlatCriteria criteria) {
+    public static Specification<Customer> from(CustomerCriteria criteria) {
         if (criteria == null) {
             return (root, query, cb) -> cb.conjunction();
         }

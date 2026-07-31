@@ -27,7 +27,7 @@ import java.time.LocalDateTime;
  * {@code currentLocalDateTime} tool (mirroring variant 02(b)'s), so that a relative date ("this
  * year", "last week") is resolved from an actual clock reading instead of guessed — the whole-year
  * date semantics are unaffected, only the year/day *value* the model fills in changes.
- * Everything the filter can mean is baked into {@link FlatSpecifications}.
+ * Everything the filter can mean is baked into {@link CustomerSpecifications}.
  * <p>
  * Variant 02(b) ({@code ai/operator}) is the same delivery mechanism with an operator and a negate
  * flag added per field; see {@code OperatorToolCallingService}.
@@ -41,9 +41,9 @@ import java.time.LocalDateTime;
  */
 @Service("flatSearchAgent")
 @Scope("prototype")
-class FlatToolCallingService implements CustomerSearchAgent {
+class CustomerSearchService implements CustomerSearchAgent {
 
-    private static final Logger logger = LoggerFactory.getLogger(FlatToolCallingService.class);
+    private static final Logger logger = LoggerFactory.getLogger(CustomerSearchService.class);
 
     private static final String SYSTEM_PROMPT = """
             You are a helpful assistant that helps users find customers based on their
@@ -66,9 +66,9 @@ class FlatToolCallingService implements CustomerSearchAgent {
     private final ChatClient chatClient;
     private final TokenUsageRecorder tokenUsageRecorder;
 
-    FlatCriteria criteria;
+    CustomerCriteria criteria;
 
-    FlatToolCallingService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
+    CustomerSearchService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
         this.chatClient = ChatClient.builder(chatModel).build();
         this.tokenUsageRecorder = tokenUsageRecorder;
     }
@@ -80,7 +80,7 @@ class FlatToolCallingService implements CustomerSearchAgent {
      */
     @Override
     public Specification<Customer> resolveFilter(String naturalLanguageQuery) {
-        return FlatSpecifications.from(requestCriteria(naturalLanguageQuery));
+        return CustomerSpecifications.from(requestCriteria(naturalLanguageQuery));
     }
 
     /**
@@ -88,7 +88,7 @@ class FlatToolCallingService implements CustomerSearchAgent {
      * Package-private so the AI layer can be tested directly on the produced criteria. Returns
      * {@code null} if the model produces nothing usable, so the UI never breaks on a bad response.
      */
-    FlatCriteria requestCriteria(String naturalLanguageQuery) {
+    CustomerCriteria requestCriteria(String naturalLanguageQuery) {
         criteria = null;
         try {
             // Capture the ChatResponse (instead of discarding .content()) to read its token usage.
@@ -162,7 +162,7 @@ class FlatToolCallingService implements CustomerSearchAgent {
                     500000. Only a lower bound is supported - "under 50000" and "between 50000 and
                     200000" cannot be expressed.""") BigDecimal annualRevenue
     ) {
-        FlatCriteria incoming = new FlatCriteria(companyName, contactName, email, phone, customerSince,
+        CustomerCriteria incoming = new CustomerCriteria(companyName, contactName, email, phone, customerSince,
                 lastOrderDate, country, city, postalCode, street, houseNumber, creditRating, annualRevenue);
 
         // A tool call is a message the model can repeat: since the tool is void, Spring AI answers it

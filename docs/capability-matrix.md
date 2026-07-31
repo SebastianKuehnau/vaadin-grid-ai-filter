@@ -7,7 +7,7 @@ modules' integration-test suites and the `ollama-benchmark` harness. Companion t
 
 - **02(a) = `02-ai-agent-filter`, flat variant** — tool calling; the LLM calls
   `@Tool searchCustomers(...)` with **13** parameters, one scalar value per field →
-  `FlatCriteria` → `FlatSpecifications`. No operator, no negation.
+  `CustomerCriteria` → `CustomerSpecifications`. No operator, no negation.
 - **02(b) = `02-ai-agent-filter`, operator variant** — tool calling; the same tool with **39**
   parameters, a value + `Operator` + `negate` per field → `OperatorCriteria` →
   `OperatorSpecifications`.

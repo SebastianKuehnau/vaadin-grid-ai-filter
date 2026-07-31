@@ -18,15 +18,15 @@ import static org.mockito.Mockito.mock;
 /**
  * Plain JUnit test (no Spring context, no LLM) of variant 02(a)'s tools in isolation: calling
  * {@code searchCustomers} directly with fixed literal arguments must capture them, verbatim, into
- * {@link FlatToolCallingService#criteria}, and {@code currentLocalDateTime} must return the actual
+ * {@link CustomerSearchService#criteria}, and {@code currentLocalDateTime} must return the actual
  * current time. The {@link ChatModel} and {@link TokenUsageRecorder} are mocked purely to satisfy the
  * constructor — neither is invoked (the tools never call the model or record usage).
  */
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
-class FlatToolCallingServiceToolsTest {
+class CustomerSearchServiceToolsTest {
 
-    private final FlatToolCallingService service =
-            new FlatToolCallingService(mock(ChatModel.class), mock(TokenUsageRecorder.class));
+    private final CustomerSearchService service =
+            new CustomerSearchService(mock(ChatModel.class), mock(TokenUsageRecorder.class));
 
     @Test
     void capturesEveryArgumentIntoResult() {
@@ -34,7 +34,7 @@ class FlatToolCallingServiceToolsTest {
                 LocalDate.of(2020, 1, 1), LocalDate.of(2021, 6, 15), "Germany", "Berlin", "10115",
                 "Main Street", "1", CreditRating.GOOD, BigDecimal.valueOf(50_000));
 
-        assertThat(service.criteria).isEqualTo(new FlatCriteria("Acme", "Jane Doe", "jane@acme.example",
+        assertThat(service.criteria).isEqualTo(new CustomerCriteria("Acme", "Jane Doe", "jane@acme.example",
                 "+4916057123456", LocalDate.of(2020, 1, 1), LocalDate.of(2021, 6, 15), "Germany", "Berlin",
                 "10115", "Main Street", "1", CreditRating.GOOD, BigDecimal.valueOf(50_000)));
     }
@@ -43,7 +43,7 @@ class FlatToolCallingServiceToolsTest {
     void allNullArgumentsCaptureAllNullCriteria() {
         service.searchCustomers(null, null, null, null, null, null, null, null, null, null, null, null, null);
 
-        assertThat(service.criteria).isEqualTo(new FlatCriteria(
+        assertThat(service.criteria).isEqualTo(new CustomerCriteria(
                 null, null, null, null, null, null, null, null, null, null, null, null, null));
         assertThat(service.criteria.isEmpty()).isTrue();
     }

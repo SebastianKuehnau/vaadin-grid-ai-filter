@@ -15,7 +15,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Deterministic, fast test of variant 02(a)'s filter translation ({@link FlatCriteria} -> JPA
+ * Deterministic, fast test of variant 02(a)'s filter translation ({@link CustomerCriteria} -> JPA
  * {@code Specification}) against the seeded H2 database — no LLM, no Docker. One test per field
  * group, plus the AND-across-fields combination and the null-matches-all cases.
  * <p>
@@ -24,13 +24,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE) // keep configured H2 + data.sql
-class FlatSpecificationsTest {
+class CustomerSpecificationsTest {
 
     @Autowired
     CustomerRepository repository;
 
-    private List<Customer> findAll(FlatCriteria criteria) {
-        return repository.findAll(FlatSpecifications.from(criteria));
+    private List<Customer> findAll(CustomerCriteria criteria) {
+        return repository.findAll(CustomerSpecifications.from(criteria));
     }
 
     /** Base criteria with every field unset; individual tests set the one field they exercise. */
@@ -68,8 +68,8 @@ class FlatSpecificationsTest {
         Builder creditRating(CreditRating value) { this.creditRating = value; return this; }
         Builder annualRevenue(BigDecimal value) { this.annualRevenue = value; return this; }
 
-        FlatCriteria build() {
-            return new FlatCriteria(companyName, contactName, email, phone, customerSince, lastOrderDate,
+        CustomerCriteria build() {
+            return new CustomerCriteria(companyName, contactName, email, phone, customerSince, lastOrderDate,
                     country, city, postalCode, street, houseNumber, creditRating, annualRevenue);
         }
     }

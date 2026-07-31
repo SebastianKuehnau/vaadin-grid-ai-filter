@@ -361,7 +361,7 @@ public class BenchmarkLocalModels {
      * tool schema) is extracted from at runtime, so the eval can never drift from the running apps.
      */
     enum Approach {
-        FLAT_TOOL_CALLING("02a-flat", "02-ai-agent-filter", "flat/FlatToolCallingService.java"),
+        FLAT_TOOL_CALLING("02a-flat", "02-ai-agent-filter", "flat/CustomerSearchService.java"),
         OPERATOR_TOOL_CALLING("02b-operator", "02-ai-agent-filter", "operator/OperatorToolCallingService.java"),
         STRUCTURED("03-structured", "03-ai-structured-filter", "CustomerSearchStructuredOutputService.java"),
         CONDITION_TOOL_CALLING("04-hybrid", "04-ai-hybrid-filter", "CustomerSearchHybridToolCallingService.java");

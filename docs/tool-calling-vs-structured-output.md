@@ -21,9 +21,9 @@ The four are deliberately arranged so that each neighbouring pair differs in exa
 
 ## The four approaches in one paragraph each
 
-**02(a) — flat tool calling.** `FlatToolCallingService` exposes
+**02(a) — flat tool calling.** `CustomerSearchService` exposes
 `@Tool searchCustomers(companyName, contactName, …, annualRevenue)`: 13 scalar parameters, no operator,
-no negation, no second tool. The tool body fills a `FlatCriteria`, which `FlatSpecifications` turns
+no negation, no second tool. The tool body fills a `CustomerCriteria`, which `CustomerSpecifications` turns
 into a `Specification`. Every field's meaning is hard-wired there: text = substring, date = the whole
 calendar year it falls in, revenue = a minimum.
 

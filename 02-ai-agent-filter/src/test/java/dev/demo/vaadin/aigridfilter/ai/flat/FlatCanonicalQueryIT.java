@@ -74,7 +74,7 @@ class FlatCanonicalQueryIT {
     }
 
     @Autowired
-    FlatToolCallingService agent;
+    CustomerSearchService agent;
 
     @Autowired
     CustomerRepository customerRepository;

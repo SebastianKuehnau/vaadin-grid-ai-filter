@@ -53,10 +53,10 @@ approaches, the real `searchCustomers` tool/argument schema — extracted at run
 production source, never hard-coded, so the eval cannot drift from what the apps do:
 
 - **`02a`**: `SYSTEM_PROMPT` plus the 13 scalar `@ToolParam`s of
-  `../02-ai-agent-filter/.../ai/flat/FlatToolCallingService.java`. Gets the second tool,
+  `../02-ai-agent-filter/.../ai/flat/CustomerSearchService.java`. Gets the second tool,
   `currentLocalDateTime()`, same as `02b` — offered only because the source declares it. The tool fixes
   which date value the model fills in; it does not lift the whole-year/minimum-only semantics of
-  `FlatSpecifications`, so a range query is still architecturally out of reach for this approach.
+  `CustomerSpecifications`, so a range query is still architecturally out of reach for this approach.
 - **`02b`**: `SYSTEM_PROMPT` plus the 39 `@ToolParam`s of
   `../02-ai-agent-filter/.../ai/operator/OperatorToolCallingService.java`. Its operator/negate
   descriptions are shared `static final String` constants in that class (13 fields would otherwise repeat
