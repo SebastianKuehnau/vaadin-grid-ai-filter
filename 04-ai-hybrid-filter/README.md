@@ -131,7 +131,7 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
 ## Tests
 
 ```bash
-./mvnw -pl 04-ai-hybrid-filter test                                                # unit tests + CustomerListViewBrowserlessTest, no LLM
+./mvnw -pl 04-ai-hybrid-filter test                                                # unit tests only, no LLM, no UI
 ./mvnw -pl 04-ai-hybrid-filter verify -Pit-local-ollama                            # ITs vs native Ollama (ollama is the default test profile)
 ./mvnw -pl 04-ai-hybrid-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API
 ```
@@ -147,9 +147,6 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
 - **`CustomerSearchServiceToolsTest`** (plain JUnit, no Spring) — the tool in isolation:
   the condition list must land verbatim in the filter, a repeated empty call must not wipe it, and the
   prompt must carry the resolved "today".
-- **`CustomerListViewBrowserlessTest`** — [Vaadin Browserless
-  testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake, deterministic
-  `CustomerSearchAgent` bean, so it never calls a real model.
 - **`HybridCanonicalQueryIT`** — the eight queries of `docs/canonical-query-set.md` against a real Ollama, each
   scored on the **resulting customer set** (the `Specification` is executed against the seeded database and
   the matching ids compared with a reference predicate). All eight are expected to pass here, exactly as

@@ -27,8 +27,7 @@ import static org.awaitility.Awaitility.await;
  * Browserless UI integration test of variant <b>02(a)</b> against a real AI backend — no fake
  * {@code CustomerSearchAgent} bean. Verifies the full pipeline end to end: typing a natural-language
  * query, the real flat tool-calling AI layer resolving it, and the grid showing the right rows.
- * Complements {@link FlatCustomerListViewBrowserlessTest} (fast, fake agent, no LLM) and
- * {@code FlatCanonicalQueryIT} (real backend, but bypasses the UI).
+ * Complements {@code FlatCanonicalQueryIT}, which uses the same backend but bypasses the UI.
  * <p>
  * Only queries this variant can actually express are covered here: one value per field, AND across
  * fields, revenue as a minimum. Multi-value OR, negation, operator precision and date bounds are

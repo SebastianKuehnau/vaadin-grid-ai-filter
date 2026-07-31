@@ -132,7 +132,7 @@ block per call; a non-reasoning model like `llama3.1:8b` ignores the flag anyway
 ## Tests
 
 ```bash
-./mvnw -pl 03-ai-structured-filter test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
+./mvnw -pl 03-ai-structured-filter test                        # unit tests only, no LLM, no UI
 ./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama                            # StructuredCanonicalQueryIT + PromptRobustnessIT + CustomerListViewBrowserlessIT vs native Ollama (ollama is the default test profile)
 ./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API
 ```
@@ -170,15 +170,6 @@ the test config overrides it to `ollama`.
   an unrelated question, "show me all customers" and an explicit reset must each leave the grid
   *unfiltered* rather than produce a hallucinated condition, and one German query must filter the same as
   its English equivalent. Expectations are computed from the seeded data, not hard-coded.
-- **`CustomerListViewBrowserlessTest`** — [Vaadin Browserless
-  testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake, deterministic
-  `CustomerSearchAgent` bean, so it never calls a real model. Since the view applies results
-  asynchronously (`CompletableFuture` + `ui.access(...)`), assertions after a non-blank query use
-  `MockVaadin.runUIQueue()` (to flush the queued `ui.access()` command) inside an Awaitility
-  `pollInSameThread()` loop (so the flush runs on the thread holding the UI `ThreadLocal`) —
-  needed because a plain synchronous assertion races the background search thread. Includes the
-  same multi-value OR-within-field case as `04-ai-hybrid-filter`'s equivalent test — a query neither
-  02 variant can express at all.
 - **`CustomerListViewBrowserlessIT`** — same Browserless setup, but against a real native Ollama
   instance instead of a fake agent bean (it fails rather than skipping if unreachable, like the
   canonical-query IT), exercising the full `TextField` → structured-output AI layer → `Grid`

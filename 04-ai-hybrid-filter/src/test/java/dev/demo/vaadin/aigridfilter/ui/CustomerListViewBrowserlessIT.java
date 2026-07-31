@@ -26,9 +26,8 @@ import static org.awaitility.Awaitility.await;
 /**
  * Browserless UI integration test against a real AI backend — no fake {@code CustomerSearchAgent}
  * bean. Verifies the full pipeline end to end: typing a natural-language query, the real
- * structured-output AI layer resolving it, and the grid showing the right rows. Complements
- * {@link CustomerListViewBrowserlessTest} (fast, fake agent, no LLM) and {@code CanonicalQueryIT}
- * (real backend, but bypasses the UI).
+ * tool-calling AI layer resolving it, and the grid showing the right rows. Complements
+ * {@code HybridCanonicalQueryIT}, which uses the same backend but bypasses the UI.
  * <p>
  * Runs standalone rather than sharing a base class with {@code CanonicalQueryIT}: browserless
  * testing needs the default {@code MOCK} web environment and Vaadin's Spring Boot autoconfiguration,

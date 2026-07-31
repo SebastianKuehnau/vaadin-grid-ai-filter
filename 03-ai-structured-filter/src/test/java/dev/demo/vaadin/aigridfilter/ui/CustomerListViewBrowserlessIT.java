@@ -27,8 +27,7 @@ import static org.awaitility.Awaitility.await;
  * Browserless UI integration test against a real AI backend — no fake {@code CustomerSearchAgent}
  * bean. Verifies the full pipeline end to end: typing a natural-language query, the real
  * structured-output AI layer resolving it, and the grid showing the right rows. Complements
- * {@link CustomerListViewBrowserlessTest} (fast, fake agent, no LLM) and
- * {@code StructuredCanonicalQueryIT} (real backend, but bypasses the UI).
+ * {@code StructuredCanonicalQueryIT}, which uses the same backend but bypasses the UI.
  * <p>
  * Runs standalone rather than sharing a base class with that IT: browserless
  * testing needs the default {@code MOCK} web environment and Vaadin's Spring Boot autoconfiguration,
@@ -40,7 +39,7 @@ import static org.awaitility.Awaitility.await;
  * the run fails rather than skipping, same as {@code StructuredCanonicalQueryIT}.
  * <p>
  * Uses the <em>same 7 queries</em>, method names, and source order as {@code 02-ai-agent-filter}'s
- * {@code CustomerListViewBrowserlessIT} — verified by extracting and diffing the (method name,
+ * {@code FlatCustomerListViewBrowserlessIT} — verified by extracting and diffing the (method name,
  * query) pairs of both classes — so the two modules' {@code -Pit-local-ollama} runs are directly
  * comparable on speed and result quality between tool calling and structured output.
  * <p>

@@ -179,7 +179,7 @@ block per tool call; a non-reasoning model like `llama3.1:8b` ignores the flag a
 ## Tests
 
 ```bash
-./mvnw -pl 02-ai-agent-filter test                                                # unit tests + both browserless view tests, no LLM
+./mvnw -pl 02-ai-agent-filter test                                                # unit tests only, no LLM, no UI
 ./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama                            # both variants' ITs vs native Ollama (ollama is the default test profile)
 ./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API
 ```
@@ -202,17 +202,10 @@ Without an LLM (`test`), per variant:
   null-matches-all. Each also **asserts the variant's ceiling** (02(a): a date is always a whole year,
   revenue is always a minimum; 02(b): one operator per field means no range), so the limits are pinned
   down by tests rather than only described in prose.
-- **`CustomerSearchServiceToolsTest` / `CustomerSearchServiceToolsTest`** (plain JUnit, no
+- **`CustomerSearchServiceToolsTest`** (one per variant, `ai/flat` and `ai/operator`; plain JUnit, no
   Spring context) — the extraction plumbing in isolation: arguments must land verbatim in the criteria
   record, a missing operator must default to `CONTAINS`, a field without a value must stay unset, and
   both variants' date tool must return the current time.
-- **`FlatCustomerListViewBrowserlessTest` / `OperatorCustomerListViewBrowserlessTest`** — [Vaadin
-  Browserless testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake,
-  deterministic `CustomerSearchAgent` bean, so they never call a real model. Since the view applies
-  results asynchronously (`CompletableFuture` + `ui.access(...)`), assertions after a non-blank query use
-  `MockVaadin.runUIQueue()` (to flush the queued `ui.access()` command) inside an Awaitility
-  `pollInSameThread()` loop (so the flush runs on the thread holding the UI `ThreadLocal`) — needed
-  because a plain synchronous assertion races the background search thread.
 
 Against a real model (`verify -Pit-local-ollama`):
 
