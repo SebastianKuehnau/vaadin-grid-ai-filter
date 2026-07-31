@@ -9,8 +9,8 @@ modules' integration-test suites and the `ollama-benchmark` harness. Companion t
   `@Tool searchCustomers(...)` with **13** parameters, one scalar value per field →
   `CustomerCriteria` → `CustomerSpecifications`. No operator, no negation.
 - **02(b) = `02-ai-agent-filter`, operator variant** — tool calling; the same tool with **39**
-  parameters, a value + `Operator` + `negate` per field → `OperatorCriteria` →
-  `OperatorSpecifications`.
+  parameters, a value + `Operator` + `negate` per field → `CustomerCriteria` →
+  `CustomerSpecifications`.
 - **03 = `03-ai-structured-filter`** — structured output; the LLM returns one `CustomerFilter`
   (a flat `List<Condition>`, each `field / operator / values / negate`) → `CustomerFilterSpecifications`.
 - **04 = `04-ai-hybrid-filter`** — tool calling; the LLM calls

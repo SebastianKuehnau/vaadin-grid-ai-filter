@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Translates an {@link OperatorCriteria} into a JPA {@link Specification}: one predicate per given
+ * Translates an {@link CustomerCriteria} into a JPA {@link Specification}: one predicate per given
  * field, all AND-combined, where each predicate is chosen by that field's {@link Operator} and then
  * optionally flipped by its {@code negate} flag. {@code null} criteria (e.g. when the LLM never
  * called the search tool) matches every customer.
@@ -24,12 +24,12 @@ import java.util.List;
  * day-level bounds instead of whole-calendar-year matching. What is still impossible here is a
  * <em>second</em> predicate on the same field, so no OR of values and no range.
  */
-public final class OperatorSpecifications {
+public final class CustomerSpecifications {
 
-    private OperatorSpecifications() {
+    private CustomerSpecifications() {
     }
 
-    public static Specification<Customer> from(OperatorCriteria criteria) {
+    public static Specification<Customer> from(CustomerCriteria criteria) {
         if (criteria == null) {
             return (root, query, cb) -> cb.conjunction();
         }

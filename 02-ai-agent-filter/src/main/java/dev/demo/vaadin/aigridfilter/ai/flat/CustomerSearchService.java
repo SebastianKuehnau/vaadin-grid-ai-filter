@@ -30,7 +30,7 @@ import java.time.LocalDateTime;
  * Everything the filter can mean is baked into {@link CustomerSpecifications}.
  * <p>
  * Variant 02(b) ({@code ai/operator}) is the same delivery mechanism with an operator and a negate
- * flag added per field; see {@code OperatorToolCallingService}.
+ * flag added per field; see {@code CustomerSearchService}.
  * <p>
  * {@code @Scope("prototype")}: the injecting view is not a Spring singleton either — Vaadin creates a
  * fresh view instance per navigation. Prototype scope gives each view its own instance, so

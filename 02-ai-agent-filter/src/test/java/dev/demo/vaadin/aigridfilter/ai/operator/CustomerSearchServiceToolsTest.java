@@ -24,10 +24,10 @@ import static org.mockito.Mockito.mock;
  * constructor — neither is invoked (the tools never call the model or record usage).
  */
 @Timeout(value = 60, unit = TimeUnit.SECONDS)
-class OperatorToolCallingServiceToolsTest {
+class CustomerSearchServiceToolsTest {
 
-    private final OperatorToolCallingService service =
-            new OperatorToolCallingService(mock(ChatModel.class), mock(TokenUsageRecorder.class));
+    private final CustomerSearchService service =
+            new CustomerSearchService(mock(ChatModel.class), mock(TokenUsageRecorder.class));
 
     /** Calls the tool with only the three city parameters set; everything else null. */
     private void searchByCity(String city, Operator operator, Boolean negate) {
@@ -81,7 +81,7 @@ class OperatorToolCallingServiceToolsTest {
                 CreditRating.GOOD, Operator.EQUALS, false,
                 BigDecimal.valueOf(100_000), Operator.GREATER_OR_EQUAL, false);
 
-        assertThat(service.criteria).isEqualTo(new OperatorCriteria(
+        assertThat(service.criteria).isEqualTo(new CustomerCriteria(
                 new FieldCriterion<>("Acme", Operator.CONTAINS, false),
                 new FieldCriterion<>("Jane Doe", Operator.EQUALS, false),
                 new FieldCriterion<>("jane@acme.example", Operator.ENDS_WITH, false),

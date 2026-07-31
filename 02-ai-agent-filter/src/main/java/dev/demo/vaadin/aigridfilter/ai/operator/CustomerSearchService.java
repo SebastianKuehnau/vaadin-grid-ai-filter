@@ -39,9 +39,9 @@ import java.time.LocalDateTime;
  */
 @Service("operatorSearchAgent")
 @Scope("prototype")
-class OperatorToolCallingService implements CustomerSearchAgent {
+class CustomerSearchService implements CustomerSearchAgent {
 
-    private static final Logger logger = LoggerFactory.getLogger(OperatorToolCallingService.class);
+    private static final Logger logger = LoggerFactory.getLogger(CustomerSearchService.class);
 
     private static final String SYSTEM_PROMPT = """
             You are a helpful assistant that helps users find customers based on their
@@ -120,9 +120,9 @@ class OperatorToolCallingService implements CustomerSearchAgent {
     private final ChatClient chatClient;
     private final TokenUsageRecorder tokenUsageRecorder;
 
-    OperatorCriteria criteria;
+    CustomerCriteria criteria;
 
-    OperatorToolCallingService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
+    CustomerSearchService(ChatModel chatModel, TokenUsageRecorder tokenUsageRecorder) {
         this.chatClient = ChatClient.builder(chatModel).build();
         this.tokenUsageRecorder = tokenUsageRecorder;
     }
@@ -134,7 +134,7 @@ class OperatorToolCallingService implements CustomerSearchAgent {
      */
     @Override
     public Specification<Customer> resolveFilter(String naturalLanguageQuery) {
-        return OperatorSpecifications.from(requestCriteria(naturalLanguageQuery));
+        return CustomerSpecifications.from(requestCriteria(naturalLanguageQuery));
     }
 
     /**
@@ -142,7 +142,7 @@ class OperatorToolCallingService implements CustomerSearchAgent {
      * Package-private so the AI layer can be tested directly on the produced criteria. Returns
      * {@code null} if the model produces nothing usable, so the UI never breaks on a bad response.
      */
-    OperatorCriteria requestCriteria(String naturalLanguageQuery) {
+    CustomerCriteria requestCriteria(String naturalLanguageQuery) {
         criteria = null;
         try {
             // Capture the ChatResponse (instead of discarding .content()) to read its token usage.
@@ -262,7 +262,7 @@ class OperatorToolCallingService implements CustomerSearchAgent {
                     "searchCustomers was already called once for this request; rejecting repeat call");
         }
 
-        OperatorCriteria incoming = new OperatorCriteria(
+        CustomerCriteria incoming = new CustomerCriteria(
                 FieldCriterion.of(companyName, companyNameOperator, companyNameNegate),
                 FieldCriterion.of(contactName, contactNameOperator, contactNameNegate),
                 FieldCriterion.of(email, emailOperator, emailNegate),

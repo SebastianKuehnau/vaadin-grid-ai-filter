@@ -15,7 +15,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Deterministic, fast test of variant 02(b)'s filter translation ({@link OperatorCriteria} -> JPA
+ * Deterministic, fast test of variant 02(b)'s filter translation ({@link CustomerCriteria} -> JPA
  * {@code Specification}) against the seeded H2 database — no LLM, no Docker. Covers every operator
  * per field type, the {@code negate} flag, the AND-across-fields combination and the
  * null-matches-all cases.
@@ -25,46 +25,46 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE) // keep configured H2 + data.sql
-class OperatorSpecificationsTest {
+class CustomerSpecificationsTest {
 
     @Autowired
     CustomerRepository repository;
 
-    private List<Customer> findAll(OperatorCriteria criteria) {
-        return repository.findAll(OperatorSpecifications.from(criteria));
+    private List<Customer> findAll(CustomerCriteria criteria) {
+        return repository.findAll(CustomerSpecifications.from(criteria));
     }
 
-    private static OperatorCriteria empty() {
-        return new OperatorCriteria(null, null, null, null, null, null, null, null, null, null, null, null, null);
+    private static CustomerCriteria empty() {
+        return new CustomerCriteria(null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
-    private static OperatorCriteria city(String value, Operator operator, boolean negate) {
-        return new OperatorCriteria(null, null, null, null, null, null, null,
+    private static CustomerCriteria city(String value, Operator operator, boolean negate) {
+        return new CustomerCriteria(null, null, null, null, null, null, null,
                 new FieldCriterion<>(value, operator, negate), null, null, null, null, null);
     }
 
-    private static OperatorCriteria contactName(String value, Operator operator, boolean negate) {
-        return new OperatorCriteria(null, new FieldCriterion<>(value, operator, negate),
+    private static CustomerCriteria contactName(String value, Operator operator, boolean negate) {
+        return new CustomerCriteria(null, new FieldCriterion<>(value, operator, negate),
                 null, null, null, null, null, null, null, null, null, null, null);
     }
 
-    private static OperatorCriteria email(String value, Operator operator, boolean negate) {
-        return new OperatorCriteria(null, null, new FieldCriterion<>(value, operator, negate),
+    private static CustomerCriteria email(String value, Operator operator, boolean negate) {
+        return new CustomerCriteria(null, null, new FieldCriterion<>(value, operator, negate),
                 null, null, null, null, null, null, null, null, null, null);
     }
 
-    private static OperatorCriteria lastOrderDate(LocalDate value, Operator operator, boolean negate) {
-        return new OperatorCriteria(null, null, null, null, null,
+    private static CustomerCriteria lastOrderDate(LocalDate value, Operator operator, boolean negate) {
+        return new CustomerCriteria(null, null, null, null, null,
                 new FieldCriterion<>(value, operator, negate), null, null, null, null, null, null, null);
     }
 
-    private static OperatorCriteria annualRevenue(BigDecimal value, Operator operator, boolean negate) {
-        return new OperatorCriteria(null, null, null, null, null, null, null, null, null, null, null, null,
+    private static CustomerCriteria annualRevenue(BigDecimal value, Operator operator, boolean negate) {
+        return new CustomerCriteria(null, null, null, null, null, null, null, null, null, null, null, null,
                 new FieldCriterion<>(value, operator, negate));
     }
 
-    private static OperatorCriteria cityAndRating(String city, CreditRating rating) {
-        return new OperatorCriteria(null, null, null, null, null, null, null,
+    private static CustomerCriteria cityAndRating(String city, CreditRating rating) {
+        return new CustomerCriteria(null, null, null, null, null, null, null,
                 new FieldCriterion<>(city, Operator.CONTAINS, false), null, null, null,
                 new FieldCriterion<>(rating, Operator.EQUALS, false), null);
     }
@@ -159,12 +159,12 @@ class OperatorSpecificationsTest {
     @Test
     void creditRatingMapsToScoreBandAndCanBeNegated() {
         for (CreditRating rating : CreditRating.values()) {
-            var result = findAll(new OperatorCriteria(null, null, null, null, null, null, null, null, null, null,
+            var result = findAll(new CustomerCriteria(null, null, null, null, null, null, null, null, null, null,
                     null, new FieldCriterion<>(rating, Operator.EQUALS, false), null));
             assertThat(result).isNotEmpty();
             assertThat(result).allSatisfy(c -> assertThat(c.getCreditRating()).isEqualTo(rating));
         }
-        var notPoor = findAll(new OperatorCriteria(null, null, null, null, null, null, null, null, null, null,
+        var notPoor = findAll(new CustomerCriteria(null, null, null, null, null, null, null, null, null, null,
                 null, new FieldCriterion<>(CreditRating.POOR, Operator.EQUALS, true), null));
         assertThat(notPoor).isNotEmpty();
         assertThat(notPoor).allSatisfy(c -> assertThat(c.getCreditRating()).isNotEqualTo(CreditRating.POOR));

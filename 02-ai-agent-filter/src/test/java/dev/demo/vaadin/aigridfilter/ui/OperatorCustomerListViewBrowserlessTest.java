@@ -7,8 +7,8 @@ import com.vaadin.flow.component.grid.GridTester;
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
 import dev.demo.vaadin.aigridfilter.ai.operator.FieldCriterion;
 import dev.demo.vaadin.aigridfilter.ai.operator.Operator;
-import dev.demo.vaadin.aigridfilter.ai.operator.OperatorCriteria;
-import dev.demo.vaadin.aigridfilter.ai.operator.OperatorSpecifications;
+import dev.demo.vaadin.aigridfilter.ai.operator.CustomerCriteria;
+import dev.demo.vaadin.aigridfilter.ai.operator.CustomerSpecifications;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
 import org.junit.jupiter.api.Test;
@@ -27,7 +27,7 @@ import static org.awaitility.Awaitility.await;
 /**
  * Browserless UI test of variant 02(b)'s {@link OperatorCustomerListView} — the sibling of
  * {@link FlatCustomerListViewBrowserlessTest}, with a fake {@link CustomerSearchAgent} instead of a
- * real model. {@link #NEGATED_QUERY} goes through the real {@link OperatorSpecifications} with a
+ * real model. {@link #NEGATED_QUERY} goes through the real {@link CustomerSpecifications} with a
  * negated condition, so 02(b)'s distinguishing capability is exercised end to end through the UI and
  * not only at the unit-test level.
  */
@@ -49,7 +49,7 @@ class OperatorCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
         CustomerSearchAgent fakeOperatorSearchAgent() {
             return query -> {
                 if (NEGATED_QUERY.equals(query)) {
-                    return OperatorSpecifications.from(new OperatorCriteria(null, null, null, null, null, null,
+                    return CustomerSpecifications.from(new CustomerCriteria(null, null, null, null, null, null,
                             null, new FieldCriterion<>("Berlin", Operator.CONTAINS, true),
                             null, null, null, null, null));
                 }

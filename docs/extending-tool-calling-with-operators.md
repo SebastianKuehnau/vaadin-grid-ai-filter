@@ -25,7 +25,7 @@ Tool calling and structured output are two ways for the model to *deliver* a fil
 
 | | 02(a) flat | 02(b) value+operator+negate | 03 structured output | 04 hybrid |
 |---|---|---|---|---|
-| Filter type | `CustomerCriteria` — one scalar value per field | `OperatorCriteria` — one value **+ operator + negate** per field | `CustomerFilter` = `List<Condition>` | **the same** `CustomerFilter` = `List<Condition>` |
+| Filter type | `CustomerCriteria` — one scalar value per field | `CustomerCriteria` — one value **+ operator + negate** per field | `CustomerFilter` = `List<Condition>` | **the same** `CustomerFilter` = `List<Condition>` |
 | Semantics | hard-wired per field (text = CONTAINS, date = whole calendar year, revenue = minimum) | chosen per field via `Operator` + `negate` | chosen per condition via `Operator` + `negate` | chosen per condition via `Operator` + `negate` |
 | Delivery | model **calls** `@Tool searchCustomers(...)`, 13 parameters | model **calls** `@Tool searchCustomers(...)`, **39** parameters | model **returns** one JSON object via `.responseEntity(CustomerFilter.class)` | model **calls** `@Tool searchCustomers(List<Condition>)`, **1** parameter |
 | Multi-value OR / ranges | ❌ / ❌ | ❌ / ❌ | ✅ / ✅ | ✅ / ✅ |
@@ -43,7 +43,7 @@ The original seven-step sketch, mapped onto what exists today:
 | 1. New `Operator` enum (mirror of 03's) | **04**: copied 1:1 from 03. Also **02(b)**, which needed its own copy for its per-field operator parameter. |
 | 2. New `Condition` record (mirror of 03's) | **04** only — copied 1:1, Jackson annotations included. 02(b) deliberately has no `Condition`. |
 | 3. Replace the flat criteria with a condition list | **04** only: `CustomerFilter`, unchanged from 03. |
-| 4. Replace the field-by-field predicate builder with 03's operator-driven one | **04**: `CustomerFilterSpecifications` copied 1:1. **02(b)** wrote its own per-field equivalent (`OperatorSpecifications`) — same operators, but one criterion per field. |
+| 4. Replace the field-by-field predicate builder with 03's operator-driven one | **04**: `CustomerFilterSpecifications` copied 1:1. **02(b)** wrote its own per-field equivalent (`CustomerSpecifications`) — same operators, but one criterion per field. |
 | 5. Change the tool signature to a single `List<Condition>` | **04**, exactly. 02(b) went to 39 flat parameters instead. |
 | 6. `RevenueRange` drops out | Both: 02(b) has a plain value + operator, 04 uses two sibling conditions. No range-shaped value type exists anywhere any more. |
 | 7. `currentLocalDateTime()` stays | **02(b)** keeps it. **04** does not need it: like 03, it bakes "today" into the prompt, so relative dates cost no extra round trip. |

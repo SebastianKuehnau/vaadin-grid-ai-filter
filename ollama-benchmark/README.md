@@ -58,7 +58,7 @@ production source, never hard-coded, so the eval cannot drift from what the apps
   which date value the model fills in; it does not lift the whole-year/minimum-only semantics of
   `CustomerSpecifications`, so a range query is still architecturally out of reach for this approach.
 - **`02b`**: `SYSTEM_PROMPT` plus the 39 `@ToolParam`s of
-  `../02-ai-agent-filter/.../ai/operator/OperatorToolCallingService.java`. Its operator/negate
+  `../02-ai-agent-filter/.../ai/operator/CustomerSearchService.java`. Its operator/negate
   descriptions are shared `static final String` constants in that class (13 fields would otherwise repeat
   them); the extractor resolves those constants, so the model sees exactly the app's text.
 - **`03`**: the `systemPrompt(LocalDate)` text block of

@@ -49,11 +49,11 @@ ai/
 │   ├── CustomerCriteria.java         (public record — one scalar value per field)
 │   └── CustomerSpecifications.java   (public final utility — AND-across-fields -> Specification<Customer>)
 └── operator/                           ← variant 02(b)
-    ├── OperatorToolCallingService.java (@Service("operatorSearchAgent") @Scope("prototype") — 39 flat @ToolParams + the date tool)
-    ├── Operator.java                   (public enum — CONTAINS, EQUALS, GREATER_OR_EQUAL, LESS_OR_EQUAL, STARTS_WITH, ENDS_WITH)
-    ├── FieldCriterion.java             (public record — one field's value + operator + negate)
-    ├── OperatorCriteria.java           (public record — one FieldCriterion per field)
-    └── OperatorSpecifications.java     (public final utility — operator-driven predicates, negate via cb.not)
+    ├── CustomerSearchService.java     (@Service("operatorSearchAgent") @Scope("prototype") — 39 flat @ToolParams + the date tool)
+    ├── Operator.java                  (public enum — CONTAINS, EQUALS, GREATER_OR_EQUAL, LESS_OR_EQUAL, STARTS_WITH, ENDS_WITH)
+    ├── FieldCriterion.java            (public record — one field's value + operator + negate)
+    ├── CustomerCriteria.java          (public record — one FieldCriterion per field)
+    └── CustomerSpecifications.java    (public final utility — operator-driven predicates, negate via cb.not)
 ```
 
 Both services are `@Scope("prototype")`, not the default singleton — because the views aren't singletons
@@ -194,12 +194,12 @@ Without an LLM (`test`), per variant:
 - **`CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring) — fails the build if either variant's
   canonical-query IT, or the benchmark script, stops matching `docs/canonical-query-set.md` verbatim, in
   wording or order.
-- **`CustomerSpecificationsTest` / `OperatorSpecificationsTest`** (`@DataJpaTest`) — the filter
+- **`CustomerSpecificationsTest` / `CustomerSpecificationsTest`** (`@DataJpaTest`) — the filter
   translation against the seeded H2 data: one test per field group, AND-across-fields, and
   null-matches-all. Each also **asserts the variant's ceiling** (02(a): a date is always a whole year,
   revenue is always a minimum; 02(b): one operator per field means no range), so the limits are pinned
   down by tests rather than only described in prose.
-- **`CustomerSearchServiceToolsTest` / `OperatorToolCallingServiceToolsTest`** (plain JUnit, no
+- **`CustomerSearchServiceToolsTest` / `CustomerSearchServiceToolsTest`** (plain JUnit, no
   Spring context) — the extraction plumbing in isolation: arguments must land verbatim in the criteria
   record, a missing operator must default to `CONTAINS`, a field without a value must stay unset, and
   both variants' date tool must return the current time.

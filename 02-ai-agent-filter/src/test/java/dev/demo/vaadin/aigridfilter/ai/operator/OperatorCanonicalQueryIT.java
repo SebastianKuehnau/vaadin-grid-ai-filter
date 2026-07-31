@@ -75,7 +75,7 @@ class OperatorCanonicalQueryIT {
     }
 
     @Autowired
-    OperatorToolCallingService agent;
+    CustomerSearchService agent;
 
     @Autowired
     CustomerRepository customerRepository;

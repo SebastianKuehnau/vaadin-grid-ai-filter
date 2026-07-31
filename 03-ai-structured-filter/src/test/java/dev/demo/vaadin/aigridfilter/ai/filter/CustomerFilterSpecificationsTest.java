@@ -124,7 +124,7 @@ class CustomerFilterSpecificationsTest {
     /*
      * STARTS_WITH and ENDS_WITH are the two text operators no canonical query pins down end to end:
      * C4 covers STARTS_WITH through the LLM, ENDS_WITH is never exercised there at all. Both cases
-     * mirror 02(b)'s OperatorSpecificationsTest query for query, so the two filter types stay directly
+     * mirror 02(b)'s CustomerSpecificationsTest query for query, so the two filter types stay directly
      * comparable on the same seeded data.
      */
 

@@ -27,9 +27,9 @@ no negation, no second tool. The tool body fills a `CustomerCriteria`, which `Cu
 into a `Specification`. Every field's meaning is hard-wired there: text = substring, date = the whole
 calendar year it falls in, revenue = a minimum.
 
-**02(b) — value + operator + negate tool calling.** `OperatorToolCallingService` keeps the same delivery
+**02(b) — value + operator + negate tool calling.** `CustomerSearchService` keeps the same delivery
 and gives every field three parameters (`city`, `cityOperator`, `cityNegate`) — 39 in total — plus a
-second tool, `currentLocalDateTime()`, for relative dates. `OperatorSpecifications` chooses the predicate
+second tool, `currentLocalDateTime()`, for relative dates. `CustomerSpecifications` chooses the predicate
 per field from its `Operator` and flips it when `negate` is set.
 
 **03 — structured output.** `CustomerSearchStructuredOutputService` calls
