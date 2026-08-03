@@ -143,13 +143,13 @@ environment variable, respecting `OPENAI_API_KEY` the same as the app itself) to
 test classes against the real OpenAI API instead. The app's *own* default profile is `openai`; only
 the test config overrides it to `ollama`.
 
-> **Note:** structured output is the most model-tolerant of the four approaches, which a 10-run
-> benchmark over four models makes concrete: **every** model passed all eight canonical queries here,
-> including `llama3.1:8b`, which cannot deliver the very same `CustomerFilter` through 04's tool call
-> at all. The only weak spot left is one legacy case that stacks a negation, a revenue floor and a
-> bare-year date range: `llama3.1:8b` gets it wrong 10/10 there (it reads "last ordered in 2024" as an
-> open-ended lower bound and drops the upper one), while the other three models get it right 10/10.
-> That is a model-capability gap, not a bug in the prompt or schema. See
+> **Note:** structured output is the most model-tolerant of the four approaches, which a 2026-08-03 5-run
+> benchmark over four models makes concrete: **every** model passed all eight canonical queries here.
+> (04 reaches the same 100% on three of those models; its `llama3.1:8b` zero is a harness parsing bug,
+> not a delivery-mechanism gap — see the capability matrix.) The only weak spot left is one legacy case
+> that stacks a negation, a revenue floor and a bare-year date range: `llama3.1:8b` gets it wrong 5/5
+> there (it reads "last ordered in 2024" as an open-ended lower bound and drops the upper one), while the
+> other three models get it right 5/5. That is a model-capability gap, not a bug in the prompt or schema. See
 > [`docs/capability-matrix.md` § Reliability across models](../docs/capability-matrix.md#reliability-across-models).
 
 - **`StructuredCustomerSearchIT`** — both query sets through the service, one test method each.

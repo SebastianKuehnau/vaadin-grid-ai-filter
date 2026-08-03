@@ -110,50 +110,70 @@ Whether an approach *reliably* produces the right filter — as opposed to being
 — is a per-model question, answered by `ollama-benchmark` (`--approach=all`), which runs the same
 canonical queries as the ITs plus its own legacy prompt-regression set.
 
-> **Measured 2026-07-31**, `--approach=all --runs=10` over four models: 44 cases per approach per
-> model, 2 h 57 m wall clock. `Canonical` is the mean over the queries that approach can express, so the
-> columns do not cover the same number of queries — 02(a) is scored on 2 of the 8, 02(b) on 5, 03 and 04
-> on all 8. A 100% in the 02(a) column is therefore a property of that selection, not a quality verdict;
-> its `Legacy` figure, which every approach runs in full, is the comparable one.
+> **Measured 2026-08-03**, `--approach=all --runs=5`, 49 cases per approach per model. The four models
+> were measured in **four separate invocations** (one model each, 20–30 min wall clock), not in one run.
+> `Canonical` is the mean over the queries that approach can express, so the columns do not cover the same
+> number of queries — 02(a) is scored on 2 of the 8, 02(b) on 5, 03 and 04 on all 8. A 100% in the 02(a)
+> column is therefore a property of that selection, not a quality verdict; its `Legacy` figure, which every
+> approach runs in full, is the comparable one.
 
 | Model | 02(a) | 02(b) | 03 | 04 |
 |---|---|---|---|---|
-| `qwen3.5:4b-mlx` | 100% · 64% · 790 ms | 60% · 64% · 1034 ms | 100% · 94% · 1031 ms | 100% · 97% · 1409 ms |
-| `qwen3:8b` | 100% · 61% · 951 ms | 80% · 61% · 1252 ms | **100% · 100%** · 1243 ms | **100% · 100%** · 1900 ms |
-| `gemma4:26b-mlx` | 100% · 61% · 929 ms | 80% · 67% · 1107 ms | **100% · 100%** · 1552 ms | 88% · 98% · 1097 ms |
-| `llama3.1:8b` | 100% · 69% · 828 ms | 80% · 64% · 1320 ms | 100% · 97% · 1191 ms | **0% · 11%** · 2101 ms |
+| `qwen3.5:4b-mlx` | 100% · 64% · 813 ms | 60% · 64% · 1043 ms | 100% · 94% · 1034 ms | **100%** · 97% · 1376 ms |
+| `qwen3:8b` | 100% · 61% · 917 ms | 80% · 61% · 1205 ms | **100% · 100%** · 1194 ms | **100% · 100%** · 1887 ms |
+| `gemma4:26b-mlx` | 100% · 61% · 952 ms | 80% · 67% · 1188 ms | **100% · 100%** · 1560 ms | **100%** · 97% · 1355 ms |
+| `llama3.1:8b` | 100% · 69% · 797 ms | 80% · 64% · 1325 ms | 100% · 97% · 1142 ms | ⚠️ 0% · 11% · 2064 ms |
 
-Each cell reads *canonical · legacy · median latency*. Reproduce with:
+Each cell reads *canonical · legacy · median latency*. Reproduce with one invocation per model:
 
 ```bash
 cd ollama-benchmark
-java BenchmarkLocalModels.java --approach=all --runs=10 qwen3.5:4b-mlx qwen3:8b gemma4:26b-mlx llama3.1:8b
+java BenchmarkLocalModels.java --approach=all --runs=5 llama3.1:8b
 ```
 
-### Delivery mechanism vs. model strength
+### ⚠️ The `llama3.1:8b` zero in the 04 column is a harness artefact, not a model result
 
-The `llama3.1:8b` row is the single most useful result in the table. That model returns an **empty filter
-on every query** of 04 — including "show me all customers in Berlin". The only cases it "passes" are the
-ones where empty is the correct answer. Yet the same model, in the same run:
+**Do not use this cell as evidence about the model.** It is a parsing bug in `ollama-benchmark`, and the
+correction is more interesting than the original claim was.
 
-| | Mechanism | Filter type | `llama3.1:8b` |
-|---|---|---|---|
-| 02(b) | tool call, 13 flat scalar parameters | field + operator | 64% |
-| 03 | structured output | `List<Condition>` | **97%** |
-| 04 | tool call, **one `List<Condition>` parameter** | `List<Condition>` | **0%** |
+What `llama3.1:8b` actually sends for "show me all customers in Berlin" (captured with `--debug-raw`):
 
-03 and 04 share the filter type, the prompt rules and the baked-in "today" — 04's `systemPrompt(LocalDate)`
-is deliberately identical to 03's. What differs is that 04 asks the model to produce a **nested object
-array as a tool argument**. `llama3.1:8b` cannot; flat tool parameters it handles fine.
+```json
+"arguments": {"conditions": "[{\"field\": \"city\", \"operator\": \"CONTAINS\", \"values\": [\"Berlin\"], \"negate\": false}]"}
+```
 
-So the escalation ladder's last step splits in two: *what* a filter can express is a property of its
-**type**, but whether a given model can deliver that type at all is a property of the **mechanism**.
-Structured output puts the condition list within reach of a model that cannot tool-call it.
+That is the correct condition list — right field, right operator, right value. The model even gets
+`C6_REVENUE_RANGE` right, emitting the two sibling conditions a range needs. But `conditions` arrives as a
+**JSON-encoded string** rather than a JSON array, and the harness's `conditionLeaves`
+(`BenchmarkLocalModels.java:1417`) accepts only `instanceof List<?>`, so every one of those calls
+normalizes to an empty leaf list and scores 0. The structured-output path deliberately tolerates exactly
+this kind of shape deviation (`normalizeStructuredResponse` also accepts a bare top-level array); the tool-
+calling path does not. **The asymmetry between the two parsers is what produced the 0%, and it sits in the
+one place that would make tool calling look worse than structured output.**
 
-`gemma4:26b-mlx` shows the same effect in miniature rather than in full: 03 passes `C7_RELATIVE_DATE`
-10/10, 04 fails it 0/10, same prompt and same date. Counted per query-and-model over the canonical set,
-03 passes 32 of 32 cells and 04 passes 23 of 32 — every one of the nine misses is a tool call that did not
-carry its argument.
+The counter-evidence is the module's own IT, run against the same model:
+
+```bash
+SPRING_AI_OLLAMA_CHAT_MODEL=llama3.1:8b \
+  ./mvnw verify -pl 04-ai-hybrid-filter -am -Pit-local-ollama -Dit.test=HybridCustomerSearchIT
+```
+
+**11 of 13 cases pass** — all five robustness cases and six of the eight canonical ones, each scored on the
+exact resulting customer set. Only `C2_MULTI_VALUE_OR` (0 rows instead of 35) and `C7_RELATIVE_DATE`
+(28 rows instead of 15) fail. So Spring AI does bind the model's stringified argument to
+`List<Condition>`, and the real application delivers the nested condition list on this model. The claim
+this section previously made — that `llama3.1:8b` "cannot" produce a nested object array as a tool
+argument, and that structured output puts the condition list within reach of a model that cannot tool-call
+it — was **wrong**, and wrong in the direction that flattered the narrative.
+
+The `gemma4:26b-mlx` claim that used to stand here fell with it: in the 2026-08-03 run that model passes
+`C7_RELATIVE_DATE` **5/5** through 04 and reaches 100% on the canonical set, where the earlier report had
+it at 88%.
+
+What survives is narrower and worth keeping: a tool argument has to survive one more encoding step than a
+structured-output response, models differ in how they encode it, and **whatever consumes that argument —
+harness or application — has to be as tolerant of shape deviations as the structured-output path is.**
+Fixing the harness and re-measuring is planned in `tasks/benchmark-argument-parsing-and-ram-readout.md`.
 
 ### Cost per query, across all models and cases
 
@@ -161,10 +181,10 @@ carry its argument.
 |---|---|---|
 | 02(a) flat | ~1 330 | 2 of 8 |
 | 03 structured | ~1 860 | 8 of 8, 100% on every model |
-| 04 hybrid | ~2 350 | 8 of 8, 96% excluding `llama3.1:8b` |
+| 04 hybrid | ~2 350 | 8 of 8, 100% on the three models the harness parses correctly |
 | 02(b) operator | **~3 730** | 5 of 8 |
 
-02(b) is the most expensive approach measured and the weakest of the three expressive ones: 13 tool
+02(b) is the most expensive approach measured and the weakest of the three expressive ones: **39** tool
 parameters travel in the schema of every round trip. 04 costs ~26% more than 03 for identical results —
 that is the extra round trip, not a worse filter.
 
@@ -174,8 +194,8 @@ The ITs are the other source, and they agree with the table on the configured de
 every ✅ in the capability matrix passed and every ❌ failed in the way it describes, in **three
 consecutive runs** with identical results each time.
 
-The two harnesses nevertheless score different things, which shows up in exactly two places on the
-canonical set:
+The two harnesses nevertheless score different things, which shows up in three places on the canonical
+set — and the third one is a bug rather than a design difference:
 
 - The ITs score the **resulting customer set**; the benchmark scores the **extracted filter**, and counts a
   field the query did not ask for as a failure even when it changes nothing. In a recorded run 02(b) added
@@ -184,9 +204,14 @@ canonical set:
 - The benchmark performs a **single round trip** and does not execute chained tool calls, so 02(b)'s
   `C7_RELATIVE_DATE` — which needs its `currentLocalDateTime()` hop — fails there by construction. The IT,
   running the real Spring AI tool loop, passes it. That is why C7 is ✅ for 02(b) above.
+- The two **deserialize tool arguments differently**, and only Spring AI is tolerant. When a model sends
+  04's `conditions` as a JSON-encoded string instead of a JSON array, Spring AI binds it to
+  `List<Condition>` and the app filters correctly; the benchmark's `conditionLeaves` drops it and scores 0.
+  This is the whole `llama3.1:8b` 04 column — see the ⚠️ section above. Unlike the first two, it is not a
+  legitimate difference in what is being measured, and it is being fixed.
 
-The 10-run report contains two instances of the first kind, worth naming so they are not misread as model
-failures: 02(b) on `qwen3.5:4b-mlx` answered `C5_COMBINED_AND` with `city EQUALS Hamburg` where the
+The 2026-08-03 report contains two instances of the first kind, worth naming so they are not misread as
+model failures: 02(b) on `qwen3.5:4b-mlx` answered `C5_COMBINED_AND` with `city EQUALS Hamburg` where the
 expectation only allows `CONTAINS`, and 04 on `gemma4:26b-mlx` expressed "exactly 100000" as
 `>= 100000 AND <= 100000` instead of `EQUALS`. Both select the correct rows; both are scored as failures
 by the filter-shaped expectation and pass in the ITs.
@@ -195,7 +220,7 @@ by the filter-shaped expectation and pass in the ITs.
 
 | Query type | 02(a) | 02(b) | 03 | 04 | Evidence |
 |---|---|---|---|---|---|
-| **Relative date via a live clock** ("in the last 12 months") | ❌ | ⚠️ chained `currentLocalDateTime()` — model-dependent | ✅ "today" baked into `systemPrompt(LocalDate)` | ⚠️ same prompt as 03, but model-dependent in practice | `OperatorCustomerSearchIT` C7 passes on `qwen3:8b`; a weaker model such as `llama3.1:8b` reliably fails the two-hop chain (see `02-ai-agent-filter/README.md`, "Relative dates need two chained tool calls"). Across four models the 10-run benchmark gives C7 **40/40 for 03 and 20/40 for 04** — `gemma4:26b-mlx` and `llama3.1:8b` fail it through the tool call while passing it through structured output, on the identical prompt |
+| **Relative date via a live clock** ("in the last 12 months") | ❌ | ⚠️ chained `currentLocalDateTime()` — model-dependent | ✅ "today" baked into `systemPrompt(LocalDate)` | ⚠️ same prompt as 03, but model-dependent in practice | `OperatorCustomerSearchIT` C7 passes on `qwen3:8b`; a weaker model such as `llama3.1:8b` reliably fails the two-hop chain (see `02-ai-agent-filter/README.md`, "Relative dates need two chained tool calls"). Across four models the 2026-08-03 5-run benchmark gives C7 **20/20 for 03 and 15/20 for 04**, and the only 04 miss is `llama3.1:8b` — whose whole 04 column is the harness parsing artefact described above, so C7 is not evidence of a delivery-mechanism gap here. Its module IT does fail C7 on that model (28 rows instead of 15), which is a genuine, separate miss |
 
 02(b) *can* resolve relative dates by chaining `currentLocalDateTime()` and computing an offset. It is a
 genuine capability, but a two-hop one, and it is the only category where the per-field variants have

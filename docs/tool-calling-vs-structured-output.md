@@ -162,19 +162,30 @@ filter type:
 "Reliable vs. flaky" is a different question from "expressible vs. not", and it is per model. It is
 answered by the benchmark's pass-rates (`--approach=all --runs=5`), not by single JUnit runs.
 
-> **Not yet re-measured for the four-approach setup.** The harness runs all four approaches (verified
-> with `--quick --runs=1` on `qwen3:8b`), but the two-model reliability table that used to stand here
-> described the old two-approach setup, and stale numbers are worse than none. Reproduce with:
->
-> ```bash
-> cd ollama-benchmark
-> java BenchmarkLocalModels.java --approach=all --runs=5 qwen3:8b llama3.1:8b
-> ```
+**Measured 2026-08-03**, `--approach=all --runs=5`, 49 cases, one invocation per model. The full table
+lives in the [capability matrix](capability-matrix.md#reliability-across-models); the canonical-set means
+are:
 
-What is measured today, on `qwen3:8b`: every expressible canonical query produced the exact expected
-customer set in all four approaches, and every inexpressible one failed in the documented way. Older,
-model-dependent divergences (recorded on the weaker `llama3.1:8b`, when 02 still had a single list-based
-tool call) are summarised at the end of the [capability matrix](capability-matrix.md).
+| Model | 02(a) | 02(b) | 03 | 04 |
+|---|---|---|---|---|
+| `qwen3.5:4b-mlx` | 100% | 60% | 100% | 100% |
+| `qwen3:8b` | 100% | 80% | 100% | 100% |
+| `gemma4:26b-mlx` | 100% | 80% | 100% | 100% |
+| `llama3.1:8b` | 100% | 80% | 100% | ⚠️ 0% |
+
+Each column is scored only on the queries that approach can express (02(a): 2 of 8, 02(b): 5 of 8, 03 and
+04: all 8), so a 100% for 02(a) describes that selection and not its quality.
+
+> ⚠️ **The `llama3.1:8b` zero is a harness bug, not a model result.** That model sends 04's `conditions`
+> argument as a JSON-encoded string rather than a JSON array; the harness accepts only an array and scores
+> the (correct) filter as empty. The module's own IT on the same model passes 11 of 13 cases. The evidence
+> and the fix are in the [capability matrix](capability-matrix.md#reliability-across-models) and
+> `tasks/benchmark-argument-parsing-and-ram-readout.md`. Every other cell in the table is sound.
+
+On the configured default `qwen3:8b` the ITs agree with this: every expressible canonical query produced
+the exact expected customer set in all four approaches, and every inexpressible one failed in the
+documented way. Older, model-dependent divergences (recorded on the weaker `llama3.1:8b`, when 02 still had
+a single list-based tool call) are summarised at the end of the [capability matrix](capability-matrix.md).
 
 ## Where tool calling has (or had) an edge
 

@@ -297,8 +297,16 @@ useful for. For up-to-date, per-approach figures run:
 java BenchmarkLocalModels.java --approach=all --runs=5 qwen3:8b llama3.1:8b
 ```
 
-and paste the report's "Canonical query set" matrix into `../docs/capability-matrix.md`, which currently
-marks that table as pending for exactly this reason.
+and paste the report's "Canonical query set" matrix into `../docs/capability-matrix.md` (whose
+"Reliability across models" table now holds a 2026-08-03 `--runs=5` measurement of all four approaches
+over four models).
+
+> **Known bug — `04-hybrid` scores 0% for models that stringify the tool argument.** `conditionLeaves`
+> accepts `conditions` only as a JSON array; `llama3.1:8b` sends the correct condition list as a
+> JSON-*encoded string*, and every such call normalizes to an empty filter. Structured output's parser
+> already tolerates this class of deviation, tool calling's does not, and the asymmetry makes tool calling
+> look worse than it is. Reproduce with `--approach=04 --quick --debug-raw llama3.1:8b`; fix planned in
+> `../tasks/benchmark-argument-parsing-and-ram-readout.md`.
 
 **Test system:** MacBook Pro, Apple **M2 Pro** (12 cores: 8 performance + 4 efficiency), 32 GB
 unified memory, macOS 26.5.1 (build 25F80), Ollama 0.30.11. Apple-Silicon-optimized `mlx` variants
