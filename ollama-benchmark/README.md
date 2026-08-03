@@ -53,20 +53,20 @@ approaches, the real `searchCustomers` tool/argument schema — extracted at run
 production source, never hard-coded, so the eval cannot drift from what the apps do:
 
 - **`02a`**: `SYSTEM_PROMPT` plus the 13 scalar `@ToolParam`s of
-  `../02-ai-agent-filter/.../ai/flat/FlatToolCallingService.java`. Gets the second tool,
+  `../02-ai-agent-filter/.../ai/flat/CustomerSearchService.java`. Gets the second tool,
   `currentLocalDateTime()`, same as `02b` — offered only because the source declares it. The tool fixes
   which date value the model fills in; it does not lift the whole-year/minimum-only semantics of
-  `FlatSpecifications`, so a range query is still architecturally out of reach for this approach.
+  `CustomerSpecifications`, so a range query is still architecturally out of reach for this approach.
 - **`02b`**: `SYSTEM_PROMPT` plus the 39 `@ToolParam`s of
-  `../02-ai-agent-filter/.../ai/operator/OperatorToolCallingService.java`. Its operator/negate
+  `../02-ai-agent-filter/.../ai/operator/CustomerSearchService.java`. Its operator/negate
   descriptions are shared `static final String` constants in that class (13 fields would otherwise repeat
   them); the extractor resolves those constants, so the model sees exactly the app's text.
 - **`03`**: the `systemPrompt(LocalDate)` text block of
-  `../03-ai-structured-filter/.../ai/CustomerSearchStructuredOutputService.java`, with the relative dates
+  `../03-ai-structured-filter/.../ai/CustomerSearchService.java`, with the relative dates
   resolved the same way the module resolves them, plus the response-shape reminder Spring AI adds for
   structured output.
 - **`04`**: the `systemPrompt(LocalDate)` text block of
-  `../04-ai-hybrid-filter/.../ai/CustomerSearchHybridToolCallingService.java` (no JSON-shape tail — it
+  `../04-ai-hybrid-filter/.../ai/CustomerSearchService.java` (no JSON-shape tail — it
   calls a tool), and a `List<Condition>` parameter schema built from `Condition.java`'s own
   `@JsonClassDescription`/`@JsonPropertyDescription` texts, i.e. from the same annotations Spring AI reads
   when it generates that tool's schema at runtime.
@@ -83,18 +83,31 @@ tool call, so `02b` cannot pass `C7_RELATIVE_DATE` here (that query needs its `c
 first); the module's canonical-query IT, which runs the real Spring AI tool loop, does. The generated
 report repeats this caveat next to the matrix, so a `0/1` there is never mistaken for a model failure.
 
-#### Two case groups
+#### Three case groups
 
 - **Canonical query set** (primary): the eight queries of `../docs/canonical-query-set.md`, the same ones
-  all four modules' canonical-query ITs run. Their wording lives verbatim in this script, and every
-  module's `CanonicalQuerySetConsistencyTest` fails the build if it drifts from the document — which is
-  what makes these token/latency figures comparable query-for-query with the ITs' pass/fail results.
+  all four modules' ITs run. Their wording lives verbatim in this script — the second and last copy
+  besides `demo-commons`' `CanonicalQuery` enum, because this script is deliberately standalone and
+  dependency-free. Keeping it verbatim is what makes these token/latency figures comparable
+  query-for-query with the ITs' pass/fail results.
   Each canonical case names the approaches whose filter type can express it at all; for the others the
   case is reported as `n/a` (and listed on stdout), because an architectural limit is not a reliability
   problem. The report's "Canonical query set" section is the resulting matrix: one row per query, one
   column per approach.
-- **Legacy set**: the older prompt-regression cases mirroring `03-ai-structured-filter`'s
-  `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`. Unlike the canonical set, they run against **all
+- **Robustness set**: the five cases of `demo-commons`' `RobustnessQuery`, worded verbatim here — the same
+  five the modules' `*CustomerSearchIT` assert, so together with the canonical eight this script covers
+  exactly the 13 cases those ITs run. Four ask for *no* filter at all (small talk, an unrelated question,
+  "show me all customers", an explicit reset) and are scored on every field staying empty; `GERMAN_QUERY`
+  must filter exactly as its English equivalent `C1_SINGLE_VALUE` does.
+  There is no `n/a` in this group: none of these needs a filter type, so all four approaches run all five
+  and are expected to pass them. A failing cell is therefore a reliability finding — a hallucinated
+  condition slipped through the prompt — and not an architectural ceiling. That is the failure mode a live
+  demo hits first, which is why it gets its own matrix in the report rather than being folded into the
+  legacy set.
+- **Legacy set**: the older prompt-regression cases that used to mirror `03-ai-structured-filter`'s
+  `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`. Those two IT classes were superseded by the
+  canonical query set and removed, so this script is now the only place the cases still run — which is
+  the main reason to keep them. Unlike the canonical set, they run against **all
   four** approaches without pre-classifying which ones can express them — they were written for the
   condition-list filter type, so a case needing negation, a second value for one field, or a range shows
   up as a low or zero pass rate for `02a`/`02b` rather than as `n/a`. They are kept because they are the
@@ -106,14 +119,15 @@ report repeats this caveat next to the matrix, so a `0/1` there is never mistake
 ### Approach performance summary
 
 The report's "Approach performance summary" table aggregates **across every tested model**, one row
-per approach: passed test runs (canonical and legacy separately), total prompt tokens, total completion
+per approach: passed test runs (canonical, robustness and legacy separately), total prompt tokens, total completion
 tokens, total tokens, and total wall-clock time — all true sums over every call actually made for that
 approach (not medians), so it reflects the approach's real cost independent of which models were
 benchmarked. The pass columns read `passed/performed (share)` rather than a bare percentage, because
 the percentage alone hides how many runs it rests on: one run is one case sent once to one model, so a
 group's run count is its case count times `--runs`, summed over every tested model — and a model that
 failed outright (an `ERROR` row) performs no runs and is not counted under "Models tested". A group
-that ran no cases at all (e.g. the legacy group under `--cases=canonical`) reads `n/a` instead of `0%`.
+that ran no cases at all (e.g. the legacy and robustness groups under `--cases=canonical`) reads `n/a`
+instead of `0%`.
 Which individual runs failed is in the per-case tables further down the report. This is what makes e.g. `02b-operator`'s 39-parameter tool schema's prompt-token overhead
 visible against `04-hybrid`'s single-parameter one, and lets 03/04's combined canonical+legacy pass
 rate and total time be compared directly against 02(a)/02(b)'s. Ollama's native API reports
@@ -232,7 +246,7 @@ instead of `child`, truncated/unbalanced JSON, or fields returned as unstructure
 
 `--mode=schema` instead constrains generation with a hand-rolled JSON Schema for the flat
 conditions list (a single `conditions` array, no `$ref`/`oneOf`/recursion at all), enforcing the
-same shape production defines in `CustomerFilter.java`/`Condition.java`/`Operator.java`:
+same shape production defines in `CustomerFilter.java`/`Condition.java` (whose nested `Operator` carries the six values):
 
 - **Ollama**: the schema is passed directly in the native `/api/chat` request's `"format"` field
   (grammar-constrained decoding) instead of the generic `"format":"json"` string. This works for

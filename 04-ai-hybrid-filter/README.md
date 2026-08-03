@@ -20,22 +20,35 @@ express everything 03 can — multi-value OR, negation, operator precision, real
 
 > **Expressiveness lives in the filter *type*, not in the delivery *mechanism*.**
 
-`docs/extending-tool-calling-with-operators.md` analyzed exactly this change before it existed; this
-module is that analysis, built.
+This module started life as a design note. The since-removed `docs/extending-tool-calling-with-operators.md`
+(retrievable from the git history) asked what
+`02-ai-agent-filter` would need in order to express negation and operator precision the way
+`03-ai-structured-filter` does, answered "swap the flat per-field criteria for a condition list and keep
+the tool call as the delivery mechanism", and closed with "this is analysis only — no such change is
+made". This module *is* that change: `Condition`, `Operator`, `CustomerFilter` and
+`CustomerFilterSpecifications` copied 1:1 out of module 03, behind one
+`@Tool searchCustomers(List<Condition> conditions)`. Module 02 went a deliberately smaller way instead —
+variant 02(b), which keeps per-field parameters and merely adds an operator and a negate flag to each. So
+the repository now holds *both* answers to the note's question, and they disagree about how far you get,
+which is the finding above. The note itself has been retired now that the module answers it; see the git
+history for the original analysis.
 
 ## What is copied and what is new
 
 Copied **1:1** from `03-ai-structured-filter` (same records, same Jackson annotations, same enum
-values, same translation logic) — there is no shared Maven module in this repository, so each app keeps
-its own copy of everything, as `01`/`02`/`03` already do:
+values, same translation logic) — deliberately copied rather than shared, because the filter type *is*
+what this module demonstrates about 03, and sharing it would hide the claim being made:
 
-- `ai/filter/Condition.java`, `ai/filter/Operator.java`, `ai/filter/CustomerFilter.java`
+- `ai/filter/Condition.java` (with its nested `Operator`), `ai/filter/CustomerFilter.java`
 - `ai/filter/CustomerFilterSpecifications.java` (conditions → JPA `Specification`)
-- `ai/CustomerSearchAgent.java`, `ai/TokenUsageRecorder.java`, `data/`, `ui/`, `data.sql`
+
+What this module does *not* copy is the scaffolding around it: the domain model, `data.sql`, the grid, the
+search view, the `CustomerSearchAgent` seam and the token measurement all come from `demo-commons`, which
+all four apps depend on. None of those says anything about tool calling versus structured output.
 
 New, and the only interesting file in the module:
 
-- `ai/CustomerSearchHybridToolCallingService.java` — a `CustomerSearchAgent` that exposes
+- `ai/CustomerSearchService.java` — a `CustomerSearchAgent` that exposes
 
   ```java
   @Tool void searchCustomers(List<Condition> conditions)
@@ -72,10 +85,15 @@ object, the enumerated `Operator` values, the `values` array and every descripti
 ## View
 
 - **`/`** — `CustomerListView`: a single natural-language `TextField` above the grid. Typing a query
-  (and blurring/pressing enter) sends it to the AI layer; a blank query resets to all rows. Identical
-  to 03's view — the delivery mechanism is invisible from up here, which is part of the point.
-- **`CustomerGrid`** — the `Grid<Customer>` itself (column config, backend sort configuration,
-  responsive show/hide).
+  (and blurring/pressing enter) sends it to the AI layer; a blank query resets to all rows. Apart from its
+  heading it is identical to 03's view, and both are now just a heading on top of the shared
+  `AbstractCustomerSearchView` — the delivery mechanism is invisible from up here, which is part of the
+  point.
+- **`CustomerGrid`** — the `Grid<Customer>` itself (column config, backend sort configuration, and
+  responsive show/hide). It lives in **`demo-commons`**: all four apps show the same grid, and it says
+  nothing about how a filter came into being. Unlike `01-non-ai-filter`, this module needs no per-column
+  filter fields — filtering is the one AI `TextField` above — and it keeps the shared grid's backend sort
+  configuration unchanged.
 
 `CustomerSearchAgent.resolveFilter(...)` never throws: on any failure (bad model response, unreachable
 model, ...) it falls back to an unrestricted specification, so the UI never breaks.
@@ -113,38 +131,53 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
 ## Tests
 
 ```bash
-./mvnw -pl 04-ai-hybrid-filter test                                                # unit tests + CustomerListViewBrowserlessTest, no LLM
+./mvnw -pl 04-ai-hybrid-filter test                                                # unit tests only, no LLM, no UI
 ./mvnw -pl 04-ai-hybrid-filter verify -Pit-local-ollama                            # ITs vs native Ollama (ollama is the default test profile)
 ./mvnw -pl 04-ai-hybrid-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API
 ```
 
-- **`CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the build if this
-  module's `StructuredCanonicalQueryIT` or the benchmark script stops matching `docs/canonical-query-set.md`
-  verbatim, in wording or order.
-- **`CustomerFilterSpecificationsTest` / `CustomerFilterSpecificationsExtraTest`** (`@DataJpaTest`, no
-  LLM) — the copied translation logic against the seeded H2 data, a 1:1 copy of 03's tests. If 03 and 04
-  ever disagree on a query, this proves the cause is the delivery mechanism, not the translation.
-- **`CustomerSearchHybridToolCallingServiceToolsTest`** (plain JUnit, no Spring) — the tool in isolation:
-  the condition list must land verbatim in the filter, a repeated empty call must not wipe it, and the
-  prompt must carry the resolved "today".
-- **`CustomerListViewBrowserlessTest`** — [Vaadin Browserless
-  testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake, deterministic
-  `CustomerSearchAgent` bean, so it never calls a real model.
-- **`StructuredCanonicalQueryIT`** — the eight queries of `docs/canonical-query-set.md` against a real Ollama, each
-  scored on the **resulting customer set** (the `Specification` is executed against the seeded database and
-  the matching ids compared with a reference predicate). All eight are expected to pass here, exactly as
-  in 03: same filter type, same prompt rules, same queries. A divergence between the two modules could
-  therefore only come from the delivery mechanism.
-- **`CustomerListViewBrowserlessIT`** — the same setup against a real native Ollama instance,
-  exercising `TextField` → tool call → `Grid` end to end, with the same 7 queries as 03's equivalent IT
-  for direct comparability.
+- **`CustomerSearchServiceToolsTest`** (plain JUnit, no Spring, no LLM) — the one tool-calling failure
+  mode this repository has observed and mitigated: a `void` tool is answered with a bare "Done", which a
+  model can read as "nothing happened" and call again with no arguments. The guard must keep what the
+  first call extracted. Nothing else about the tool is tested — asserting that arguments land in a record
+  was plumbing.
+- **`HybridCustomerSearchIT`** — both query sets through the service against a real Ollama, one test method each.
+  `canonicalQuery` runs the eight queries of `docs/canonical-query-set.md`, each scored on the **resulting
+  customer set** (the `Specification` is executed against the seeded database and the matching ids compared
+  with a reference predicate). All eight are expected to pass here, exactly as in 03: same filter type, same
+  prompt rules, same queries. A divergence between the two modules could therefore only come from the
+  delivery mechanism.
+  `robustnessQuery` runs the five cases the canonical set does not probe: small talk, an unrelated
+  question, "show me all customers" and an explicit reset must each leave the grid *unfiltered*, plus one
+  German query. No filter type is involved, so there is no `ExpectedResult` for them and all five must pass,
+  exactly as in 02 and 03.
+- **`CustomerListViewBrowserlessIT`** — the same eight queries and expectations through the UI against a
+  real native Ollama instance, exercising `TextField` → tool call → `Grid` end to end. Identical input to
+  `HybridCustomerSearchIT`, so the view layer is the only variable; identical to 03's equivalent IT too,
+  so structured output and tool calling stay directly comparable.
+
+> **Pick the model carefully for this module.** 04 asks the model for a nested object array as a tool
+> argument (`searchCustomers(List<Condition>)`), and that is a harder ask than either 03's structured
+> output or 02's flat tool parameters. In a 10-run benchmark over four models, `llama3.1:8b` returned an
+> **empty filter on all eight canonical queries** here while passing all eight in 03 — same filter type,
+> same prompt, same baked-in "today". `gemma4:26b-mlx` shows a milder form, failing only the relative-date
+> query. The configured default `qwen3:8b` and `qwen3.5:4b-mlx` pass all eight. This is the sharpest
+> evidence in the repository that the *delivery mechanism*, not the filter type, decides whether a given
+> model can produce a filter at all — see
+> [`docs/capability-matrix.md` § Delivery mechanism vs. model strength](../docs/capability-matrix.md#delivery-mechanism-vs-model-strength).
+
+All three IT kinds extend a base class from `demo-commons`' test-jar and share the query sets with the
+other AI modules, so what a module's ITs contain is one line: which agent or view to ask, and which
+queries its filter type can express.
+
 
 ## Sources
 
-- `src/main/java/dev/demo/vaadin/aigridfilter/ai/CustomerSearchHybridToolCallingService.java` — the one
+- `src/main/java/dev/demo/vaadin/aigridfilter/ai/CustomerSearchService.java` — the one
   file that makes this module different from 03
 - `src/main/java/dev/demo/vaadin/aigridfilter/ai/filter/` — the filter type, copied 1:1 from 03
-- `src/main/java/dev/demo/vaadin/aigridfilter/ui/` — the view and the grid
-- `src/main/java/dev/demo/vaadin/aigridfilter/data/` — the shared `Customer`/`Address` JPA model
-- `src/main/resources/data.sql` — seed data (100 customers), byte-identical to `01`/`02`/`03`'s
+- `src/main/java/dev/demo/vaadin/aigridfilter/ui/CustomerListView.java` — the view: a heading on top of
+  the shared `AbstractCustomerSearchView`, and otherwise identical to 03's
+- `../demo-commons/` — the `Customer`/`Address` JPA model, `data.sql`, `CustomerGrid` and
+  `AbstractCustomerSearchView`, shared by all four apps
 - `src/test/java/dev/demo/vaadin/aigridfilter/` — tests (see [Tests](#tests) above)

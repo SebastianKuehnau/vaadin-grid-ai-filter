@@ -3,21 +3,27 @@
 The **single source of truth** for the natural-language queries every AI module of this repository is
 tested with. Eight queries, one per capability category, each with the customer set it must produce.
 
-Two places use these queries **verbatim**:
+Two places spell these queries out **verbatim**:
 
 | Copy | File |
 |---|---|
-| shared enum | `canonical-query-testkit/src/main/java/dev/demo/vaadin/aigridfilter/canonicalquery/CanonicalQuery.java` |
+| the shared enum | `demo-commons/src/test/java/.../canonicalquery/CanonicalQuery.java` |
 | benchmark | `ollama-benchmark/BenchmarkLocalModels.java` |
 
-All four AI modules' canonical-query ITs share the first copy. The benchmark script keeps its own,
-because it is deliberately a standalone, dependency-free program.
+`CanonicalQuery` carries each query together with the reference predicate a correct answer must satisfy,
+and is read by every AI module through the service (`*CustomerSearchIT`) and through the UI
+(`*CustomerListViewBrowserlessIT`) — eight queries, two paths, four variants, one text. What it
+deliberately does *not* carry is the expected result: that depends on the asking variant's filter type,
+so each variant states it in its own `expectedResultFor` method. The benchmark script keeps a separate copy because
+it is deliberately standalone and dependency-free.
 
-A drift between either copy and this document fails the build: `canonical-query-testkit` has a
-`CanonicalQuerySetConsistencyTest` (plain `mvn test`, no LLM, no Ollama) that parses the ```` ```text ````
-blocks below and compares them with the shared `CanonicalQuery` enum (wording **and** order) and with
-the benchmark script's case list. So the token/latency figures from the benchmark line up
-query-for-query with the pass/fail reliability results from the IT suites.
+Both copies have to match this document verbatim, wording **and** order — that is what makes the
+token/latency figures from the benchmark line up query-for-query with the pass/fail reliability results
+from the IT suites. There is no test that enforces this; keep them in sync by hand.
+
+Alongside the eight there is a second, smaller set that probes the opposite direction — input that asks for
+*no* filter. It is documented in [The robustness set](#the-robustness-set) at the end of this file, lives in
+the same two copies, and brings the total each `*CustomerSearchIT` runs to **13**.
 
 ## Why these eight
 
@@ -50,9 +56,8 @@ through the same tool, 03 and 04 through the "today" baked into their prompts.
 
 ## Expected customer sets
 
-Every query's expected result is defined as a **predicate over `CanonicalCustomer`** — the six-field
-projection of `Customer` the shared enum is written against, since each module owns its own entity —
-evaluated against whatever `data.sql` currently seeds, never as a hard-coded list of IDs. Two reasons:
+Every query's expected result is defined as a **predicate over `Customer`**, evaluated against whatever
+`data.sql` currently seeds, never as a hard-coded list of IDs. Two reasons:
 C7 depends on today's date,
 and each app's startup sets "Berlin Data Works"'s last order date to yesterday (see any
 `*Application.java`), so one row is deliberately not static.
@@ -61,6 +66,12 @@ The counts below are for the committed `data.sql` (100 customers) as of 2026-07-
 only — the tests compute them, they do not hard-code them.
 
 ## The queries
+
+Each entry names where its wording came from. Several cite `CustomerSearchAgentIT` /
+`CustomerSearchAgentExtraIT` — 03's pre-canonical LLM integration tests, which this query set
+superseded and which have since been removed. Those citations are **historical**: they record which
+earlier test's wording a canonical query inherited, so the two are known to be comparable. Look them up
+in the git history; nothing in the repository runs them any more.
 
 ### C1 — single value
 
@@ -173,3 +184,66 @@ The window deliberately **spans two calendar years**: that is what makes it impo
 dates always mean the whole calendar year they fall in (its best attempt returns all of 2024, 5
 customers), and for 02(b), which has one operator per field and can therefore give only one of the two
 bounds (`>= 2024-07-01` alone returns 21 customers).
+
+## The robustness set
+
+Five cases that are deliberately **not** part of the eight, because they probe the opposite direction. C1–C8
+all describe a filter and differ in how hard it is to express; these differ in something else — four of them
+ask for no filter at all and must produce an *empty* filter rather than a hallucinated condition. That is
+the failure mode a live demo runs into first.
+
+None of them depends on the filter type, so unlike the canonical set there is nothing here that is out of
+reach for a variant: **every** AI module is expected to pass all five, and a failure is a reliability
+finding rather than a documented limit. Consequently they carry no `ExpectedResult`.
+
+Same two copies as the eight, same rule — verbatim, in this order:
+
+| Copy | Where |
+|---|---|
+| the shared enum | `demo-commons/src/test/java/.../canonicalquery/RobustnessQuery.java` |
+| benchmark | `ollama-benchmark/BenchmarkLocalModels.java`, group `ROBUSTNESS` |
+
+### SMALL_TALK
+
+```text
+Nice weather today, isn't it?
+```
+
+Expected: no filter — all 100 customers.
+
+### UNRELATED_QUESTION
+
+```text
+What's the capital of France?
+```
+
+Expected: no filter — all 100 customers. Whether the model answers "Paris" in prose is irrelevant; what
+matters is that nothing lands in the filter.
+
+### SHOW_ALL
+
+```text
+show me all customers
+```
+
+Expected: all 100 customers. An empty filter and a filter whose conditions happen to match everything are
+equally acceptable — the ITs score the resulting customer set, not the filter's shape.
+
+### RESET_FILTER
+
+```text
+remove the filter and show everything again
+```
+
+Expected: all 100 customers. This is how a user undoes a search, so it is the one of the five that a demo
+audience will actually see.
+
+### GERMAN_QUERY
+
+```text
+zeig mir alle Kunden aus Berlin
+```
+
+Expected: the same customers as `C1_SINGLE_VALUE` — `city` contains "Berlin", 18 customers. The system
+prompts are written in English throughout; this case is the check that a query in another language still
+filters identically.

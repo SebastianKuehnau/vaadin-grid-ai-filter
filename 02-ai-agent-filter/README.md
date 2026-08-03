@@ -23,16 +23,20 @@ as structured output, 04 as a tool call. Compare with the non-AI baselines in `0
 
 - **`/`** (alias `/flat`) — `FlatCustomerListView`, variant 02(a).
 - **`/operator`** — `OperatorCustomerListView`, variant 02(b).
-- **`AbstractCustomerListView`** — everything the two share: one natural-language `TextField` above the
-  grid, the async search (`CompletableFuture` + `ui.access(...)`), the error notification, and a
-  variant switcher linking to the other view. The subclasses only differ in their heading and in which
-  `CustomerSearchAgent` bean Spring injects. Neither has a single Spring AI import — they only know
-  `CustomerSearchAgent` and apply the `Specification` it returns.
+- **`AbstractCustomerListView`** — what the two variants share *beyond* the shared base: a switcher
+  linking to the other variant, and a one-line description of what the variant on screen can express.
+  The subclasses differ only in their heading, that description, and which `CustomerSearchAgent` bean
+  Spring injects. Neither has a single Spring AI import — they only know `CustomerSearchAgent` and apply
+  the `Specification` it returns.
+- **`AbstractCustomerSearchView`** (in **`demo-commons`**) — the natural-language `TextField` above the
+  grid, the async search (`CompletableFuture` + `ui.access(...)`) and the error notification. Identical in
+  all three AI modules, and deliberately so: that the view cannot tell a tool call from structured output
+  is one of this repository's findings.
 - **`CustomerGrid`** — the `Grid<Customer>` itself (column config, backend sort configuration, and
-  responsive show/hide), extracted out of the view. Unlike `01-non-ai-filter`'s
-  `CustomerGrid`/`FilterableCustomerGrid` split, this module has a single fixed sort strategy and no
-  per-column filter fields (filtering is the one AI `TextField` above), so sort config lives inside
-  `CustomerGrid` rather than being applied by the view afterward.
+  responsive show/hide). It lives in **`demo-commons`**: all four apps show the same grid, and it says
+  nothing about how a filter came into being. Unlike `01-non-ai-filter`, this module needs no per-column
+  filter fields — filtering is the one AI `TextField` above — and it keeps the shared grid's backend sort
+  configuration unchanged.
 
 Both agents implement the same `CustomerSearchAgent` interface, so they are interchangeable from the
 view's point of view. Because there are two implementations, each view injects its own by **bean name**
@@ -42,18 +46,15 @@ view's point of view. Because there are two implementations, each view injects i
 
 ```
 ai/
-├── CustomerSearchAgent.java            (public interface — the views' only dependency, the testability seam)
-├── TokenUsageRecorder.java             (@Component — per-request token usage and duration)
 ├── flat/                             ← variant 02(a)
-│   ├── FlatToolCallingService.java   (@Service("flatSearchAgent") @Scope("prototype") — ChatClient, system prompt, the @Tool method + the date tool)
-│   ├── FlatCriteria.java             (public record — one scalar value per field)
-│   └── FlatSpecifications.java       (public final utility — AND-across-fields -> Specification<Customer>)
+│   ├── CustomerSearchService.java    (@Service("flatSearchAgent") @Scope("prototype") — ChatClient, system prompt, the @Tool method + the date tool)
+│   ├── CustomerCriteria.java         (public record — one scalar value per field)
+│   └── CustomerSpecifications.java   (public final utility — AND-across-fields -> Specification<Customer>)
 └── operator/                           ← variant 02(b)
-    ├── OperatorToolCallingService.java (@Service("operatorSearchAgent") @Scope("prototype") — 39 flat @ToolParams + the date tool)
-    ├── Operator.java                   (public enum — CONTAINS, EQUALS, GREATER_OR_EQUAL, LESS_OR_EQUAL, STARTS_WITH, ENDS_WITH)
-    ├── FieldCriterion.java             (public record — one field's value + operator + negate)
-    ├── OperatorCriteria.java           (public record — one FieldCriterion per field)
-    └── OperatorSpecifications.java     (public final utility — operator-driven predicates, negate via cb.not)
+    ├── CustomerSearchService.java     (@Service("operatorSearchAgent") @Scope("prototype") — 39 flat @ToolParams + the date tool)
+    ├── FieldCriterion.java            (public record — one field's value + operator + negate, with the nested Operator enum)
+    ├── CustomerCriteria.java          (public record — one FieldCriterion per field)
+    └── CustomerSpecifications.java    (public final utility — operator-driven predicates, negate via cb.not)
 ```
 
 Both services are `@Scope("prototype")`, not the default singleton — because the views aren't singletons
@@ -70,8 +71,8 @@ model, ...) it falls back to an unrestricted specification, so the UI never brea
 ### Variant 02(a) — one scalar value per field
 
 The simplest tool call that can still filter: `searchCustomers(companyName, contactName, …, annualRevenue)`,
-one scalar parameter per field, no `List` anywhere, no second tool. Because `FlatCriteria` carries no
-operator, every field's meaning is hard-wired in `FlatSpecifications`:
+one scalar parameter per field, no `List` anywhere, no second tool. Because `CustomerCriteria` carries no
+operator, every field's meaning is hard-wired in `CustomerSpecifications`:
 
 - text fields — case-insensitive substring match,
 - `customerSince` / `lastOrderDate` — the **whole calendar year** the given date falls in,
@@ -122,7 +123,7 @@ trade-off between the two ways of getting a value the model cannot know at promp
 
 For 02(a), the tool only fixes *which* date value the model fills in (no more guessing "today" from
 training data or context) — it does not lift the whole-year/minimum-only semantics baked into
-`FlatSpecifications`. A range query like "in the last 12 months" still needs a genuine `>=`/`<=` pair
+`CustomerSpecifications`. A range query like "in the last 12 months" still needs a genuine `>=`/`<=` pair
 the per-field scalar shape cannot hold, so it stays out of reach for 02(a) regardless of the date
 tool; a single-year query like "customers since this year" is exactly the shape 02(a) can express, and
 now resolves reliably instead of by chance.
@@ -176,7 +177,7 @@ block per tool call; a non-reasoning model like `llama3.1:8b` ignores the flag a
 ## Tests
 
 ```bash
-./mvnw -pl 02-ai-agent-filter test                                                # unit tests + both browserless view tests, no LLM
+./mvnw -pl 02-ai-agent-filter test                                                # unit tests only, no LLM, no UI
 ./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama                            # both variants' ITs vs native Ollama (ollama is the default test profile)
 ./mvnw -pl 02-ai-agent-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API
 ```
@@ -191,48 +192,44 @@ the test config overrides it to `ollama`.
 
 Without an LLM (`test`), per variant:
 
-- **`CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring) — fails the build if either variant's
-  canonical-query IT, or the benchmark script, stops matching `docs/canonical-query-set.md` verbatim, in
-  wording or order.
-- **`FlatSpecificationsTest` / `OperatorSpecificationsTest`** (`@DataJpaTest`) — the filter
-  translation against the seeded H2 data: one test per field group, AND-across-fields, and
-  null-matches-all. Each also **asserts the variant's ceiling** (02(a): a date is always a whole year,
-  revenue is always a minimum; 02(b): one operator per field means no range), so the limits are pinned
-  down by tests rather than only described in prose.
-- **`FlatToolCallingServiceToolsTest` / `OperatorToolCallingServiceToolsTest`** (plain JUnit, no
-  Spring context) — the extraction plumbing in isolation: arguments must land verbatim in the criteria
-  record, a missing operator must default to `CONTAINS`, a field without a value must stay unset, and
-  both variants' date tool must return the current time.
-- **`FlatCustomerListViewBrowserlessTest` / `OperatorCustomerListViewBrowserlessTest`** — [Vaadin
-  Browserless testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake,
-  deterministic `CustomerSearchAgent` bean, so they never call a real model. Since the view applies
-  results asynchronously (`CompletableFuture` + `ui.access(...)`), assertions after a non-blank query use
-  `MockVaadin.runUIQueue()` (to flush the queued `ui.access()` command) inside an Awaitility
-  `pollInSameThread()` loop (so the flush runs on the thread holding the UI `ThreadLocal`) — needed
-  because a plain synchronous assertion races the background search thread.
+- **`CustomerSearchServiceToolsTest`** (one per variant, `ai/flat` and `ai/operator`) (plain JUnit, no Spring, no LLM) — the one tool-calling failure
+  mode this repository has observed and mitigated: a `void` tool is answered with a bare "Done", which a
+  model can read as "nothing happened" and call again with no arguments. The guard must keep what the
+  first call extracted. Nothing else about the tool is tested — asserting that arguments land in a record
+  was plumbing.
 
 Against a real model (`verify -Pit-local-ollama`):
 
-- **`FlatCanonicalQueryIT` / `OperatorCanonicalQueryIT`** — the eight queries of
-  `docs/canonical-query-set.md`, each scored on the **resulting customer set**: the variant's
-  `Specification` is executed against the seeded database and the matching customer ids are compared with
-  those of a reference predicate. Queries the variant cannot express are marked `FAILS_BY_DESIGN` and
-  asserted to produce a *different* set — so 02(a)'s two reachable categories and 02(b)'s five are pinned
-  down by tests, and an accidental pass fails the build instead of going unnoticed. `03-ai-structured-filter`
-  and `04-ai-hybrid-filter` run the identical queries, which is what makes the capability matrix a
-  measurement.
-- **`FlatCustomerListViewBrowserlessIT` / `OperatorCustomerListViewBrowserlessIT`** — the same
-  Browserless setup, but against a real native Ollama instance instead of a fake agent bean (they fail
-  rather than skipping if unreachable), exercising the full `TextField` → tool-calling AI layer → `Grid`
-  pipeline end to end. Since the real model's result size isn't known upfront, the wait condition is
-  "the filter field is re-enabled" (it's disabled for the duration of a search) rather than a fixed grid
-  size. Each IT only asks what its variant can express; 02(b)'s adds a negation and a STARTS_WITH case.
+- **`FlatCustomerSearchIT` / `OperatorCustomerSearchIT`** — both query sets through the variant's service, one test
+  method each. `canonicalQuery` runs the eight queries of `docs/canonical-query-set.md`, each scored on the
+  **resulting customer set**: the variant's `Specification` is executed against the seeded database and the
+  matching customer ids are compared with those of a reference predicate. Queries the variant cannot express
+  are marked `NO_MATCH_BY_DESIGN` and asserted to produce a *different* set — so 02(a)'s two reachable
+  categories and 02(b)'s five are pinned down by tests, and an accidental pass fails the build instead of
+  going unnoticed. `03-ai-structured-filter` and `04-ai-hybrid-filter` run the identical queries, which is
+  what makes the capability matrix a measurement.
+  `robustnessQuery` runs the five cases the canonical set does not probe: small talk, an unrelated
+  question, "show me all customers" and an explicit reset must each leave the grid *unfiltered* rather than
+  produce a hallucinated condition, plus one German query. None of them needs a filter type, so both
+  variants must pass all five and there is no `ExpectedResult` for them.
+- **`FlatCustomerListViewBrowserlessIT` / `OperatorCustomerListViewBrowserlessIT`** — the same eight
+  queries and the same expectations, but through the UI and against a real native Ollama instance
+  instead of a fake agent bean (they fail rather than skipping if unreachable), exercising the full
+  `TextField` → tool-calling AI layer → `Grid` pipeline end to end. Since the real model's result size
+  isn't known upfront, the wait condition is "the filter field is re-enabled" (it's disabled for the
+  duration of a search) rather than a fixed grid size. Because the pair runs identical input, the only
+  variable left between them is the view layer.
+Both IT kinds extend a base class from `demo-commons`' test-jar and share the query sets with the
+other AI modules, so what a module's ITs contain is one line: which agent or view to ask, and which
+queries its filter type can express.
+
 
 ## Sources
 
-- `src/main/java/dev/demo/vaadin/aigridfilter/ui/` — the two variant views, their shared base class,
-  and the grid (columns, sort, responsive layout)
+- `src/main/java/dev/demo/vaadin/aigridfilter/ui/` — the two variant views and their shared base class
+  (the variant switcher and description; the filter field, grid and async search are inherited from
+  `demo-commons`)
 - `src/main/java/dev/demo/vaadin/aigridfilter/ai/` — the AI layer, one package per variant (see above)
-- `src/main/java/dev/demo/vaadin/aigridfilter/data/` — the shared `Customer`/`Address` JPA model
-- `src/main/resources/data.sql` — seed data (100 customers)
+- `../demo-commons/` — the `Customer`/`Address` JPA model, `data.sql`, `CustomerGrid` and
+  `AbstractCustomerSearchView`, shared by all four apps
 - `src/test/java/dev/demo/vaadin/aigridfilter/` — tests (see [Tests](#tests) above)

@@ -27,4 +27,17 @@ public record FieldCriterion<T>(T value, Operator operator, boolean negate) {
         return new FieldCriterion<>(value, operator == null ? Operator.CONTAINS : operator,
                 Boolean.TRUE.equals(negate));
     }
+
+    /**
+     * How variant 02(b) compares a field with the single value given for it. Negation is not an operator
+     * — that is {@link #negate()}.
+     * <p>
+     * The same six values as {@code 03-ai-structured-filter}'s and {@code 04-ai-hybrid-filter}'s
+     * {@code Condition.Operator}, deliberately kept as separate copies: what the talk compares is not the
+     * operator vocabulary but where an operator sits — here one flat tool parameter per field, there one
+     * per condition in a condition list.
+     */
+    public enum Operator {
+        CONTAINS, EQUALS, GREATER_OR_EQUAL, LESS_OR_EQUAL, STARTS_WITH, ENDS_WITH
+    }
 }

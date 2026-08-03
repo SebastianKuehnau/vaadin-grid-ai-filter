@@ -17,22 +17,24 @@ also with the non-AI baselines in `01-non-ai-filter`; the root `README.md` has t
   query (and blurring/pressing enter) sends it to the AI layer; a blank query resets to all rows.
   The view has zero Spring AI imports — it only knows `CustomerSearchAgent` and applies the
   `Specification` it returns.
+- **`AbstractCustomerSearchView`** (in **`demo-commons`**) — the filter field, the async search
+  (`CompletableFuture` + `ui.access(...)`) and the error notification, shared with `02` and `04`. This
+  module's view is a heading on top of it, which is the point: nothing up here reveals that the model
+  returned an object rather than calling a tool.
 - **`CustomerGrid`** — the `Grid<Customer>` itself (column config, backend sort configuration, and
-  responsive show/hide), extracted out of the view. Unlike `01-non-ai-filter`'s
-  `CustomerGrid`/`FilterableCustomerGrid` split, this module has a single fixed sort strategy and no
-  per-column filter fields (filtering is the one AI `TextField` above), so sort config lives inside
-  `CustomerGrid` rather than being applied by the view afterward.
+  responsive show/hide). It lives in **`demo-commons`**: all four apps show the same grid, and it says
+  nothing about how a filter came into being. Unlike `01-non-ai-filter`, this module needs no per-column
+  filter fields — filtering is the one AI `TextField` above — and it keeps the shared grid's backend sort
+  configuration unchanged.
 
 ## AI layer (`ai` / `ai/filter`)
 
 ```
 ai/
-├── CustomerSearchAgent.java                    (public interface — the view's only dependency, the testability seam)
-├── CustomerSearchStructuredOutputService.java  (@Service — ChatClient, system prompt, structured-output call)
+├── CustomerSearchService.java            (@Service — ChatClient, system prompt, structured-output call)
 └── filter/
     ├── CustomerFilter.java                (public record — a flat list of conditions, ALL combined with AND)
-    ├── Condition.java                     (public record — one field/operator/values/negate condition)
-    ├── Operator.java                      (enum — CONTAINS, EQUALS, GREATER_OR_EQUAL, ...)
+    ├── Condition.java                     (public record — one field/operator/values/negate condition, with the nested Operator enum)
     └── CustomerFilterSpecifications.java  (public final utility — flat conditions -> Specification<Customer>)
 ```
 
@@ -128,8 +130,8 @@ block per call; a non-reasoning model like `llama3.1:8b` ignores the flag anyway
 ## Tests
 
 ```bash
-./mvnw -pl 03-ai-structured-filter test                        # unit tests + CustomerListViewBrowserlessTest, no LLM
-./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama                            # CanonicalQueryIT + CustomerSearchAgentIT(+Extra) + CustomerListViewBrowserlessIT vs native Ollama (ollama is the default test profile)
+./mvnw -pl 03-ai-structured-filter test                        # unit tests only, no LLM, no UI
+./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama                            # StructuredCustomerSearchIT + CustomerListViewBrowserlessIT vs native Ollama (ollama is the default test profile)
 ./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API
 ```
 
@@ -141,65 +143,49 @@ environment variable, respecting `OPENAI_API_KEY` the same as the app itself) to
 test classes against the real OpenAI API instead. The app's *own* default profile is `openai`; only
 the test config overrides it to `ollama`.
 
-> **Note:** the configured default model, `qwen3:8b`, handles queries that stack three-plus
-> conditions together with the bare-year date-range rule (see below) correctly. A weaker model such
-> as `llama3.1:8b` is occasionally unreliable on them — it sometimes drops one bound of a date
-> range. This is a model-capability gap, not a bug in the prompt/schema; keep the configured default
-> (or swap the model in `application-ollama.properties`) if you hit it during a demo.
+> **Note:** structured output is the most model-tolerant of the four approaches, which a 10-run
+> benchmark over four models makes concrete: **every** model passed all eight canonical queries here,
+> including `llama3.1:8b`, which cannot deliver the very same `CustomerFilter` through 04's tool call
+> at all. The only weak spot left is one legacy case that stacks a negation, a revenue floor and a
+> bare-year date range: `llama3.1:8b` gets it wrong 10/10 there (it reads "last ordered in 2024" as an
+> open-ended lower bound and drops the upper one), while the other three models get it right 10/10.
+> That is a model-capability gap, not a bug in the prompt or schema. See
+> [`docs/capability-matrix.md` § Reliability across models](../docs/capability-matrix.md#reliability-across-models).
 
-- **`CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the build if this
-  module's `StructuredCanonicalQueryIT` or the benchmark script stops matching `docs/canonical-query-set.md`
-  verbatim, in wording or order.
-- **`CustomerFilterSpecificationsTest`** (`@DataJpaTest`, no LLM) — deterministic test of the flat
-  translation against the seeded H2 data. `04-ai-hybrid-filter` runs a 1:1 copy of it against its copy of
-  the same translation logic, so a divergence between the two modules can only come from the delivery
-  mechanism.
-- **`CustomerFilterSpecificationsExtraTest`** (`@DataJpaTest`, no LLM) — negation
-  (`Condition.negate()`), split out of the class above.
-- **`StructuredCanonicalQueryIT`** — the eight queries of `docs/canonical-query-set.md`, each scored on the
+- **`StructuredCustomerSearchIT`** — both query sets through the service, one test method each.
+  `canonicalQuery` runs the eight queries of `docs/canonical-query-set.md`, each scored on the
   **resulting customer set**: the returned `Specification` is executed against the seeded database and the
   matching ids are compared with those of a reference predicate. All eight are expected to pass here;
   `02-ai-agent-filter`'s two variants and `04-ai-hybrid-filter` run the identical queries, which is what
   makes the capability matrix a measurement rather than a claim.
-- **`CustomerSearchAgentIT`** — natural-language queries against a native Ollama instance.
-  Assertions are tolerant of LLM non-determinism: they check that an expected condition is
-  present *somewhere* in the flat conditions list, ignoring extras. Every case here uses the
-  exact same wording/values it had when `02-ai-agent-filter` still used one list-based tool call, and it
-  stays as this module's broader prompt-regression net alongside the canonical set. Run it alone with
-  `-Dit.test=CustomerSearchAgentIT`.
-- **`CustomerSearchAgentExtraIT`** — the cases that need a capability `02-ai-agent-filter`'s per-field
-  criteria cannot express at all: negation, STARTS_WITH/ENDS_WITH/EQUALS operator precision, and
-  arbitrary date bounds (tagged `negation`/`operator-precision`/`relative-date` respectively). 02(b) has
-  since gained negation and operator precision — but still not multi-value OR or ranges, so most of these
-  remain 03/04-only.
-  Cross-field OR and arbitrary nesting are no longer part of `CustomerFilter` either, so the cases
-  that used to need them (tagged `cross-field-or`/`nested-tree`) were removed rather than moved
-  here — a deliberate trade-off for faster/more reliable structured output, not an oversight.
-- **`CustomerListViewBrowserlessTest`** — [Vaadin Browserless
-  testing](https://vaadin.com/docs/latest/flow/testing/browserless) with a fake, deterministic
-  `CustomerSearchAgent` bean, so it never calls a real model. Since the view applies results
-  asynchronously (`CompletableFuture` + `ui.access(...)`), assertions after a non-blank query use
-  `MockVaadin.runUIQueue()` (to flush the queued `ui.access()` command) inside an Awaitility
-  `pollInSameThread()` loop (so the flush runs on the thread holding the UI `ThreadLocal`) —
-  needed because a plain synchronous assertion races the background search thread. Includes the
-  same multi-value OR-within-field case as `04-ai-hybrid-filter`'s equivalent test — a query neither
-  02 variant can express at all.
+  `robustnessQuery` runs the opposite direction, which the canonical set does not probe: small talk,
+  an unrelated question, "show me all customers" and an explicit reset must each leave the grid
+  *unfiltered* rather than produce a hallucinated condition, and one German query must filter the same as
+  its English equivalent. Expectations are computed from the seeded data, not hard-coded. None of the five
+  needs a filter type, so there is no `ExpectedResult` for them and 02's two variants and 04 must all pass
+  them too.
 - **`CustomerListViewBrowserlessIT`** — same Browserless setup, but against a real native Ollama
   instance instead of a fake agent bean (it fails rather than skipping if unreachable, like
-  `CustomerSearchAgentIT`), exercising the full `TextField` → structured-output AI layer → `Grid`
+  `StructuredCustomerSearchIT`), exercising the full `TextField` → structured-output AI layer → `Grid`
   pipeline end to end. Since the real model's result size isn't known upfront, the wait condition
   is "the filter field is re-enabled" (it's disabled for the duration of a search) rather than a
-  fixed grid size. `04-ai-hybrid-filter` has an identical test with the same 7 queries, so the two
-  modules' `-Pit-local-ollama` runs are directly comparable on speed (per-test elapsed time in
-  `target/failsafe-reports/`) and result quality between structured output and tool calling.
+  fixed grid size. It runs the same eight queries with the same expectations as
+  `StructuredCustomerSearchIT`, so the only variable between the two is the view layer — and every other
+  AI module runs the same eight through its UI as well, which makes the `-Pit-local-ollama` runs directly
+  comparable on speed (per-test elapsed time in `target/failsafe-reports/`) and result quality.
+
+Both IT kinds extend a base class from `demo-commons`' test-jar and share the query sets with the
+other AI modules, so what a module's ITs contain is one line: which agent or view to ask, and which
+queries its filter type can express.
+
 
 ## Sources
 
-- `src/main/java/dev/demo/vaadin/aigridfilter/ui/CustomerListView.java` — the view
-- `src/main/java/dev/demo/vaadin/aigridfilter/ui/CustomerGrid.java` — the grid (columns, sort, responsive layout)
+- `src/main/java/dev/demo/vaadin/aigridfilter/ui/CustomerListView.java` — the view: a heading on top of
+  the shared `AbstractCustomerSearchView`
 - `src/main/java/dev/demo/vaadin/aigridfilter/ai/` — the AI layer (see above)
-- `src/main/java/dev/demo/vaadin/aigridfilter/data/` — the shared `Customer`/`Address` JPA model
-- `src/main/resources/data.sql` — seed data (100 customers)
+- `../demo-commons/` — the `Customer`/`Address` JPA model, `data.sql`, `CustomerGrid` and
+  `AbstractCustomerSearchView`, shared by all four apps
 - `src/test/java/dev/demo/vaadin/aigridfilter/` — tests (see [Tests](#tests) above)
 - `../ollama-benchmark/` — standalone benchmark script comparing local Ollama models on this
   module's natural-language-to-filter task

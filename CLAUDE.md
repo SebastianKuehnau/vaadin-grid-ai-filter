@@ -11,11 +11,12 @@ Top priority for all code: **easy to understand, presentable, extensible** — c
 | `02-ai-agent-filter` | 8082 | AI filtering via tool calling, in two variants behind two routes of one app: 02(a) one scalar value per field (`/`), 02(b) value + operator + negate per field (`/operator`) |
 | `03-ai-structured-filter` | 8083 | AI filtering via structured output (`CustomerFilter` → JPA Specifications), against local Ollama models |
 | `04-ai-hybrid-filter` | 8084 | AI filtering via tool calling with 03's `List<Condition>` filter type, copied 1:1 — same capability, different delivery |
-| `canonical-query-testkit` | — | Shared **test** infrastructure: the canonical query set, the customer sets each query must produce, and the assert/log step the canonical-query ITs run. No numeric prefix — not a step of the talk |
+| `demo-commons` | — | Shared **runtime** infrastructure: the domain layer (`Customer`, `Address`, `CreditRating`, `CustomerRepository`, `data.sql`), the shared Vaadin components (`CustomerGrid`, `AbstractCustomerSearchView`) and the AI layer's seam plus token measurement (`CustomerSearchAgent`, `TokenUsageAdvisor`). No numeric prefix — not a step of the talk. See `demo-commons/README.md` for the rule on what must never move there |
 
-Each of the four numbered modules above is a standalone Spring Boot app (`<ModuleName>Application`)
-with its own `data.sql`. For a module's architecture details, see `<module>/README.md` — do **not**
-duplicate them here.
+Each of the four numbered modules above is a standalone Spring Boot app (`<ModuleName>Application`).
+The single `data.sql` lives in `demo-commons` and is picked up from the jar (Boot's default
+`optional:classpath*:data.sql`) — there must never be a second copy, or the data is seeded twice.
+For a module's architecture details, see `<module>/README.md` — do **not** duplicate them here.
 
 `ollama-benchmark` is **not** a Maven module (no `pom.xml`, not in the root `<modules>` list):
 it's a standalone, dependency-free script benchmarking local Ollama models against all four AI
@@ -28,12 +29,20 @@ The eight natural-language queries all AI modules are measured with live in
 
 ```bash
 ./mvnw verify -pl <module> -am             # build + all tests of one module
+./mvnw install -DskipTests                 # once, before the first spring-boot:run (see below)
 ./mvnw spring-boot:run -pl <module>        # start the app (on that module's port, see the table above)
 ./mvnw test -pl <module> -am -Dtest=<Class># run a single test class
 ```
 
-`-am` (also-make) is needed for `02`/`03`/`04`: they depend on `canonical-query-testkit`, which
+`-am` (also-make) is needed for **all four** apps: every one of them depends on `demo-commons`, which
 Maven has to build first. Without it a `-pl` build fails to resolve that dependency.
+
+`spring-boot:run` cannot use `-am` (it would try to run `demo-commons` too) and resolves dependencies
+from `~/.m2`, so `demo-commons` has to be installed once — `./mvnw install -DskipTests` — and again after
+every change to it. With a running app, `./mvnw install -pl demo-commons -DskipTests` is enough: each app
+watches `../demo-commons/target/classes` (`spring.devtools.restart.additional-paths`), so devtools
+restarts it and picks up the new jar. Use `install`, not `compile` — `compile` fires the trigger but
+leaves the jar the app loads untouched.
 
 AI provider is selected via Spring profiles: `openai` (default) or `ollama` (expects Ollama at
 `OLLAMA_BASE_URL`; inside the dev container this is `http://host.docker.internal:11434`).
@@ -46,16 +55,15 @@ A task is only finished when:
 2. For UI changes: the app has been started and the change verified via a Playwright screenshot
    (save screenshots to `~/screenshots/`).
 3. For changes to filter/AI logic: the affected module's IT classes pass, run via `-Pit-local-ollama`
-   (against a native Ollama instance) — the canonical-query IT (`FlatCanonicalQueryIT` and
-   `OperatorCanonicalQueryIT` in 02, `StructuredCanonicalQueryIT` in 03, `HybridCanonicalQueryIT`
-   in 04), plus the module's browserless IT for UI→AI changes. 03 additionally has
-   `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`.
+   (against a native Ollama instance). Every AI module runs two kinds, both extending a shared base
+   in `demo-commons`' test-jar: the `*CustomerSearchIT` (through the service — the eight canonical queries
+   and the five robustness cases, one test method each) and the browserless IT (the same eight
+   through the UI). 02 has one of each per variant, so four.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
-   `canonical-query-testkit`'s `CanonicalQuery` enum and into
-   `ollama-benchmark/BenchmarkLocalModels.java` — verbatim in both copies. The testkit's
-   `CanonicalQuerySetConsistencyTest` fails the build if they drift apart. Each module's IT then has
-   to say what the new query means for its variant: the per-module `outcomeOf` is an exhaustive
-   `switch`, so all four stop compiling until that decision is made.
+   `demo-commons`' `CanonicalQuery` enum and into `ollama-benchmark/BenchmarkLocalModels.java` —
+   verbatim in both copies, kept in sync by hand. Each variant then has to say what the new query
+   means for it: its `expectedResultFor` method is an exhaustive `switch`, in both of its ITs, so all
+   of them stop compiling until that decision is made — `MATCH` or `NO_MATCH_BY_DESIGN`.
 
 Points 1–3 apply before **every** commit, not only at the end of the task.
 Iterate on your own until all points are met before reporting the task as done.
@@ -73,14 +81,19 @@ or file changes on your own initiative.
 - UI texts and code comments in English.
 - Changes affecting multiple modules must be applied consistently in **all** affected modules
   (01 → 02(a) → 02(b) → 03 → 04 increase in expressiveness; same domain, different filtering
-  mechanism — the domain and runtime classes are duplicated per module on purpose, so each step can
-  be read on its own).
-- **One exception to that duplication:** `canonical-query-testkit`, consumed by 02/03/04 as a
-  test-scope dependency. It owns the canonical queries, their expected customer sets and the
-  assert/log step — five identical copies of eight query strings had become a drift risk with no
-  teaching value. The exception covers **test infrastructure only**; do not move domain, view or AI
-  code there. What each variant can express stays in its own IT, because that is the comparison the
-  talk is about.
+  mechanism — everything that *is* the comparison stays duplicated per module on purpose, so each
+  step can be read on its own).
+- **One exception to that duplication:** `demo-commons`, a compile dependency of all four apps. It
+  owns the domain layer, the shared Vaadin components, the `CustomerSearchAgent` seam and the token
+  measurement. **Never** the AI services, the `Criteria`/`Condition`/`Specifications` types, the
+  `SYSTEM_PROMPT`s, the tool signatures or any `@Route` view. The rule when in doubt: if a reader of
+  the talk would need to see it on a slide to understand the difference between two approaches, it
+  stays in its module. See `demo-commons/README.md`.
+- The test layer is the second exception, and it is shared through `demo-commons`' **test-jar**
+  (`<type>test-jar</type><scope>test</scope>`), never through `src/main` — otherwise JUnit and
+  browserless would land in all four apps' runtime classpath. It owns the query sets, the two abstract
+  ITs and the `TokenUsageExtension` that measures them. What stays per module is the one thing that
+  differs: an `expectedResultFor` method saying which queries that variant's filter type can express.
 - CSS belongs in theme files, not inline in Java components.
 - Commit after every completed, verified step (Conventional Commits, no push).
 - Never commit benchmark reports, logs, or other generated artifacts unless the

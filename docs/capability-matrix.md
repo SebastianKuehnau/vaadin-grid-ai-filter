@@ -7,10 +7,10 @@ modules' integration-test suites and the `ollama-benchmark` harness. Companion t
 
 - **02(a) = `02-ai-agent-filter`, flat variant** — tool calling; the LLM calls
   `@Tool searchCustomers(...)` with **13** parameters, one scalar value per field →
-  `FlatCriteria` → `FlatSpecifications`. No operator, no negation.
+  `CustomerCriteria` → `CustomerSpecifications`. No operator, no negation.
 - **02(b) = `02-ai-agent-filter`, operator variant** — tool calling; the same tool with **39**
-  parameters, a value + `Operator` + `negate` per field → `OperatorCriteria` →
-  `OperatorSpecifications`.
+  parameters, a value + `Operator` + `negate` per field → `CustomerCriteria` →
+  `CustomerSpecifications`.
 - **03 = `03-ai-structured-filter`** — structured output; the LLM returns one `CustomerFilter`
   (a flat `List<Condition>`, each `field / operator / values / negate`) → `CustomerFilterSpecifications`.
 - **04 = `04-ai-hybrid-filter`** — tool calling; the LLM calls
@@ -25,9 +25,9 @@ Configured default model for all four modules: `qwen3:8b`, temperature 0
 
 ## The canonical query set — measured on the resulting customer set
 
-These are the eight queries of [canonical-query-set.md](canonical-query-set.md), run by every module's
-canonical-query IT with **identical wording** (a per-module `CanonicalQuerySetConsistencyTest` fails the
-build if any copy drifts). Each case is scored on the *resulting customer set*: the returned
+These are the eight queries of [canonical-query-set.md](canonical-query-set.md), run by every module
+from the shared `CanonicalQuery` enum — through the service *and* through the UI, so the wording is
+**identical** by construction. Each case is scored on the *resulting customer set*: the returned
 `Specification` is executed against the seeded database and the matching customer ids are compared with
 those of a reference predicate — not on whether the extracted filter "looks right".
 
@@ -43,8 +43,9 @@ those of a reference predicate — not on whether the extracted filter "looks ri
 | Date range — "between 2024-07-01 and 2025-03-31" (`C8_DATE_RANGE`) | ❌ | ❌ | ✅ | ✅ | 4 |
 | **Categories reached** | **2 / 8** | **5 / 8** | **8 / 8** | **8 / 8** | |
 
-Evidence: `FlatCanonicalQueryIT`, `OperatorCanonicalQueryIT` (both in `02-ai-agent-filter`) and
-`StructuredCanonicalQueryIT` (in `03-ai-structured-filter` and `04-ai-hybrid-filter`). The ❌ cells are not skipped
+Evidence: `FlatCustomerSearchIT`, `OperatorCustomerSearchIT` (both in `02-ai-agent-filter`) and
+`StructuredCustomerSearchIT` (in `03-ai-structured-filter`) and `HybridCustomerSearchIT` (in
+`04-ai-hybrid-filter`). The ❌ cells are not skipped
 — they run, and the IT asserts that the resulting set *differs* from the expected one, so a ceiling is a
 recorded, non-erroring failure. If such a case ever matched, the test would fail loudly.
 
@@ -65,27 +66,40 @@ behind "the delivery mechanism does not change what a filter can express".
 
 ## Token cost and latency of the same eight queries
 
-Measured by the `TokenUsageRecorder` on the real application path (the same bean the app uses), over
-**three consecutive `-Pit-local-ollama` runs** on `qwen3:8b`, averaged over all eight canonical queries —
-so every row answers the identical questions. Token counts were identical in all three runs (temperature
-0 makes each prompt deterministic); the duration column is the median of the three:
+Measured by the `TokenUsageAdvisor` on the real application path (the same bean the app uses), over
+**three consecutive `-Pit-local-ollama` runs** on `qwen3:8b`, over all eight canonical queries. Token
+counts were identical in all three runs except 02(a)'s completion tokens (535 twice, 575 once — the model
+varies how much it writes after the tool call); every other figure is the median of the three.
 
-| Approach | Tool/schema shape | Tokens/request | prompt | completion | Duration/request |
-|---|---|---|---|---|---|
-| 02(a) flat | 13 flat parameters | **1154** | 1120 | 34 | 2856 ms |
-| 02(b) value+operator+negate | 39 flat parameters | **3248** | 3154 | 94 | 6071 ms |
-| 03 structured output | `CustomerFilter` response schema | **2307** | 2243 | 64 | 4089 ms |
-| 04 hybrid | 1 `List<Condition>` parameter | **2358** | 2288 | 70 | 5128 ms |
+**Read the two right-hand columns first, because they answer different questions.** A tool-calling query
+is not one model call: the model calls the tool, Java answers it, and the model is asked again — and each
+of those calls bills its own prompt. So *per model call* the four approaches differ only by their schema
+size, while *per query* the delivery mechanism shows its price.
 
-Two things this table says that the capability columns cannot:
+| Approach | Tool/schema shape | Calls per query | Tokens/call | prompt | completion | **Tokens/query** | Duration/query |
+|---|---|---|---|---|---|---|---|
+| 02(a) flat | 13 flat parameters | 2.5 | 1341 | 1314 | 27 | **3353** | 2970 ms |
+| 02(b) value+operator+negate | 39 flat parameters | 2.5 | 3648 | 3608 | 40 | **9120** | 4395 ms |
+| 03 structured output | `CustomerFilter` response schema | 1 | 2306 | 2243 | 64 | **2306** | 4087 ms |
+| 04 hybrid | 1 `List<Condition>` parameter | 2 | 2296 | 2254 | 42 | **4593** | 3694 ms |
 
-- **03 and 04 cost nearly the same** — 2243 vs 2288 prompt tokens/request (**+2.0 %**), 2307 vs 2358 in
-  total (+2.2 %). The same filter type costs the same order of tokens whether Spring AI sends it as a
-  response-format schema or as a tool-parameter schema; delivery is close to token-neutral, and the small
-  remainder is prompt wording, not mechanism.
-- **02(b) costs more than 03/04 and reaches fewer categories** — 3248 tokens for 5 of 8, against 2358 for
-  8 of 8. Per-field operator plumbing is not a cheap shortcut to expressiveness; it is the expensive way
-  to get less of it.
+Three things this table says that the capability columns cannot:
+
+- **The filter type is token-neutral across delivery mechanisms — per call.** 03 and 04 share the filter
+  type and cost 2243 vs 2254 prompt tokens per call (**+0.5 %**). Whether Spring AI sends that type as a
+  response-format schema or as a tool-parameter schema makes no measurable difference.
+- **The delivery mechanism is not free — per query.** The same filter type costs 2306 tokens as structured
+  output and **4593 as a tool call**, almost exactly double, because the second round trip resends the
+  whole conversation to collect an answer the filter no longer needs. That is the honest price of "the
+  model can act", and it is invisible if you only look at per-call figures.
+- **02(b) costs four times 03 and reaches fewer categories** — 9120 tokens per query for 5 of 8, against
+  2306 for 8 of 8. Per-field operator plumbing is not a cheap shortcut to expressiveness; it is the
+  expensive way to get less of it.
+
+`Calls per query` is not a constant of the approach but of the model's behaviour: 02(a) and 02(b) average
+2.5 because a relative-date query chains `currentLocalDateTime()` first, and 04's 2 is the tool call plus
+the epilogue that [is measured and documented](tool-calling-vs-structured-output.md) as the one place
+where delivery costs real time.
 
 The per-query breakdown lives in
 [tool-calling-vs-structured-output.md § Token cost and request duration](tool-calling-vs-structured-output.md#token-cost-and-request-duration).
@@ -93,27 +107,75 @@ The per-query breakdown lives in
 ## Reliability across models
 
 Whether an approach *reliably* produces the right filter — as opposed to being able to express it at all
-— is a per-model question, answered by `ollama-benchmark` (`--approach=all --runs=5`), which runs the
-same canonical queries as the ITs plus its own legacy prompt-regression set.
+— is a per-model question, answered by `ollama-benchmark` (`--approach=all`), which runs the same
+canonical queries as the ITs plus its own legacy prompt-regression set.
 
-> **Not yet re-measured for the four-approach setup.** The harness does run all four approaches (verified
-> with `--quick --runs=1` on `qwen3:8b`), but the multi-model reliability table that used to stand here
-> described the two-approach setup that no longer exists, and stale numbers are worse than none.
-> Reproduce with:
->
-> ```bash
-> cd ollama-benchmark
-> java BenchmarkLocalModels.java --approach=all --runs=5 qwen3:8b llama3.1:8b
-> ```
->
-> The report's "Canonical query set" section is the matrix to paste back here: one row per query, one
-> column per approach, with mean pass rate, median latency and median tokens/s per column.
+> **Measured 2026-07-31**, `--approach=all --runs=10` over four models: 44 cases per approach per
+> model, 2 h 57 m wall clock. `Canonical` is the mean over the queries that approach can express, so the
+> columns do not cover the same number of queries — 02(a) is scored on 2 of the 8, 02(b) on 5, 03 and 04
+> on all 8. A 100% in the 02(a) column is therefore a property of that selection, not a quality verdict;
+> its `Legacy` figure, which every approach runs in full, is the comparable one.
 
-What *is* measured, from the recorded IT runs on `qwen3:8b`: every ✅ above passed and every ❌ failed in
-the way the table describes — in **three consecutive runs**, with identical results each time.
+| Model | 02(a) | 02(b) | 03 | 04 |
+|---|---|---|---|---|
+| `qwen3.5:4b-mlx` | 100% · 64% · 790 ms | 60% · 64% · 1034 ms | 100% · 94% · 1031 ms | 100% · 97% · 1409 ms |
+| `qwen3:8b` | 100% · 61% · 951 ms | 80% · 61% · 1252 ms | **100% · 100%** · 1243 ms | **100% · 100%** · 1900 ms |
+| `gemma4:26b-mlx` | 100% · 61% · 929 ms | 80% · 67% · 1107 ms | **100% · 100%** · 1552 ms | 88% · 98% · 1097 ms |
+| `llama3.1:8b` | 100% · 69% · 828 ms | 80% · 64% · 1320 ms | 100% · 97% · 1191 ms | **0% · 11%** · 2101 ms |
 
-When comparing those results with a benchmark report, note that the two harnesses score different things,
-which shows up in exactly two places on the canonical set:
+Each cell reads *canonical · legacy · median latency*. Reproduce with:
+
+```bash
+cd ollama-benchmark
+java BenchmarkLocalModels.java --approach=all --runs=10 qwen3.5:4b-mlx qwen3:8b gemma4:26b-mlx llama3.1:8b
+```
+
+### Delivery mechanism vs. model strength
+
+The `llama3.1:8b` row is the single most useful result in the table. That model returns an **empty filter
+on every query** of 04 — including "show me all customers in Berlin". The only cases it "passes" are the
+ones where empty is the correct answer. Yet the same model, in the same run:
+
+| | Mechanism | Filter type | `llama3.1:8b` |
+|---|---|---|---|
+| 02(b) | tool call, 13 flat scalar parameters | field + operator | 64% |
+| 03 | structured output | `List<Condition>` | **97%** |
+| 04 | tool call, **one `List<Condition>` parameter** | `List<Condition>` | **0%** |
+
+03 and 04 share the filter type, the prompt rules and the baked-in "today" — 04's `systemPrompt(LocalDate)`
+is deliberately identical to 03's. What differs is that 04 asks the model to produce a **nested object
+array as a tool argument**. `llama3.1:8b` cannot; flat tool parameters it handles fine.
+
+So the escalation ladder's last step splits in two: *what* a filter can express is a property of its
+**type**, but whether a given model can deliver that type at all is a property of the **mechanism**.
+Structured output puts the condition list within reach of a model that cannot tool-call it.
+
+`gemma4:26b-mlx` shows the same effect in miniature rather than in full: 03 passes `C7_RELATIVE_DATE`
+10/10, 04 fails it 0/10, same prompt and same date. Counted per query-and-model over the canonical set,
+03 passes 32 of 32 cells and 04 passes 23 of 32 — every one of the nine misses is a tool call that did not
+carry its argument.
+
+### Cost per query, across all models and cases
+
+| Approach | Σ tokens / runs | Canonical reach |
+|---|---|---|
+| 02(a) flat | ~1 330 | 2 of 8 |
+| 03 structured | ~1 860 | 8 of 8, 100% on every model |
+| 04 hybrid | ~2 350 | 8 of 8, 96% excluding `llama3.1:8b` |
+| 02(b) operator | **~3 730** | 5 of 8 |
+
+02(b) is the most expensive approach measured and the weakest of the three expressive ones: 13 tool
+parameters travel in the schema of every round trip. 04 costs ~26% more than 03 for identical results —
+that is the extra round trip, not a worse filter.
+
+### Where the ITs and the benchmark disagree
+
+The ITs are the other source, and they agree with the table on the configured default model: on `qwen3:8b`
+every ✅ in the capability matrix passed and every ❌ failed in the way it describes, in **three
+consecutive runs** with identical results each time.
+
+The two harnesses nevertheless score different things, which shows up in exactly two places on the
+canonical set:
 
 - The ITs score the **resulting customer set**; the benchmark scores the **extracted filter**, and counts a
   field the query did not ask for as a failure even when it changes nothing. In a recorded run 02(b) added
@@ -123,11 +185,17 @@ which shows up in exactly two places on the canonical set:
   `C7_RELATIVE_DATE` — which needs its `currentLocalDateTime()` hop — fails there by construction. The IT,
   running the real Spring AI tool loop, passes it. That is why C7 is ✅ for 02(b) above.
 
+The 10-run report contains two instances of the first kind, worth naming so they are not misread as model
+failures: 02(b) on `qwen3.5:4b-mlx` answered `C5_COMBINED_AND` with `city EQUALS Hamburg` where the
+expectation only allows `CONTAINS`, and 04 on `gemma4:26b-mlx` expressed "exactly 100000" as
+`>= 100000 AND <= 100000` instead of `EQUALS`. Both select the correct rows; both are scored as failures
+by the filter-shaped expectation and pass in the ITs.
+
 ## Where tool calling has an edge, and what it costs
 
 | Query type | 02(a) | 02(b) | 03 | 04 | Evidence |
 |---|---|---|---|---|---|
-| **Relative date via a live clock** ("in the last 12 months") | ❌ | ⚠️ chained `currentLocalDateTime()` — model-dependent | ✅ "today" baked into `systemPrompt(LocalDate)` | ✅ same as 03 | `OperatorCanonicalQueryIT` C7 passes on `qwen3:8b`; a weaker model such as `llama3.1:8b` reliably fails the two-hop chain (see `02-ai-agent-filter/README.md`, "Relative dates need two chained tool calls") |
+| **Relative date via a live clock** ("in the last 12 months") | ❌ | ⚠️ chained `currentLocalDateTime()` — model-dependent | ✅ "today" baked into `systemPrompt(LocalDate)` | ⚠️ same prompt as 03, but model-dependent in practice | `OperatorCustomerSearchIT` C7 passes on `qwen3:8b`; a weaker model such as `llama3.1:8b` reliably fails the two-hop chain (see `02-ai-agent-filter/README.md`, "Relative dates need two chained tool calls"). Across four models the 10-run benchmark gives C7 **40/40 for 03 and 20/40 for 04** — `gemma4:26b-mlx` and `llama3.1:8b` fail it through the tool call while passing it through structured output, on the identical prompt |
 
 02(b) *can* resolve relative dates by chaining `currentLocalDateTime()` and computing an offset. It is a
 genuine capability, but a two-hop one, and it is the only category where the per-field variants have
@@ -149,12 +217,23 @@ Structured output cannot run into any of the three: one response, one filter, no
 ## Older observations, kept for context
 
 These divergences were recorded while the repository still had a single, list-based tool-calling module
-(the predecessor of today's 02(a)/02(b)) and are preserved in
-`03-ai-structured-filter/src/test/java/.../CustomerSearchAgentIT`'s Javadoc. They remain the sharpest
-illustration that *reliability* is model-dependent rather than approach-inherent — on the weaker
-`llama3.1:8b`, structured output echoed a raw phone number instead of E.164, collapsed "2020 or 2021"
-into a single range, and returned no conditions at all for one German query, while that tool-calling
-layer passed all three; in the opposite direction, tool calling hallucinated an unrelated phone number
-for a fuzzy phone query that structured output handled. Those cases live in
-`CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT` (03's and 04's legacy sets), not in the canonical
-set.
+(the predecessor of today's 02(a)/02(b)), on the weaker `llama3.1:8b` — 03's default model at the time;
+it is `qwen3:8b` today. They remain the sharpest illustration that *reliability* is model-dependent
+rather than approach-inherent.
+
+Three cases structured output could not pass reliably (a single `-Pit-local-ollama` run, 100%
+reproducible on retry) while that tool-calling layer passed them every time:
+
+- **German phone number normalized to E.164** — the model echoed the raw, un-normalized phone string
+  instead of the expected E.164 digits.
+- **Multi-value "customer since" years** — "2020 or 2021" came back as a single
+  `[2020-01-01, 2021-12-31]` range instead of two disjoint lower-bound conditions.
+- **Cities plus credit rating, asked in German** — the model returned `conditions=null`.
+
+In the opposite direction, tool calling hallucinated an unrelated phone number for a fuzzy phone query
+that structured output handled.
+
+None of this is part of the canonical query set, and none of it is covered by a test any more: it was
+recorded by 03's pre-canonical `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`, which the canonical
+query set superseded and which have since been removed — see the git history for the original suites.
+The observations are kept here rather than in a Javadoc so they survive the test that produced them.

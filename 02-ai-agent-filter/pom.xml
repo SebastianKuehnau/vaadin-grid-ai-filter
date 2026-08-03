@@ -13,12 +13,17 @@
 
 	<dependencies>
 		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-jpa</artifactId>
+			<!-- The domain layer, CustomerGrid and data.sql, shared by all four apps. This module's
+			     Spring AI and Micrometer dependencies are <optional> there, so the starters below stay
+			     this module's own explicit choice. See demo-commons/README.md for what may never move
+			     into it: the AI service, the filter type, the system prompt, the tool signature. -->
+			<groupId>dev.demo.vaadin</groupId>
+			<artifactId>demo-commons</artifactId>
+			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-actuator</artifactId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>com.vaadin</groupId>
@@ -69,11 +74,12 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<!-- The canonical query set, its expected result sets and the shared IT runner. The only
-			     shared module in this repo: domain and runtime code stays duplicated per module. -->
+			<!-- The shared test foundation: the canonical query set, the robustness set and the abstract
+			     ITs this module's tests extend. Published by demo-commons as a test-jar; see its pom. -->
 			<groupId>dev.demo.vaadin</groupId>
-			<artifactId>canonical-query-testkit</artifactId>
+			<artifactId>demo-commons</artifactId>
 			<version>${project.version}</version>
+			<type>test-jar</type>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
@@ -118,7 +124,7 @@
 
 	<profiles>
 		<profile>
-			<!-- Enables both variants' canonical-query and browserless ITs. The default test
+			<!-- Enables both variants' service-level and browserless ITs. The default test
 			     Spring profile is ollama (src/test/resources/application.properties), targeting a
 			     native Ollama instance at OLLAMA_BASE_URL; pass -DAI_TEST_PROFILE=openai (or set it
 			     as an env var) to target the real OpenAI API instead. Includes are listed one by one
@@ -132,8 +138,8 @@
 						<artifactId>maven-failsafe-plugin</artifactId>
 						<configuration>
 							<includes>
-								<include>**/FlatCanonicalQueryIT.java</include>
-								<include>**/OperatorCanonicalQueryIT.java</include>
+								<include>**/FlatCustomerSearchIT.java</include>
+								<include>**/OperatorCustomerSearchIT.java</include>
 								<include>**/FlatCustomerListViewBrowserlessIT.java</include>
 								<include>**/OperatorCustomerListViewBrowserlessIT.java</include>
 							</includes>

@@ -18,7 +18,6 @@ import com.vaadin.flow.spring.data.VaadinSpringDataHelpers;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
-import dev.demo.vaadin.aigridfilter.ui.InMemoryCustomerListView.CustomerGrid;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -40,9 +39,10 @@ public class LazyCustomerListView extends VerticalLayout {
         add(new H1("Customer Grid – Lazy Filter"));
 
         grid = new FilterableCustomerGrid();
+        // The shared grid already sorts address and creditRating by these properties; annualRevenue is
+        // only marked sortable there, so this view adds the property that makes the backend sort work.
         grid.getColumnByKey("annualRevenue").setSortProperty("annualRevenue");
-        grid.getColumnByKey("address").setSortProperty("address.country", "address.city", "address.postalCode");
-        grid.getColumnByKey("creditRating").setSortProperty("creditScore");
+        grid.getColumnByKey("address").setFlexGrow(2);
 
         customerGridLazyDataView = grid.setItems(gridQuery ->
                         customerRepository.findAll(

@@ -115,9 +115,21 @@ public class BenchmarkLocalModels {
     record NumericExact(String field, BigDecimal value) implements Expectation {
     }
 
-    /** Whether a case belongs to the canonical query set or to the older prompt-regression set. */
+    /**
+     * Which set a case belongs to. Declaration order is the order the report's per-case sections appear
+     * in, and it mirrors the modules' ITs: the canonical set first, then robustness, then the older
+     * prompt-regression set.
+     */
     enum CaseGroup {
-        CANONICAL, LEGACY
+        CANONICAL("Canonical query set"),
+        ROBUSTNESS("Robustness set"),
+        LEGACY("Legacy set");
+
+        final String label;
+
+        CaseGroup(String label) {
+            this.label = label;
+        }
     }
 
     /**
@@ -125,11 +137,17 @@ public class BenchmarkLocalModels {
      * <p>
      * {@link CaseGroup#CANONICAL} cases are the queries of {@code docs/canonical-query-set.md}, the
      * single source of truth shared with all four modules' canonical-query ITs. Their wording here must
-     * stay verbatim — {@code CanonicalQuerySetConsistencyTest} fails the build otherwise — so the token
-     * and latency figures measured here line up query-for-query with those suites' pass/fail results.
+     * stay verbatim, so the token and latency figures measured here line up query-for-query with those
+     * suites' pass/fail results.
      * Each canonical case names the approaches whose filter type can express it at all; for the others it
      * is reported as {@code n/a} rather than as a failure, because an architectural limit is not a
      * reliability problem (the ITs are where those expected failures are asserted).
+     * <p>
+     * {@link CaseGroup#ROBUSTNESS} cases are {@code demo-commons}' {@code RobustnessQuery}, verbatim: input
+     * that asks for <b>no</b> filter, plus one query in a language the system prompt is not written in. No
+     * filter type is involved, so unlike the canonical set there is no {@code n/a} here — every approach
+     * runs all five and is expected to pass them, which makes a failure a reliability finding rather than
+     * an architectural limit.
      * <p>
      * {@link CaseGroup#LEGACY} cases are the older set mirroring {@code 03-ai-structured-filter}'s
      * {@code CustomerSearchAgentIT}/{@code CustomerSearchAgentExtraIT}. They were written for the
@@ -144,11 +162,22 @@ public class BenchmarkLocalModels {
                      Set<Approach> approaches, List<Expectation> expected) {
 
         /**
-         * A canonical query. The first two arguments are read verbatim out of this source by
-         * {@code CanonicalQuerySetConsistencyTest} — keep them literal, never build them from constants.
+         * A canonical query. The first two arguments are the documented name and wording, verbatim —
+         * keep them literal, never build them from constants.
          */
         static EvalCase canonical(String name, String query, Set<Approach> approaches, Expectation... expected) {
             return new EvalCase(name, query, Set.of("canonical"), CaseGroup.CANONICAL, approaches,
+                    List.of(expected));
+        }
+
+        /**
+         * A robustness case, worded verbatim as in {@code demo-commons}' {@code RobustnessQuery}. Run
+         * against every approach, because none of these needs a filter type. An empty expectation list
+         * means "the filter must stay empty" — see {@link #fieldCorrectness}, which requires every field
+         * of {@link #CANONICAL_FIELDS} without an expectation to be absent from the returned filter.
+         */
+        static EvalCase robustness(String name, String query, Expectation... expected) {
+            return new EvalCase(name, query, Set.of("robustness"), CaseGroup.ROBUSTNESS, ALL_APPROACHES,
                     List.of(expected));
         }
 
@@ -195,8 +224,7 @@ public class BenchmarkLocalModels {
 
         // --- the canonical query set: docs/canonical-query-set.md is the single source of truth for
         // every query string below, and the same eight queries drive all four modules' canonical-query
-        // ITs. Keep wording, order and case names in sync with that document — the modules'
-        // CanonicalQuerySetConsistencyTest fails the build on any drift. ---
+        // ITs. Keep wording, order and case names in sync with that document. ---
         cases.add(EvalCase.canonical("C1_SINGLE_VALUE", "show me all customers in Berlin",
                 ALL_APPROACHES,
                 TextExpectation.of("city", "CONTAINS", "berlin")));
@@ -228,6 +256,17 @@ public class BenchmarkLocalModels {
                 CONDITION_LIST_APPROACHES,
                 TextExpectation.of("lastOrderDate", "GREATER_OR_EQUAL", "2024-07-01"),
                 TextExpectation.of("lastOrderDate", "LESS_OR_EQUAL", "2025-03-31")));
+
+        // --- the robustness set: demo-commons' RobustnessQuery, verbatim and in its order. Four of the
+        // five carry no expectation at all, which is how this harness spells "the filter must stay
+        // empty"; the German one must filter exactly as its English equivalent C1 does. Every approach
+        // runs all five — no filter type is involved, so there is nothing here to be out of reach. ---
+        cases.add(EvalCase.robustness("SMALL_TALK", "Nice weather today, isn't it?"));
+        cases.add(EvalCase.robustness("UNRELATED_QUESTION", "What's the capital of France?"));
+        cases.add(EvalCase.robustness("SHOW_ALL", "show me all customers"));
+        cases.add(EvalCase.robustness("RESET_FILTER", "remove the filter and show everything again"));
+        cases.add(EvalCase.robustness("GERMAN_QUERY", "zeig mir alle Kunden aus Berlin",
+                TextExpectation.of("city", "CONTAINS", "berlin")));
 
         // --- legacy prompt-regression set, all four approaches: mirrors
         // 03-ai-structured-filter's CustomerSearchAgentIT ... ---
@@ -361,10 +400,10 @@ public class BenchmarkLocalModels {
      * tool schema) is extracted from at runtime, so the eval can never drift from the running apps.
      */
     enum Approach {
-        FLAT_TOOL_CALLING("02a-flat", "02-ai-agent-filter", "flat/FlatToolCallingService.java"),
-        OPERATOR_TOOL_CALLING("02b-operator", "02-ai-agent-filter", "operator/OperatorToolCallingService.java"),
-        STRUCTURED("03-structured", "03-ai-structured-filter", "CustomerSearchStructuredOutputService.java"),
-        CONDITION_TOOL_CALLING("04-hybrid", "04-ai-hybrid-filter", "CustomerSearchHybridToolCallingService.java");
+        FLAT_TOOL_CALLING("02a-flat", "02-ai-agent-filter", "flat/CustomerSearchService.java"),
+        OPERATOR_TOOL_CALLING("02b-operator", "02-ai-agent-filter", "operator/CustomerSearchService.java"),
+        STRUCTURED("03-structured", "03-ai-structured-filter", "CustomerSearchService.java"),
+        CONDITION_TOOL_CALLING("04-hybrid", "04-ai-hybrid-filter", "CustomerSearchService.java");
 
         final String label;
         final String module;
@@ -532,6 +571,7 @@ public class BenchmarkLocalModels {
         List<EvalCase> selectedCases = allCases.stream()
                 .filter(c -> switch (cli.cases()) {
                     case "canonical" -> c.group() == CaseGroup.CANONICAL;
+                    case "robustness" -> c.group() == CaseGroup.ROBUSTNESS;
                     case "legacy" -> c.group() == CaseGroup.LEGACY;
                     default -> true;
                 })
@@ -711,8 +751,10 @@ public class BenchmarkLocalModels {
                     + " (expected 'all' or a comma-separated list of 02a,02b,03,04)");
             System.exit(1);
         }
-        if (!cases.equals("all") && !cases.equals("canonical") && !cases.equals("legacy")) {
-            System.err.println("Unknown --cases value: " + cases + " (expected 'all', 'canonical' or 'legacy')");
+        if (!cases.equals("all") && !cases.equals("canonical") && !cases.equals("robustness")
+                && !cases.equals("legacy")) {
+            System.err.println("Unknown --cases value: " + cases
+                    + " (expected 'all', 'canonical', 'robustness' or 'legacy')");
             System.exit(1);
         }
         return new CliArgs(backend, baseUrlOverride, models, thinkDisabled, debugRaw, mode, runs, approach, quick,
@@ -737,12 +779,15 @@ public class BenchmarkLocalModels {
                   --runs=N               Run every case N times and report a per-case pass-rate
                                          (passes/N) plus an aggregate mean, instead of a single
                                          pass/fail (default: 1, i.e. today's single-shot behavior).
-                  --cases=all|canonical|legacy
+                  --cases=all|canonical|robustness|legacy
                                          Which case group to run (default: all). 'canonical' is the
                                          eight queries of docs/canonical-query-set.md that all four
-                                         approaches share; 'legacy' is the older prompt-regression set,
-                                         which now also runs against all four approaches (many cases are
-                                         architecturally out of reach for 02a/02b and score low/zero).
+                                         approaches share; 'robustness' is the five cases that ask for
+                                         no filter (plus one German query), which every approach must
+                                         pass because no filter type is involved; 'legacy' is the older
+                                         prompt-regression set, which now also runs against all four
+                                         approaches (many cases are architecturally out of reach for
+                                         02a/02b and score low/zero).
                   --quick                Evaluate only a small representative subset of the canonical
                                          query set (a single-value case, a multi-field AND case, and
                                          the two cases only the condition-list approaches can express)
@@ -776,6 +821,7 @@ public class BenchmarkLocalModels {
                   java BenchmarkLocalModels.java
                   java BenchmarkLocalModels.java --approach=all --runs=5 llama3.1:8b
                   java BenchmarkLocalModels.java --cases=canonical --runs=3 qwen3:8b
+                  java BenchmarkLocalModels.java --cases=robustness --runs=3 qwen3:8b
                   java BenchmarkLocalModels.java --quick --runs=3 llama3.1:8b
                   java BenchmarkLocalModels.java --min-pass-rate=0.8 --runs=5 llama3.1:8b
                   java BenchmarkLocalModels.java --backend=mlx --think=off mlx-community/Qwen3-14B-4bit""");
@@ -830,7 +876,7 @@ public class BenchmarkLocalModels {
 
     // ---------------------------------------------------------------------------------------------
     // Structured-output approach: system prompt extracted from the real
-    // CustomerSearchStructuredOutputService.java so the eval cannot drift from production behaviour.
+    // CustomerSearchService.java so the eval cannot drift from production behaviour.
     // ---------------------------------------------------------------------------------------------
 
     /**
@@ -1981,21 +2027,25 @@ public class BenchmarkLocalModels {
                 + "sent once");
         System.out.println("  to one model, so a group's run count is its cases times --runs, summed over every "
                 + "tested model.");
-        System.out.printf("  %-16s%-8s%-17s%-17s%-14s%-14s%-14s%-10s%n",
-                "Approach", "Models", "Canonical", "Legacy", "Prompt tok", "Compl. tok", "Tokens", "Time");
+        System.out.printf("  %-16s%-8s%-17s%-17s%-17s%-14s%-14s%-14s%-10s%n",
+                "Approach", "Models", "Canonical", "Robustness", "Legacy",
+                "Prompt tok", "Compl. tok", "Tokens", "Time");
         for (Approach approach : Approach.values()) {
             List<ModelApproachResult> forApproach = usable.stream().filter(r -> r.approach() == approach).toList();
             if (forApproach.isEmpty()) continue;
             int canonicalPassed = forApproach.stream().mapToInt(r -> r.passedRuns(CaseGroup.CANONICAL)).sum();
             int canonicalPerformed = forApproach.stream().mapToInt(r -> r.performedRuns(CaseGroup.CANONICAL)).sum();
+            int robustnessPassed = forApproach.stream().mapToInt(r -> r.passedRuns(CaseGroup.ROBUSTNESS)).sum();
+            int robustnessPerformed = forApproach.stream().mapToInt(r -> r.performedRuns(CaseGroup.ROBUSTNESS)).sum();
             int legacyPassed = forApproach.stream().mapToInt(r -> r.passedRuns(CaseGroup.LEGACY)).sum();
             int legacyPerformed = forApproach.stream().mapToInt(r -> r.performedRuns(CaseGroup.LEGACY)).sum();
             long promptTokens = forApproach.stream().mapToLong(ModelApproachResult::totalPromptTokens).sum();
             long completionTokens = forApproach.stream().mapToLong(ModelApproachResult::totalCompletionTokens).sum();
             long totalMs = forApproach.stream().mapToLong(ModelApproachResult::totalDurationMs).sum();
-            System.out.printf("  %-16s%-8d%-17s%-17s%-14d%-14d%-14d%-10s%n",
+            System.out.printf("  %-16s%-8d%-17s%-17s%-17s%-14d%-14d%-14d%-10s%n",
                     approach.label, forApproach.size(),
                     formatPassCount(canonicalPassed, canonicalPerformed),
+                    formatPassCount(robustnessPassed, robustnessPerformed),
                     formatPassCount(legacyPassed, legacyPerformed),
                     promptTokens, completionTokens, promptTokens + completionTokens, formatDuration(totalMs));
         }
@@ -2007,7 +2057,7 @@ public class BenchmarkLocalModels {
         for (CaseGroup group : CaseGroup.values()) {
             List<CaseAggregate> cases = r.cases().stream().filter(c -> c.group() == group).toList();
             if (cases.isEmpty()) continue;
-            sb.append("**").append(group == CaseGroup.CANONICAL ? "Canonical query set" : "Legacy set")
+            sb.append("**").append(group.label)
               .append("** — mean ").append("%.0f%%".formatted(r.meanPassRate(group) * 100)).append("\n\n");
             sb.append("| Case | Pass rate | Query |\n|---|---|---|\n");
             for (CaseAggregate c : cases) {
@@ -2124,14 +2174,16 @@ public class BenchmarkLocalModels {
           .append("outright (an `ERROR` row further down) performs no runs and is not counted under *Models ")
           .append("tested*, so both counts describe only what actually ran. Token and time totals are true ")
           .append("sums over every call made for that approach, across every model, case and run.\n\n");
-        sb.append("| Approach | Models tested | Canonical passed | Legacy passed | ")
+        sb.append("| Approach | Models tested | Canonical passed | Robustness passed | Legacy passed | ")
           .append("Prompt tokens (Σ) | Completion tokens (Σ) | Tokens (Σ) | Time (Σ) |\n");
-        sb.append("|---|---|---|---|---|---|---|---|\n");
+        sb.append("|---|---|---|---|---|---|---|---|---|\n");
         for (Approach approach : Approach.values()) {
             List<ModelApproachResult> forApproach = usable.stream().filter(r -> r.approach() == approach).toList();
             if (forApproach.isEmpty()) continue;
             int canonicalPassed = forApproach.stream().mapToInt(r -> r.passedRuns(CaseGroup.CANONICAL)).sum();
             int canonicalPerformed = forApproach.stream().mapToInt(r -> r.performedRuns(CaseGroup.CANONICAL)).sum();
+            int robustnessPassed = forApproach.stream().mapToInt(r -> r.passedRuns(CaseGroup.ROBUSTNESS)).sum();
+            int robustnessPerformed = forApproach.stream().mapToInt(r -> r.performedRuns(CaseGroup.ROBUSTNESS)).sum();
             int legacyPassed = forApproach.stream().mapToInt(r -> r.passedRuns(CaseGroup.LEGACY)).sum();
             int legacyPerformed = forApproach.stream().mapToInt(r -> r.performedRuns(CaseGroup.LEGACY)).sum();
             long promptTokens = forApproach.stream().mapToLong(ModelApproachResult::totalPromptTokens).sum();
@@ -2140,6 +2192,7 @@ public class BenchmarkLocalModels {
             sb.append("| ").append(approach.label)
               .append(" | ").append(forApproach.size())
               .append(" | ").append(formatPassCount(canonicalPassed, canonicalPerformed))
+              .append(" | ").append(formatPassCount(robustnessPassed, robustnessPerformed))
               .append(" | ").append(formatPassCount(legacyPassed, legacyPerformed))
               .append(" | ").append(promptTokens)
               .append(" | ").append(completionTokens)
@@ -2198,6 +2251,7 @@ public class BenchmarkLocalModels {
           .append(" (nvidia-smi; \"n/a\" on hosts without an NVIDIA GPU, e.g. Apple Silicon)\n");
 
         renderCanonicalMatrix(sb, results);
+        renderRobustnessMatrix(sb, results);
         renderLegacyMatrix(sb, results);
 
         sb.append("\n## Per-case pass rate\n");
@@ -2272,6 +2326,25 @@ public class BenchmarkLocalModels {
                         + "adding `country=Germany` to \"creditworthy customers in Hamburg\"). The ITs score the "
                         + "customer set, so they accept that. Neither view is wrong — this one is stricter about "
                         + "the filter, the ITs are stricter about the answer.\n");
+    }
+
+    /**
+     * The robustness set as the same kind of matrix as {@link #renderCanonicalMatrix}, and the one group
+     * where every cell is directly comparable: no filter type is involved, so there is no {@code n/a} and
+     * no architectural excuse — every approach is expected to pass all five, and any cell below the run
+     * count is a reliability finding.
+     */
+    private static void renderRobustnessMatrix(StringBuilder sb, List<ModelApproachResult> results) {
+        renderCaseMatrix(sb, results, CaseGroup.ROBUSTNESS, "Robustness set",
+                "The five cases of `demo-commons`' `RobustnessQuery`, run against every approach — the same "
+                        + "five the modules' `*CustomerSearchIT` assert. Four of them ask for no filter at all "
+                        + "(small talk, an unrelated question, \"show me all customers\", an explicit reset) and "
+                        + "must leave every field empty; `GERMAN_QUERY` must filter exactly as its English "
+                        + "equivalent `C1_SINGLE_VALUE` does.\n\n"
+                        + "Unlike the canonical matrix, there is no `n/a` here: none of these needs a filter "
+                        + "type, so every approach runs all five and a failing cell means the prompt let a "
+                        + "hallucinated condition through — a reliability problem, not a ceiling. This is the "
+                        + "failure mode a live demo hits first.\n");
     }
 
     /**

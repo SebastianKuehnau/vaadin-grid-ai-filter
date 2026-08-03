@@ -21,24 +21,24 @@ The four are deliberately arranged so that each neighbouring pair differs in exa
 
 ## The four approaches in one paragraph each
 
-**02(a) — flat tool calling.** `FlatToolCallingService` exposes
+**02(a) — flat tool calling.** `CustomerSearchService` exposes
 `@Tool searchCustomers(companyName, contactName, …, annualRevenue)`: 13 scalar parameters, no operator,
-no negation, no second tool. The tool body fills a `FlatCriteria`, which `FlatSpecifications` turns
+no negation, no second tool. The tool body fills a `CustomerCriteria`, which `CustomerSpecifications` turns
 into a `Specification`. Every field's meaning is hard-wired there: text = substring, date = the whole
 calendar year it falls in, revenue = a minimum.
 
-**02(b) — value + operator + negate tool calling.** `OperatorToolCallingService` keeps the same delivery
+**02(b) — value + operator + negate tool calling.** `CustomerSearchService` keeps the same delivery
 and gives every field three parameters (`city`, `cityOperator`, `cityNegate`) — 39 in total — plus a
-second tool, `currentLocalDateTime()`, for relative dates. `OperatorSpecifications` chooses the predicate
+second tool, `currentLocalDateTime()`, for relative dates. `CustomerSpecifications` chooses the predicate
 per field from its `Operator` and flips it when `negate` is set.
 
-**03 — structured output.** `CustomerSearchStructuredOutputService` calls
-`.call().responseEntity(CustomerFilter.class)`: the model returns *one* JSON object — a `CustomerFilter`
+**03 — structured output.** `CustomerSearchService` calls
+`.call().entity(CustomerFilter.class)`: the model returns *one* JSON object — a `CustomerFilter`
 holding a flat `List<Condition>`, each condition a `(field, Operator, values, negate)` tuple — which
 `CustomerFilterSpecifications` translates. "Today" is baked into the prompt via
 `systemPrompt(LocalDate today)`; there is no live date tool call.
 
-**04 — hybrid.** `CustomerSearchHybridToolCallingService` exposes
+**04 — hybrid.** `CustomerSearchService` exposes
 `@Tool searchCustomers(List<Condition> conditions)` — 03's `Condition`, `Operator`, `CustomerFilter` and
 `CustomerFilterSpecifications`, copied 1:1, Jackson annotations included. Spring AI derives the tool's
 parameter schema from those very annotations, so the model sees the same vocabulary as in 03. The prompt
@@ -84,72 +84,78 @@ the finding: 04 has 03's capabilities with 02's delivery mechanism.
 
 ## Token cost and request duration
 
-Measured by the **`TokenUsageRecorder`** (present in all four modules) on the *real application path*: it
-reads Spring AI's `Usage` per request, logs prompt / completion / total tokens and the wall-clock time,
-and prints a per-IT-class summary. The figures below are that summary for each module's canonical-query
-IT — the **same eight queries** in every row — over **three consecutive `-Pit-local-ollama` runs** on the
-configured default `qwen3:8b`. Token counts came out identical in all three runs (temperature 0 makes each
-prompt deterministic), so only the duration column needs a median.
+Measured by the **`TokenUsageAdvisor`** (shared via `demo-commons`) on the *real application path*: it sits
+innermost in the advisor chain, so it sees every model call including the tool loop's follow-ups, logs
+prompt / completion / total tokens and the wall-clock time of each, and prints a per-IT-class summary. The
+figures below are that summary for each module's canonical-query IT — the **same eight queries** in every
+row — over **three consecutive `-Pit-local-ollama` runs** on the configured default `qwen3:8b`. Every
+figure was identical in all three runs except 02(a)'s completion tokens (535 twice, 575 once); the rest is
+the median.
 
-| Approach | Tokens/request | prompt | completion | Duration/request | Categories reached |
-|---|---|---|---|---|---|
-| 02(a) flat (13 parameters) | **1154** | 1120 | 34 | 2856 ms | 2 / 8 |
-| 02(b) value+operator+negate (39 parameters) | **3248** | 3154 | 94 | 6071 ms | 5 / 8 |
-| 03 structured output | **2307** | 2243 | 64 | 4089 ms | 8 / 8 |
-| 04 hybrid (1 parameter) | **2358** | 2288 | 70 | 5128 ms | 8 / 8 |
+**A query is not a call.** Tool calling asks the model, runs the tool, and asks again — and every call
+bills its own prompt. Both columns are therefore given, and they answer different questions.
+
+| Approach | Calls/query | Tokens/call | prompt | completion | **Tokens/query** | Duration/query | Categories |
+|---|---|---|---|---|---|---|---|
+| 02(a) flat (13 parameters) | 2.5 | 1341 | 1314 | 27 | **3353** | 2970 ms | 2 / 8 |
+| 02(b) value+operator+negate (39 parameters) | 2.5 | 3648 | 3608 | 40 | **9120** | 4395 ms | 5 / 8 |
+| 03 structured output | 1 | 2306 | 2243 | 64 | **2306** | 4087 ms | 8 / 8 |
+| 04 hybrid (1 parameter) | 2 | 2296 | 2254 | 42 | **4593** | 3694 ms | 8 / 8 |
 
 Four things the numbers show:
 
-- **The bill is prompt-dominated.** Completion is 34–94 tokens/request on average — the filter object is
-  compact. What you pay for is the system prompt plus the schema sent on *every* request, which is
-  roughly fixed regardless of how complex the query is.
-- **Delivery is close to token-neutral.** 03 and 04 send **2243 vs 2288 prompt tokens (+2.0 %)** for the
-  same `Condition` type — a response-format schema and a tool-parameter schema cost the same order of
-  tokens, and the remaining 45 tokens are prompt wording (04 additionally tells the model to call the tool
-  exactly once), not the mechanism. If you were choosing between structured output and tool calling for
-  cost reasons: don't.
-- **Per-field operator plumbing is the expensive option.** 02(b) sends **3248** tokens/request — 41 % more
-  than 03 — and reaches five categories instead of eight. Tripling 02(a)'s parameter count
-  (1154 → 3248, **+181 %**) buys negation and operator precision and stops short of OR and ranges. The
-  condition list is both cheaper *and* more expressive.
-- **Duration is dominated by how much the model *says*, not by what it is asked.** 02(a) is fastest
-  (2856 ms) because it sends and receives the least. 04 (5128 ms) trails 03 (4089 ms) despite an almost
-  identical prompt, for a reason visible in the per-query table below: after a tool call the model tends to
-  add a natural-language epilogue that nobody reads.
+- **The bill is prompt-dominated.** Completion is 27–64 tokens per call — the filter object is compact.
+  What you pay for is the system prompt plus the schema, sent again on *every* call, roughly fixed
+  regardless of how complex the query is. Which is exactly why an extra round trip is expensive.
+- **The filter type is token-neutral across delivery mechanisms; the mechanism is not.** Per call, 03 and
+  04 send **2243 vs 2254 prompt tokens (+0.5 %)** for the same `Condition` type — a response-format schema
+  and a tool-parameter schema cost the same. Per query, the same type costs **2306 against 4593**, because
+  tool calling resends the whole conversation to collect an answer the filter no longer needs. If you are
+  choosing for cost reasons, choose on round trips, not on schema shape.
+- **Per-field operator plumbing is the expensive option.** 02(b) sends **9120** tokens per query — four
+  times 03 — and reaches five categories instead of eight. Tripling 02(a)'s parameter count
+  (3353 → 9120 per query, **+172 %**) buys negation and operator precision and stops short of OR and
+  ranges. The condition list is both cheaper *and* more expressive.
+- **Duration does not track tokens.** 04 (3694 ms/query) is *faster* than 03 (4087 ms) despite costing
+  twice the tokens: its two calls each generate very little, while 03 produces the whole JSON object in one
+  pass, and generation dominates. 02(b) is slowest of the tool-calling variants (4395 ms) because its
+  39-parameter schema is the largest prompt to read.
 
-Per-query detail, median of the three runs, duration in ms (total tokens in brackets):
+Per-query detail — every model call a query caused, summed. Median of the three runs, duration in ms
+(total tokens in brackets):
 
 | Query | 02(a) | 02(b) | 03 | 04 |
 |---|---|---|---|---|
-| C1 single value | 1960 (1119) | 3119 (3155) | 3477 (2283) | **14976 (2639)** |
-| C2 multi-value OR | 2946 (1155) | **18093 (3591)** | 3461 (2284) | 2919 (2290) |
-| C3 negation | 1635 (1111) | 2860 (3151) | 3304 (2280) | 2814 (2288) |
-| C4 operator precision | 2411 (1145) | 2878 (3166) | 3494 (2292) | 2932 (2302) |
-| C5 combined AND | 2724 (1141) | 3044 (3159) | 4490 (2313) | 3782 (2307) |
-| C6 revenue range | 3530 (1180) | 6694 (3251) | 5070 (2340) | 4501 (2342) |
-| C7 relative date | 2720 (1151) | 4037 (3229) | 3947 (2301) | 3533 (2315) |
-| C8 date range | 4756 (1228) | 7921 (3280) | 5458 (2359) | 5733 (2377) |
+| C1 single value | 1993 (2618) | 2796 (7211) | 3469 (2283) | 2449 (4532) |
+| C2 multi-value OR | 3463 (**3996**) | 5099 (**10938**) | 3459 (2284) | 2951 (4552) |
+| C3 negation | 1837 (2616) | 2777 (7221) | 3343 (2280) | 2859 (4546) |
+| C4 operator precision | 2417 (2656) | 2900 (7242) | 3521 (2292) | 3175 (4572) |
+| C5 combined AND | 2391 (2635) | 2938 (7228) | 4516 (2313) | 4289 (4590) |
+| C6 revenue range | 3814 (**4060**) | 6675 (**11043**) | 5063 (2340) | 4589 (4652) |
+| C7 relative date | 3062 (**4070**) | 4063 (**10957**) | 3864 (2301) | 3590 (4594) |
+| C8 date range | 4773 (**4172**) | 7895 (**11120**) | 5394 (2359) | 5634 (4706) |
 
-The two bold cells are the two lessons hiding in this table, and both are about the *tool-calling*
-mechanism rather than about any filter type:
+Three lessons hide in this table, and all three are about the *tool-calling* mechanism rather than any
+filter type:
 
-- **02(b), C2 (18.1 s, 3591 tokens).** This is the query 02(b) cannot express. The model does not fail
-  fast on it — it produces the maximum answer length it is allowed (`num-predict=512`, visible as the
-  completion jumping from ~30 to 512 tokens) trying to place the second city somewhere. Before that cap
-  was configured, the same query took **107 seconds and 3064 completion tokens**, and in one run it hit a
-  300 s test timeout. An architectural limit costs 5× a normal query even when bounded.
-- **04, C1 (15.0 s, 2639 tokens).** After the tool call succeeds, the model writes a summary sentence
-  nobody consumes — ~350 completion tokens for "customers in Berlin". It is deterministic at temperature 0
-  (identical in all three runs) and it is pure waste: the filter was already applied by the tool. 03 cannot
-  do this, because its answer *is* the filter. This is the one place where the delivery mechanism costs
-  real time, and it is a prompt-tuning problem, not an architectural one.
-
-The C6 and C8 rows show the same effect more mildly: for both 02 variants, the queries they cannot express
-are their slowest. The practical consequence is a configuration one — **cap the answer length**. All three
-AI modules now set `spring.ai.ollama.chat.num-predict=512` (the value the benchmark script has always
-used); without it the model generates until it decides to stop, and the numbers above turn into 107
-seconds and 3064 completion tokens for a single query. Both 02 prompts additionally end with "call the tool
-once, then stop", which reduces the retrying but does not remove it.
+- **A missing *slot* costs an extra round trip; a missing *operator* costs nothing.** The bold cells are
+  C2, C6, C7 and C8 in both 02 variants — one full extra call each (02(a) ~2620 → ~4000, 02(b) ~7220 →
+  ~11000). Those are the queries needing a second value (C2), a second bound (C6, C8) or a clock reading
+  (C7): the model calls the tool, notices it had nowhere to put the rest, and calls again. C3 and C4 are
+  just as inexpressible for 02(a) and yet cost exactly a normal query — the model fills the one slot it has
+  and stops, producing a confidently wrong filter. **The cheap failures are the dangerous ones**: a price
+  spike at least tells you something was dropped.
+- **The runaway generation this table used to show is gone, and that is a fixed bug rather than a
+  measurement artefact.** An earlier version of this section recorded 02(b)/C2 at **18.1 s** and, before
+  `spring.ai.ollama.chat.num-predict=512` was configured, at **107 seconds and 3064 completion tokens**,
+  with one run hitting a 300 s test timeout. With the cap in place the same query is 5.1 s. The cost of an
+  architectural limit is now one extra round trip, not an open-ended monologue.
+- **The epilogue after a tool call is the whole reason 04 costs double.** 04 spends 4532–4706 tokens per
+  query against 03's 2280–2359 for the same filter type, and the difference is one further call whose
+  completion is a handful of tokens nobody reads — the filter was already applied by the tool. 03 cannot do
+  this, because its answer *is* the filter. Note what this does *not* cost: 04 is **faster** than 03 on
+  seven of eight queries, because two small generations beat one large one even though they bill two
+  prompts.
 
 ## Reliability and model dependence
 
@@ -199,10 +205,11 @@ None of the three has an equivalent in structured output: one response, one filt
 ## Takeaway for the talk
 
 - Need **negation, operator precision, OR, or ranges**? That is a property of the **filter type**: use a
-  condition list. Both deliveries carry it equally well (03 and 04: 2243 vs 2288 prompt tokens/request).
+  condition list. Both deliveries carry it equally well per model call (03 and 04: 2243 vs 2254 prompt
+  tokens), but tool calling bills a second call, so per query it is 2306 against 4593 tokens.
 - Tempted to add operators **field by field** to an existing flat tool? 02(b) is that idea, finished: 39
-  parameters, 3248 tokens/request, five of eight categories — more expensive than the condition list and
-  less capable. It is the most useful negative result in the repository.
+  parameters and 9120 tokens per query — four times the condition list — for five of eight categories. More
+  expensive and less capable: the most useful negative result in the repository.
 - Running a **small/local model**? All four work on `qwen3:8b`; the differences that used to bite on
   weaker models were reliability, not capability — re-measure with the benchmark before assuming.
 - Need a **live value** (clock, lookup) at request time? Tool calling, with a budget for the extra hop.
@@ -210,5 +217,5 @@ None of the three has an equivalent in structured output: one response, one filt
   Trimming those is the highest-leverage lever; picking a delivery mechanism is not.
 
 See the [capability matrix](capability-matrix.md) for the per-query-type table with test citations, and
-[extending-tool-calling-with-operators.md](extending-tool-calling-with-operators.md) for how module 04
-came to exist — it is the change that document used to analyse without making.
+`04-ai-hybrid-filter/README.md` for how that module came to exist — it is a change this repository
+analysed in a design note before making it.
