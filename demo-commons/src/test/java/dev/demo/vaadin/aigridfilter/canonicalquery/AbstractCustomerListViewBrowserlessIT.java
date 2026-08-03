@@ -3,14 +3,12 @@ package dev.demo.vaadin.aigridfilter.canonicalquery;
 import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.browserless.internal.MockVaadin;
 import com.vaadin.flow.component.grid.GridTester;
-import dev.demo.vaadin.aigridfilter.ai.TokenUsageAdvisor;
+import dev.demo.vaadin.aigridfilter.ai.TokenUsageExtension;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
 import dev.demo.vaadin.aigridfilter.ui.AbstractCustomerSearchView;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.slf4j.Logger;
@@ -38,13 +36,14 @@ import static org.awaitility.Awaitility.await;
  * therefore runs the same number of UI queries with the same logic, including the ones that fail by design.
  * <p>
  * A subclass supplies the view to open and what its filter type can express. It also has to carry
- * {@code @ViewPackages}, because that annotation has to name a concrete {@code @Route} class.
+ * {@code @ViewPackages}, because that annotation has to name a concrete {@code @Route} class. Counting
+ * tokens is not this class's business; that is {@link TokenUsageExtension}.
  */
 @SpringBootTest
 // Generous on purpose, and per query rather than per class: each one is a full round trip through the
 // model, and a cold model load adds a few seconds on top of the first.
 @Timeout(value = 180, unit = TimeUnit.SECONDS)
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@ExtendWith(TokenUsageExtension.class)
 public abstract class AbstractCustomerListViewBrowserlessIT extends SpringBrowserlessTest {
 
     private static final Logger logger =
@@ -53,24 +52,11 @@ public abstract class AbstractCustomerListViewBrowserlessIT extends SpringBrowse
     @Autowired
     private CustomerRepository customerRepository;
 
-    @Autowired
-    private TokenUsageAdvisor tokenUsageAdvisor;
-
     /** The route to open — a concrete view, so it also fixes which variant answers. */
     protected abstract Class<? extends AbstractCustomerSearchView> viewClass();
 
     /** What this variant's filter type can express; the same mapping its service-level IT states. */
     protected abstract ExpectedResult expectedResultFor(CanonicalQuery canonical);
-
-    @BeforeAll
-    void resetTokenUsage() {
-        tokenUsageAdvisor.reset();
-    }
-
-    @AfterAll
-    void logTokenSummary() {
-        tokenUsageAdvisor.logSummary(getClass().getSimpleName());
-    }
 
     @ParameterizedTest
     @EnumSource(CanonicalQuery.class)

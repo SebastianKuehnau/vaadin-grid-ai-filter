@@ -1,13 +1,11 @@
 package dev.demo.vaadin.aigridfilter.canonicalquery;
 
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
-import dev.demo.vaadin.aigridfilter.ai.TokenUsageAdvisor;
+import dev.demo.vaadin.aigridfilter.ai.TokenUsageExtension;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.slf4j.Logger;
@@ -35,9 +33,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * there is no {@code ExpectedResult} for it and every variant is expected to pass all five — a failure
  * there is a genuine reliability finding, not a documented limit.
  * <p>
- * Everything that is the same for all four variants lives here — the Spring configuration, the token
- * bookkeeping, the assert-and-log step. A subclass supplies the only two things that differ: which agent to
- * ask, and which queries its filter type can express at all.
+ * Everything that is the same for all four variants lives here — the Spring configuration and the
+ * assert-and-log step. A subclass supplies the only two things that differ: which agent to ask, and which
+ * queries its filter type can express at all. Counting tokens is not this class's business either; that is
+ * {@link TokenUsageExtension}.
  * <p>
  * Run with {@code -Pit-local-ollama}, which targets a native Ollama instance at {@code OLLAMA_BASE_URL} by
  * default ({@code -DAI_TEST_PROFILE=openai} targets the real OpenAI API). No reachability probe — an
@@ -50,7 +49,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 // model keeps trying to place the part it had to drop) and a cold model load adds a few seconds. The suite
 // should fail on wrong results, not on slowness; num-predict bounds the answer length.
 @Timeout(value = 300, unit = TimeUnit.SECONDS)
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@ExtendWith(TokenUsageExtension.class)
 public abstract class AbstractAiFilterIT {
 
     private static final Logger logger = LoggerFactory.getLogger(AbstractAiFilterIT.class);
@@ -58,24 +57,11 @@ public abstract class AbstractAiFilterIT {
     @Autowired
     private CustomerRepository customerRepository;
 
-    @Autowired
-    private TokenUsageAdvisor tokenUsageAdvisor;
-
     /** The variant under test: the agent whose filter the produced customer set comes from. */
     protected abstract CustomerSearchAgent agent();
 
     /** What this variant's filter type can express — the one thing that differs between the modules. */
     protected abstract ExpectedResult expectedResultFor(CanonicalQuery canonical);
-
-    @BeforeAll
-    void resetTokenUsage() {
-        tokenUsageAdvisor.reset();
-    }
-
-    @AfterAll
-    void logTokenSummary() {
-        tokenUsageAdvisor.logSummary(getClass().getSimpleName());
-    }
 
     @ParameterizedTest
     @EnumSource(CanonicalQuery.class)

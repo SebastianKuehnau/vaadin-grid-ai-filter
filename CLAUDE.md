@@ -91,9 +91,9 @@ or file changes on your own initiative.
   stays in its module. See `demo-commons/README.md`.
 - The test layer is the second exception, and it is shared through `demo-commons`' **test-jar**
   (`<type>test-jar</type><scope>test</scope>`), never through `src/main` — otherwise JUnit and
-  browserless would land in all four apps' runtime classpath. It owns the query sets and the two
-  abstract ITs. What stays per module is the one thing that differs: an `expectedResultFor` method
-  saying which queries that variant's filter type can express.
+  browserless would land in all four apps' runtime classpath. It owns the query sets, the two abstract
+  ITs and the `TokenUsageExtension` that measures them. What stays per module is the one thing that
+  differs: an `expectedResultFor` method saying which queries that variant's filter type can express.
 - CSS belongs in theme files, not inline in Java components.
 - Commit after every completed, verified step (Conventional Commits, no push).
 - Never commit benchmark reports, logs, or other generated artifacts unless the

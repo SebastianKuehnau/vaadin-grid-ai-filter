@@ -29,9 +29,15 @@ It holds the shared test foundation, in package `canonicalquery`:
 | `ExpectedResult` | `MATCH` · `NO_MATCH_BY_DESIGN` — which test result is achievable at all |
 | `AbstractAiFilterIT` | both query sets through a module's `CustomerSearchAgent`, one test method each |
 | `AbstractCustomerListViewBrowserlessIT` | the canonical set through the UI: filter field in, grid rows out |
+| `TokenUsageExtension` | drives the `TokenUsageAdvisor` around an IT class — reset before, summary after |
 
 The robustness set needs no `ExpectedResult`: it does not depend on the filter type, so every variant must
 pass all five.
+
+`TokenUsageExtension` is a JUnit extension rather than a third base class because the two abstract ITs sit in
+different inheritance lines — the browserless one already extends `SpringBrowserlessTest`. A superclass could
+only have served one of them, so the token bookkeeping would have stayed duplicated in the other. It also
+lives next to the `TokenUsageAdvisor` it drives, in `ai/`, so `canonicalquery/` is query sets and ITs only.
 
 The same rule applies here as to the main sources: what a variant can *express* is the comparison the talk
 is about, so it stays in the module — as an exhaustive `switch` in an `expectedResultFor` method, stated by

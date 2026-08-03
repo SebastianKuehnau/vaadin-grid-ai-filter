@@ -9,7 +9,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 
 /**
  * Variant <b>02(a)</b> through its service: the canonical query set and the robustness set, both against a
- * real model. Everything shared — configuration, token bookkeeping, the assert-and-log step — is in
+ * real model. Everything shared — configuration and the assert-and-log step — is in
  * {@link AbstractAiFilterIT}.
  * <p>
  * What this variant can express is the statement it makes about itself: one scalar value per field and no

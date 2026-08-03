@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * Variant <b>03</b> through its service: the canonical query set and the robustness set, both against a real
- * model. Everything shared — configuration, token bookkeeping, the assert-and-log step — is in
+ * model. Everything shared — configuration and the assert-and-log step — is in
  * {@link AbstractAiFilterIT}.
  * <p>
  * What this variant can express is the statement it makes about itself: a {@code CustomerFilter} is a flat
