@@ -157,6 +157,16 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
   question, "show me all customers" and an explicit reset must each leave the grid *unfiltered*, plus one
   German query. No filter type is involved, so all five must pass, exactly as in 02 and 03.
 
+> **Pick the model carefully for this module.** 04 asks the model for a nested object array as a tool
+> argument (`searchCustomers(List<Condition>)`), and that is a harder ask than either 03's structured
+> output or 02's flat tool parameters. In a 10-run benchmark over four models, `llama3.1:8b` returned an
+> **empty filter on all eight canonical queries** here while passing all eight in 03 — same filter type,
+> same prompt, same baked-in "today". `gemma4:26b-mlx` shows a milder form, failing only the relative-date
+> query. The configured default `qwen3:8b` and `qwen3.5:4b-mlx` pass all eight. This is the sharpest
+> evidence in the repository that the *delivery mechanism*, not the filter type, decides whether a given
+> model can produce a filter at all — see
+> [`docs/capability-matrix.md` § Delivery mechanism vs. model strength](../docs/capability-matrix.md#delivery-mechanism-vs-model-strength).
+
 All three IT kinds extend a base class from `demo-commons`' test-jar and share the query sets with the
 other AI modules, so what a module's ITs contain is one line: which agent or view to ask, and which
 queries its filter type can express.

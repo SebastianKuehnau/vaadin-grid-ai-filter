@@ -143,11 +143,14 @@ environment variable, respecting `OPENAI_API_KEY` the same as the app itself) to
 test classes against the real OpenAI API instead. The app's *own* default profile is `openai`; only
 the test config overrides it to `ollama`.
 
-> **Note:** the configured default model, `qwen3:8b`, handles queries that stack three-plus
-> conditions together with the bare-year date-range rule (see below) correctly. A weaker model such
-> as `llama3.1:8b` is occasionally unreliable on them — it sometimes drops one bound of a date
-> range. This is a model-capability gap, not a bug in the prompt/schema; keep the configured default
-> (or swap the model in `application-ollama.properties`) if you hit it during a demo.
+> **Note:** structured output is the most model-tolerant of the four approaches, which a 10-run
+> benchmark over four models makes concrete: **every** model passed all eight canonical queries here,
+> including `llama3.1:8b`, which cannot deliver the very same `CustomerFilter` through 04's tool call
+> at all. The only weak spot left is one legacy case that stacks a negation, a revenue floor and a
+> bare-year date range: `llama3.1:8b` gets it wrong 10/10 there (it reads "last ordered in 2024" as an
+> open-ended lower bound and drops the upper one), while the other three models get it right 10/10.
+> That is a model-capability gap, not a bug in the prompt or schema. See
+> [`docs/capability-matrix.md` § Reliability across models](../docs/capability-matrix.md#reliability-across-models).
 
 - **`demo-commons`' `CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the
   build if `CanonicalQuery` or the benchmark script stops matching `docs/canonical-query-set.md`
