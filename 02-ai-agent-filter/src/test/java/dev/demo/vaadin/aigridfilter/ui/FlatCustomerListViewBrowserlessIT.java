@@ -10,7 +10,7 @@ import dev.demo.vaadin.aigridfilter.canonicalquery.ExpectedResult;
  * FlatCustomerListView}, resolved by the real flat tool-calling AI layer, scored on the rows the grid
  * shows.
  * <p>
- * Same eight queries and same expectations as {@code FlatAiFilterIT}, which asks the same backend
+ * Same eight queries and same expectations as {@code FlatCustomerSearchIT}, which asks the same backend
  * directly — the pair leaves the view layer as the only variable. What this variant can express is stated
  * here as well as in that IT, in the same exhaustive {@code switch}.
  */

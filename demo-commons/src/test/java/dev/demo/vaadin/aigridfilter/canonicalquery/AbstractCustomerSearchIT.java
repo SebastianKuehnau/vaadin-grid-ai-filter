@@ -26,6 +26,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * the extracted filter: the returned {@code Specification} is executed against the seeded database and the
  * resulting ids are compared with the ids a reference predicate selects.
  * <p>
+ * The name means the {@code CustomerSearchAgent}, asked directly — <b>not</b>
+ * {@code AbstractCustomerSearchView}. Going through that view is the job of
+ * {@link AbstractCustomerListViewBrowserlessIT}, which runs the same eight queries; the two class names say
+ * which path each one takes.
+ * <p>
  * {@link #canonicalQuery} measures what a variant can <em>express</em> — the eight queries of
  * {@link CanonicalQuery}, each with the {@link ExpectedResult} this variant's filter type allows.
  * {@link #robustnessQuery} measures the opposite direction: input that asks for no filter at all must
@@ -50,9 +55,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 // should fail on wrong results, not on slowness; num-predict bounds the answer length.
 @Timeout(value = 300, unit = TimeUnit.SECONDS)
 @ExtendWith(TokenUsageExtension.class)
-public abstract class AbstractAiFilterIT {
+public abstract class AbstractCustomerSearchIT {
 
-    private static final Logger logger = LoggerFactory.getLogger(AbstractAiFilterIT.class);
+    private static final Logger logger = LoggerFactory.getLogger(AbstractCustomerSearchIT.class);
 
     @Autowired
     private CustomerRepository customerRepository;

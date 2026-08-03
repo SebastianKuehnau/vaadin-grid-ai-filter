@@ -1,7 +1,7 @@
 package dev.demo.vaadin.aigridfilter.ai.operator;
 
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
-import dev.demo.vaadin.aigridfilter.canonicalquery.AbstractAiFilterIT;
+import dev.demo.vaadin.aigridfilter.canonicalquery.AbstractCustomerSearchIT;
 import dev.demo.vaadin.aigridfilter.canonicalquery.CanonicalQuery;
 import dev.demo.vaadin.aigridfilter.canonicalquery.ExpectedResult;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,7 +10,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 /**
  * Variant <b>02(b)</b> through its service: the canonical query set and the robustness set, both against a
  * real model. Everything shared — configuration and the assert-and-log step — is in
- * {@link AbstractAiFilterIT}.
+ * {@link AbstractCustomerSearchIT}.
  * <p>
  * What this variant can express is the statement it makes about itself: an operator and a negate flag per
  * field buy negation, operator precision and day-level date bounds. What one value and one operator per
@@ -21,7 +21,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
  * for this variant then fails to compile instead of failing at runtime. The UI-level
  * {@code OperatorCustomerListViewBrowserlessIT} states the same mapping, so both stop compiling together.
  */
-class OperatorAiFilterIT extends AbstractAiFilterIT {
+class OperatorCustomerSearchIT extends AbstractCustomerSearchIT {
 
     @Autowired
     @Qualifier("operatorSearchAgent")

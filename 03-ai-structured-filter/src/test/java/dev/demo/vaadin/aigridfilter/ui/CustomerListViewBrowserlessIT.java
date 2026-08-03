@@ -9,7 +9,7 @@ import dev.demo.vaadin.aigridfilter.canonicalquery.ExpectedResult;
  * Variant <b>03</b> through the UI: the canonical query set typed into the filter field of {@code
  * CustomerListView}, resolved by the real structured-output AI layer, scored on the rows the grid shows.
  * <p>
- * Same eight queries and same expectations as {@code StructuredAiFilterIT}, which asks the same
+ * Same eight queries and same expectations as {@code StructuredCustomerSearchIT}, which asks the same
  * backend directly — the pair leaves the view layer as the only variable. What this variant can express is
  * stated here as well as in that IT, in the same exhaustive {@code switch}.
  */

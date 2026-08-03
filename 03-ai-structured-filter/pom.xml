@@ -124,7 +124,7 @@
 
 	<profiles>
 		<profile>
-			<!-- Enables StructuredAiFilterIT + CustomerListViewBrowserlessIT.
+			<!-- Enables StructuredCustomerSearchIT + CustomerListViewBrowserlessIT.
 			     The default test Spring profile is ollama (src/test/resources/application.properties),
 			     targeting a native Ollama instance at OLLAMA_BASE_URL; pass -DAI_TEST_PROFILE=openai
 			     (or set it as an env var) to target the real OpenAI API instead. Includes are listed one by one
@@ -138,7 +138,7 @@
 						<artifactId>maven-failsafe-plugin</artifactId>
 						<configuration>
 							<includes>
-								<include>**/StructuredAiFilterIT.java</include>
+								<include>**/StructuredCustomerSearchIT.java</include>
 								<include>**/CustomerListViewBrowserlessIT.java</include>
 							</includes>
 						</configuration>

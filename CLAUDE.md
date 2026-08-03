@@ -56,7 +56,7 @@ A task is only finished when:
    (save screenshots to `~/screenshots/`).
 3. For changes to filter/AI logic: the affected module's IT classes pass, run via `-Pit-local-ollama`
    (against a native Ollama instance). Every AI module runs two kinds, both extending a shared base
-   in `demo-commons`' test-jar: the `*AiFilterIT` (through the service — the eight canonical queries
+   in `demo-commons`' test-jar: the `*CustomerSearchIT` (through the service — the eight canonical queries
    and the five robustness cases, one test method each) and the browserless IT (the same eight
    through the UI). 02 has one of each per variant, so four.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into

@@ -1,7 +1,7 @@
 package dev.demo.vaadin.aigridfilter.ai.flat;
 
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
-import dev.demo.vaadin.aigridfilter.canonicalquery.AbstractAiFilterIT;
+import dev.demo.vaadin.aigridfilter.canonicalquery.AbstractCustomerSearchIT;
 import dev.demo.vaadin.aigridfilter.canonicalquery.CanonicalQuery;
 import dev.demo.vaadin.aigridfilter.canonicalquery.ExpectedResult;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,7 +10,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 /**
  * Variant <b>02(a)</b> through its service: the canonical query set and the robustness set, both against a
  * real model. Everything shared — configuration and the assert-and-log step — is in
- * {@link AbstractAiFilterIT}.
+ * {@link AbstractCustomerSearchIT}.
  * <p>
  * What this variant can express is the statement it makes about itself: one scalar value per field and no
  * operator at all, so only the two simplest categories are within reach. Multi-value OR, negation, operator
@@ -21,7 +21,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
  * for this variant then fails to compile instead of failing at runtime. The UI-level
  * {@code FlatCustomerListViewBrowserlessIT} states the same mapping, so both stop compiling together.
  */
-class FlatAiFilterIT extends AbstractAiFilterIT {
+class FlatCustomerSearchIT extends AbstractCustomerSearchIT {
 
     @Autowired
     @Qualifier("flatSearchAgent")

@@ -27,7 +27,7 @@ It holds the shared test foundation, in package `canonicalquery`:
 | `CanonicalQuery` | the eight queries of `docs/canonical-query-set.md`, each with the reference predicate a correct answer satisfies |
 | `RobustnessQuery` | the five cases that ask for *no* filter, plus one query in German |
 | `ExpectedResult` | `MATCH` · `NO_MATCH_BY_DESIGN` — which test result is achievable at all |
-| `AbstractAiFilterIT` | both query sets through a module's `CustomerSearchAgent`, one test method each |
+| `AbstractCustomerSearchIT` | both query sets through a module's `CustomerSearchAgent`, one test method each |
 | `AbstractCustomerListViewBrowserlessIT` | the canonical set through the UI: filter field in, grid rows out |
 | `TokenUsageExtension` | drives the `TokenUsageAdvisor` around an IT class — reset before, summary after |
 

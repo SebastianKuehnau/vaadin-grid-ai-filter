@@ -1,25 +1,25 @@
 package dev.demo.vaadin.aigridfilter.ai;
 
-import dev.demo.vaadin.aigridfilter.canonicalquery.AbstractAiFilterIT;
+import dev.demo.vaadin.aigridfilter.canonicalquery.AbstractCustomerSearchIT;
 import dev.demo.vaadin.aigridfilter.canonicalquery.CanonicalQuery;
 import dev.demo.vaadin.aigridfilter.canonicalquery.ExpectedResult;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * Variant <b>04</b> through its service: the canonical query set and the robustness set, both against a real
+ * Variant <b>03</b> through its service: the canonical query set and the robustness set, both against a real
  * model. Everything shared — configuration and the assert-and-log step — is in
- * {@link AbstractAiFilterIT}.
+ * {@link AbstractCustomerSearchIT}.
  * <p>
- * What this variant can express is the statement it makes about itself: 03's filter type, copied 1:1 —
- * several values plus a negate flag per condition, and a range as two sibling conditions on one field — so
- * all eight categories are expressible. That this module reaches the same eight as 03 while delivering the
- * filter through a tool call is the repository's closing argument.
+ * What this variant can express is the statement it makes about itself: a {@code CustomerFilter} is a flat
+ * list of conditions, each with several values (OR within a field) and a negate flag, and a range is two
+ * sibling conditions on one field — so nothing in the canonical set is out of reach.
+ * {@code 04-ai-hybrid-filter} reaches the same eight with the same filter type, delivered as a tool call.
  * <p>
  * An exhaustive {@code switch} on purpose: adding a query to the shared set without deciding what it means
  * for this variant then fails to compile instead of failing at runtime. The UI-level
  * {@code CustomerListViewBrowserlessIT} states the same mapping, so both stop compiling together.
  */
-class HybridAiFilterIT extends AbstractAiFilterIT {
+class StructuredCustomerSearchIT extends AbstractCustomerSearchIT {
 
     @Autowired
     CustomerSearchAgent agent;

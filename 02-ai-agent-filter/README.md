@@ -200,7 +200,7 @@ Without an LLM (`test`), per variant:
 
 Against a real model (`verify -Pit-local-ollama`):
 
-- **`FlatAiFilterIT` / `OperatorAiFilterIT`** — both query sets through the variant's service, one test
+- **`FlatCustomerSearchIT` / `OperatorCustomerSearchIT`** — both query sets through the variant's service, one test
   method each. `canonicalQuery` runs the eight queries of `docs/canonical-query-set.md`, each scored on the
   **resulting customer set**: the variant's `Specification` is executed against the seeded database and the
   matching customer ids are compared with those of a reference predicate. Queries the variant cannot express

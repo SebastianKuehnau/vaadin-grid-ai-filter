@@ -31,9 +31,10 @@ import static org.awaitility.Awaitility.await;
  * compared with the ids a reference predicate selects.
  * <p>
  * Deliberately the same eight {@link CanonicalQuery} constants and the same per-variant
- * {@link ExpectedResult} mapping as {@link AbstractAiFilterIT}, so the only difference left between the two
- * IT kinds is the path taken: {@code TextField → Grid} here, {@code agent → repository} there. Every module
- * therefore runs the same number of UI queries with the same logic, including the ones that fail by design.
+ * {@link ExpectedResult} mapping as {@link AbstractCustomerSearchIT}, so the only difference left between
+ * the two IT kinds is the path taken: {@code TextField → Grid} here, {@code agent → repository} there.
+ * Every module therefore runs the same number of UI queries with the same logic, including the ones that
+ * fail by design.
  * <p>
  * A subclass supplies the view to open and what its filter type can express. It also has to carry
  * {@code @ViewPackages}, because that annotation has to name a concrete {@code @Route} class. Counting

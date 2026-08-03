@@ -138,8 +138,8 @@
 						<artifactId>maven-failsafe-plugin</artifactId>
 						<configuration>
 							<includes>
-								<include>**/FlatAiFilterIT.java</include>
-								<include>**/OperatorAiFilterIT.java</include>
+								<include>**/FlatCustomerSearchIT.java</include>
+								<include>**/OperatorCustomerSearchIT.java</include>
 								<include>**/FlatCustomerListViewBrowserlessIT.java</include>
 								<include>**/OperatorCustomerListViewBrowserlessIT.java</include>
 							</includes>

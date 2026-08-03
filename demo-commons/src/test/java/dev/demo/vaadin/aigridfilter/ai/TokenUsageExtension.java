@@ -12,9 +12,9 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
  * <p>
  * <b>An extension rather than a base class, because there are two inheritance lines.</b>
  * {@code AbstractCustomerListViewBrowserlessIT} already extends {@code SpringBrowserlessTest}, so a shared
- * superclass could only have served the service-level {@code AbstractAiFilterIT} — and the bookkeeping would
- * have stayed duplicated in the one it could not reach. An extension is orthogonal to inheritance and serves
- * both.
+ * superclass could only have served the service-level {@code AbstractCustomerSearchIT} — and the
+ * bookkeeping would have stayed duplicated in the one it could not reach. An extension is orthogonal to
+ * inheritance and serves both.
  * <p>
  * The bean comes from the Spring test context, which both base classes have: the service-level one through
  * {@code @SpringBootTest}, the browserless one through {@code SpringBrowserlessTest}, which carries
