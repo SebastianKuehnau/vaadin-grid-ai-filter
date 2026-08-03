@@ -136,9 +136,6 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
 ./mvnw -pl 04-ai-hybrid-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API
 ```
 
-- **`demo-commons`' `CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the
-  build if `CanonicalQuery` or the benchmark script stops matching `docs/canonical-query-set.md`
-  verbatim, in wording or order.
 - **`CustomerSearchServiceToolsTest`** (plain JUnit, no Spring, no LLM) — the one tool-calling failure
   mode this repository has observed and mitigated: a `void` tool is answered with a bare "Done", which a
   model can read as "nothing happened" and call again with no arguments. The guard must keep what the

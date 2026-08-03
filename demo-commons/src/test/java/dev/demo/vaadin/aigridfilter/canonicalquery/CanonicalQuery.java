@@ -24,8 +24,8 @@ import java.util.stream.Collectors;
  * seeds — never a hard-coded list of ids. C7 depends on today's date, and each app's startup moves one
  * row's last order date.
  * <p>
- * {@code demo-commons}' {@code CanonicalQuerySetConsistencyTest} fails the build if this enum, the
- * document or the benchmark script ever disagree.
+ * This enum, {@code docs/canonical-query-set.md} and the benchmark script's own copy have to be kept in
+ * sync by hand.
  */
 public enum CanonicalQuery {
 

@@ -152,9 +152,6 @@ the test config overrides it to `ollama`.
 > That is a model-capability gap, not a bug in the prompt or schema. See
 > [`docs/capability-matrix.md` § Reliability across models](../docs/capability-matrix.md#reliability-across-models).
 
-- **`demo-commons`' `CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring, no LLM) — fails the
-  build if `CanonicalQuery` or the benchmark script stops matching `docs/canonical-query-set.md`
-  verbatim, in wording or order.
 - **`StructuredCanonicalQueryIT`** — the eight queries of `docs/canonical-query-set.md`, each scored on the
   **resulting customer set**: the returned `Specification` is executed against the seeded database and the
   matching ids are compared with those of a reference predicate. All eight are expected to pass here;

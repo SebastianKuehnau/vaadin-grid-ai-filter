@@ -61,8 +61,8 @@ A task is only finished when:
    ask for no filter). 02 has one of each per variant, so six.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
    `demo-commons`' `CanonicalQuery` enum and into `ollama-benchmark/BenchmarkLocalModels.java` —
-   verbatim in both copies. `demo-commons`' `CanonicalQuerySetConsistencyTest` fails the build if
-   they drift apart. Each variant then has to say what the new query means for it: the per-variant
+   verbatim in both copies, kept in sync by hand. Each variant then has to say what the new query
+   means for it: the per-variant
    `*Outcomes` class is an exhaustive `switch`, so all four stop compiling until that decision is
    made — `SUCCESS` or `FAIL_BY_DESIGN`.
 

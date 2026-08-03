@@ -17,11 +17,9 @@ deliberately does *not* carry is the expected outcome: that depends on the askin
 so each variant states it in its own `*Outcomes` class. The benchmark script keeps a separate copy because
 it is deliberately standalone and dependency-free.
 
-A drift between either copy and this document fails the build: `demo-commons` has a
-`CanonicalQuerySetConsistencyTest` (plain `mvn test`, no LLM, no Ollama) that parses the ```` ```text ````
-blocks below and compares them with both copies, wording **and** order — the enum reflectively, the
-script by regex. So the token/latency figures
-from the benchmark line up query-for-query with the pass/fail reliability results from the IT suites.
+Both copies have to match this document verbatim, wording **and** order — that is what makes the
+token/latency figures from the benchmark line up query-for-query with the pass/fail reliability results
+from the IT suites.
 
 ## Why these eight
 

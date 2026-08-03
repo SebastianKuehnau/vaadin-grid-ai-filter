@@ -30,7 +30,6 @@ It holds the shared test foundation, in package `canonicalquery`:
 | `AbstractCanonicalQueryIT` | the canonical set through a module's `CustomerSearchAgent` |
 | `AbstractCustomerListViewBrowserlessIT` | the same set through the UI: filter field in, grid rows out |
 | `AbstractPromptRobustnessIT` | the robustness set; no `Outcome`, every variant must pass all five |
-| `CanonicalQuerySetConsistencyTest` | guards `CanonicalQuery` and the benchmark script against the document |
 
 The same rule applies here as to the main sources: what a variant can *express* is the comparison the talk
 is about, so it stays in the module — as a `*Outcomes` class with an exhaustive `switch`, read by both of

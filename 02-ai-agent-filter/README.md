@@ -192,9 +192,6 @@ the test config overrides it to `ollama`.
 
 Without an LLM (`test`), per variant:
 
-- **`demo-commons`' `CanonicalQuerySetConsistencyTest`** (plain JUnit, no Spring) — fails the build if
-  `CanonicalQuery`, or the benchmark script, stops matching `docs/canonical-query-set.md` verbatim, in
-  wording or order.
 - **`CustomerSearchServiceToolsTest`** (one per variant, `ai/flat` and `ai/operator`) (plain JUnit, no Spring, no LLM) — the one tool-calling failure
   mode this repository has observed and mitigated: a `void` tool is answered with a bare "Done", which a
   model can read as "nothing happened" and call again with no arguments. The guard must keep what the

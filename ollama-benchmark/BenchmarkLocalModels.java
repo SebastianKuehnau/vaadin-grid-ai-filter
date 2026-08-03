@@ -125,8 +125,8 @@ public class BenchmarkLocalModels {
      * <p>
      * {@link CaseGroup#CANONICAL} cases are the queries of {@code docs/canonical-query-set.md}, the
      * single source of truth shared with all four modules' canonical-query ITs. Their wording here must
-     * stay verbatim — {@code CanonicalQuerySetConsistencyTest} fails the build otherwise — so the token
-     * and latency figures measured here line up query-for-query with those suites' pass/fail results.
+     * stay verbatim, so the token and latency figures measured here line up query-for-query with those
+     * suites' pass/fail results.
      * Each canonical case names the approaches whose filter type can express it at all; for the others it
      * is reported as {@code n/a} rather than as a failure, because an architectural limit is not a
      * reliability problem (the ITs are where those expected failures are asserted).
@@ -144,8 +144,8 @@ public class BenchmarkLocalModels {
                      Set<Approach> approaches, List<Expectation> expected) {
 
         /**
-         * A canonical query. The first two arguments are read verbatim out of this source by
-         * {@code CanonicalQuerySetConsistencyTest} — keep them literal, never build them from constants.
+         * A canonical query. The first two arguments are the documented name and wording, verbatim —
+         * keep them literal, never build them from constants.
          */
         static EvalCase canonical(String name, String query, Set<Approach> approaches, Expectation... expected) {
             return new EvalCase(name, query, Set.of("canonical"), CaseGroup.CANONICAL, approaches,
@@ -195,8 +195,7 @@ public class BenchmarkLocalModels {
 
         // --- the canonical query set: docs/canonical-query-set.md is the single source of truth for
         // every query string below, and the same eight queries drive all four modules' canonical-query
-        // ITs. Keep wording, order and case names in sync with that document — the modules'
-        // CanonicalQuerySetConsistencyTest fails the build on any drift. ---
+        // ITs. Keep wording, order and case names in sync with that document. ---
         cases.add(EvalCase.canonical("C1_SINGLE_VALUE", "show me all customers in Berlin",
                 ALL_APPROACHES,
                 TextExpectation.of("city", "CONTAINS", "berlin")));
