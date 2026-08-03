@@ -141,18 +141,20 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
   model can read as "nothing happened" and call again with no arguments. The guard must keep what the
   first call extracted. Nothing else about the tool is tested — asserting that arguments land in a record
   was plumbing.
-- **`HybridCanonicalQueryIT`** — the eight queries of `docs/canonical-query-set.md` against a real Ollama, each
-  scored on the **resulting customer set** (the `Specification` is executed against the seeded database and
-  the matching ids compared with a reference predicate). All eight are expected to pass here, exactly as
-  in 03: same filter type, same prompt rules, same queries. A divergence between the two modules could
-  therefore only come from the delivery mechanism.
+- **`HybridAiFilterIT`** — both query sets through the service against a real Ollama, one test method each.
+  `canonicalQuery` runs the eight queries of `docs/canonical-query-set.md`, each scored on the **resulting
+  customer set** (the `Specification` is executed against the seeded database and the matching ids compared
+  with a reference predicate). All eight are expected to pass here, exactly as in 03: same filter type, same
+  prompt rules, same queries. A divergence between the two modules could therefore only come from the
+  delivery mechanism.
+  `robustnessQuery` runs the five cases the canonical set does not probe: small talk, an unrelated
+  question, "show me all customers" and an explicit reset must each leave the grid *unfiltered*, plus one
+  German query. No filter type is involved, so there is no `ExpectedResult` for them and all five must pass,
+  exactly as in 02 and 03.
 - **`CustomerListViewBrowserlessIT`** — the same eight queries and expectations through the UI against a
   real native Ollama instance, exercising `TextField` → tool call → `Grid` end to end. Identical input to
-  `HybridCanonicalQueryIT`, so the view layer is the only variable; identical to 03's equivalent IT too,
+  `HybridAiFilterIT`, so the view layer is the only variable; identical to 03's equivalent IT too,
   so structured output and tool calling stay directly comparable.
-- **`PromptRobustnessIT`** — the five cases the canonical set does not probe: small talk, an unrelated
-  question, "show me all customers" and an explicit reset must each leave the grid *unfiltered*, plus one
-  German query. No filter type is involved, so all five must pass, exactly as in 02 and 03.
 
 > **Pick the model carefully for this module.** 04 asks the model for a nested object array as a tool
 > argument (`searchCustomers(List<Condition>)`), and that is a harder ask than either 03's structured

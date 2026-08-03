@@ -32,10 +32,10 @@ import static org.awaitility.Awaitility.await;
  * into the filter field, the view's own AI layer resolves it, and the ids the grid ends up showing are
  * compared with the ids a reference predicate selects.
  * <p>
- * Deliberately the same eight {@link CanonicalQuery} constants and the same per-variant {@link Outcome}
- * mapping as {@link AbstractCanonicalQueryIT}, so the only difference left between the two IT kinds is the
- * path taken: {@code TextField → Grid} here, {@code agent → repository} there. Every module therefore runs
- * the same number of UI queries with the same logic, including the ones that fail by design.
+ * Deliberately the same eight {@link CanonicalQuery} constants and the same per-variant
+ * {@link ExpectedResult} mapping as {@link AbstractAiFilterIT}, so the only difference left between the two
+ * IT kinds is the path taken: {@code TextField → Grid} here, {@code agent → repository} there. Every module
+ * therefore runs the same number of UI queries with the same logic, including the ones that fail by design.
  * <p>
  * A subclass supplies the view to open and what its filter type can express. It also has to carry
  * {@code @ViewPackages}, because that annotation has to name a concrete {@code @Route} class.
@@ -59,8 +59,8 @@ public abstract class AbstractCustomerListViewBrowserlessIT extends SpringBrowse
     /** The route to open — a concrete view, so it also fixes which variant answers. */
     protected abstract Class<? extends AbstractCustomerSearchView> viewClass();
 
-    /** What this variant's filter type can express; the same mapping its service-level IT reads. */
-    protected abstract Outcome outcomeOf(CanonicalQuery canonical);
+    /** What this variant's filter type can express; the same mapping its service-level IT states. */
+    protected abstract ExpectedResult expectedResultFor(CanonicalQuery canonical);
 
     @BeforeAll
     void resetTokenUsage() {
@@ -78,13 +78,13 @@ public abstract class AbstractCustomerListViewBrowserlessIT extends SpringBrowse
         List<Customer> seeded = customerRepository.findAll();
         Set<Long> shown = idsShownFor(canonical.query());
         List<Set<Long>> acceptable = canonical.acceptableIdSets(seeded);
-        Outcome outcome = outcomeOf(canonical);
+        ExpectedResult expectedResult = expectedResultFor(canonical);
 
         logger.info("{} [{}] '{}' -> {} of {} rows in the grid, acceptable sizes {}",
-                canonical.name(), outcome, canonical.query(), shown.size(), seeded.size(),
+                canonical.name(), expectedResult, canonical.query(), shown.size(), seeded.size(),
                 acceptable.stream().map(Set::size).toList());
 
-        if (outcome == Outcome.SUCCESS) {
+        if (expectedResult == ExpectedResult.MATCH) {
             assertThat(acceptable)
                     .as("%s: the grid (%d rows) must show one of the expected customer sets %s",
                             canonical.name(), shown.size(), acceptable.stream().map(Set::size).toList())

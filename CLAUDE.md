@@ -55,16 +55,15 @@ A task is only finished when:
 2. For UI changes: the app has been started and the change verified via a Playwright screenshot
    (save screenshots to `~/screenshots/`).
 3. For changes to filter/AI logic: the affected module's IT classes pass, run via `-Pit-local-ollama`
-   (against a native Ollama instance). Every AI module runs three kinds, all extending a shared base
-   in `demo-commons`' test-jar: the canonical-query IT (the eight queries through the service), the
-   browserless IT (the same eight through the UI) and the prompt-robustness IT (the five cases that
-   ask for no filter). 02 has one of each per variant, so six.
+   (against a native Ollama instance). Every AI module runs two kinds, both extending a shared base
+   in `demo-commons`' test-jar: the `*AiFilterIT` (through the service — the eight canonical queries
+   and the five robustness cases, one test method each) and the browserless IT (the same eight
+   through the UI). 02 has one of each per variant, so four.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
    `demo-commons`' `CanonicalQuery` enum and into `ollama-benchmark/BenchmarkLocalModels.java` —
    verbatim in both copies, kept in sync by hand. Each variant then has to say what the new query
-   means for it: the per-variant
-   `*Outcomes` class is an exhaustive `switch`, so all four stop compiling until that decision is
-   made — `SUCCESS` or `FAIL_BY_DESIGN`.
+   means for it: its `expectedResultFor` method is an exhaustive `switch`, in both of its ITs, so all
+   of them stop compiling until that decision is made — `MATCH` or `NO_MATCH_BY_DESIGN`.
 
 Points 1–3 apply before **every** commit, not only at the end of the task.
 Iterate on your own until all points are met before reporting the task as done.
@@ -92,9 +91,9 @@ or file changes on your own initiative.
   stays in its module. See `demo-commons/README.md`.
 - The test layer is the second exception, and it is shared through `demo-commons`' **test-jar**
   (`<type>test-jar</type><scope>test</scope>`), never through `src/main` — otherwise JUnit and
-  browserless would land in all four apps' runtime classpath. It owns the query sets and the three
-  abstract ITs. What stays per module is the one thing that differs: a `*Outcomes` class saying which
-  queries that variant's filter type can express.
+  browserless would land in all four apps' runtime classpath. It owns the query sets and the two
+  abstract ITs. What stays per module is the one thing that differs: an `expectedResultFor` method
+  saying which queries that variant's filter type can express.
 - CSS belongs in theme files, not inline in Java components.
 - Commit after every completed, verified step (Conventional Commits, no push).
 - Never commit benchmark reports, logs, or other generated artifacts unless the

@@ -23,14 +23,21 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Runs the canonical query set against a real model and scores every query on the <b>resulting customer
- * set</b> rather than on the shape of the extracted filter: the query goes through the module's
- * {@link CustomerSearchAgent}, the returned {@code Specification} is executed against the seeded database,
- * and the resulting ids are compared with the ids a reference predicate selects.
+ * Measures a module's AI filtering against a real model, through its {@link CustomerSearchAgent}. Both
+ * query sets run here, and both are scored on the <b>resulting customer set</b> rather than on the shape of
+ * the extracted filter: the returned {@code Specification} is executed against the seeded database and the
+ * resulting ids are compared with the ids a reference predicate selects.
+ * <p>
+ * {@link #canonicalQuery} measures what a variant can <em>express</em> — the eight queries of
+ * {@link CanonicalQuery}, each with the {@link ExpectedResult} this variant's filter type allows.
+ * {@link #robustnessQuery} measures the opposite direction: input that asks for no filter at all must
+ * produce an empty filter rather than a hallucinated condition. That does not depend on the filter type, so
+ * there is no {@code ExpectedResult} for it and every variant is expected to pass all five — a failure
+ * there is a genuine reliability finding, not a documented limit.
  * <p>
  * Everything that is the same for all four variants lives here — the Spring configuration, the token
- * bookkeeping, the assert-and-log step. A subclass supplies the only two things that differ: which agent
- * to ask, and which queries its filter type can express at all.
+ * bookkeeping, the assert-and-log step. A subclass supplies the only two things that differ: which agent to
+ * ask, and which queries its filter type can express at all.
  * <p>
  * Run with {@code -Pit-local-ollama}, which targets a native Ollama instance at {@code OLLAMA_BASE_URL} by
  * default ({@code -DAI_TEST_PROFILE=openai} targets the real OpenAI API). No reachability probe — an
@@ -39,14 +46,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
         "spring.autoconfigure.exclude=com.vaadin.flow.spring.SpringBootAutoConfiguration"
 })
-// Generous on purpose: an inexpressible query is also the slowest (the model keeps trying to place the
-// part it had to drop) and a cold model load adds a few seconds. The suite should fail on wrong results,
-// not on slowness; num-predict bounds the answer length.
+// Generous on purpose, and per query rather than per class: an inexpressible query is also the slowest (the
+// model keeps trying to place the part it had to drop) and a cold model load adds a few seconds. The suite
+// should fail on wrong results, not on slowness; num-predict bounds the answer length.
 @Timeout(value = 300, unit = TimeUnit.SECONDS)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public abstract class AbstractCanonicalQueryIT {
+public abstract class AbstractAiFilterIT {
 
-    private static final Logger logger = LoggerFactory.getLogger(AbstractCanonicalQueryIT.class);
+    private static final Logger logger = LoggerFactory.getLogger(AbstractAiFilterIT.class);
 
     @Autowired
     private CustomerRepository customerRepository;
@@ -58,7 +65,7 @@ public abstract class AbstractCanonicalQueryIT {
     protected abstract CustomerSearchAgent agent();
 
     /** What this variant's filter type can express — the one thing that differs between the modules. */
-    protected abstract Outcome outcomeOf(CanonicalQuery canonical);
+    protected abstract ExpectedResult expectedResultFor(CanonicalQuery canonical);
 
     @BeforeAll
     void resetTokenUsage() {
@@ -76,13 +83,13 @@ public abstract class AbstractCanonicalQueryIT {
         List<Customer> seeded = customerRepository.findAll();
         Set<Long> actual = matchingIds(canonical.query());
         List<Set<Long>> acceptable = canonical.acceptableIdSets(seeded);
-        Outcome outcome = outcomeOf(canonical);
+        ExpectedResult expectedResult = expectedResultFor(canonical);
 
         logger.info("{} [{}] '{}' -> {} of {} customers, acceptable sizes {}",
-                canonical.name(), outcome, canonical.query(), actual.size(), seeded.size(),
+                canonical.name(), expectedResult, canonical.query(), actual.size(), seeded.size(),
                 acceptable.stream().map(Set::size).toList());
 
-        if (outcome == Outcome.SUCCESS) {
+        if (expectedResult == ExpectedResult.MATCH) {
             assertThat(acceptable)
                     .as("%s: the filtered customer set (%d rows) must equal one of the expected sets %s",
                             canonical.name(), actual.size(), acceptable.stream().map(Set::size).toList())
@@ -95,6 +102,22 @@ public abstract class AbstractCanonicalQueryIT {
                             canonical.name(), actual.size(), acceptable.stream().map(Set::size).toList())
                     .doesNotContain(actual);
         }
+    }
+
+    @ParameterizedTest
+    @EnumSource(RobustnessQuery.class)
+    void robustnessQuery(RobustnessQuery robustness) {
+        List<Customer> seeded = customerRepository.findAll();
+        Set<Long> actual = matchingIds(robustness.query());
+        Set<Long> expected = robustness.expectedIds(seeded);
+
+        logger.info("{} '{}' -> {} of {} customers, expected {}",
+                robustness.name(), robustness.query(), actual.size(), seeded.size(), expected.size());
+
+        assertThat(actual)
+                .as("%s: '%s' must select %d of the %d seeded customers",
+                        robustness.name(), robustness.query(), expected.size(), seeded.size())
+                .isEqualTo(expected);
     }
 
     /** This variant's mechanism: query in, ids of the customers its filter selects out. */

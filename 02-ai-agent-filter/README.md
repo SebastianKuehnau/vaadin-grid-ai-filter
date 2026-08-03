@@ -200,14 +200,18 @@ Without an LLM (`test`), per variant:
 
 Against a real model (`verify -Pit-local-ollama`):
 
-- **`FlatCanonicalQueryIT` / `OperatorCanonicalQueryIT`** — the eight queries of
-  `docs/canonical-query-set.md`, each scored on the **resulting customer set**: the variant's
-  `Specification` is executed against the seeded database and the matching customer ids are compared with
-  those of a reference predicate. Queries the variant cannot express are marked `FAIL_BY_DESIGN` and
-  asserted to produce a *different* set — so 02(a)'s two reachable categories and 02(b)'s five are pinned
-  down by tests, and an accidental pass fails the build instead of going unnoticed. `03-ai-structured-filter`
-  and `04-ai-hybrid-filter` run the identical queries, which is what makes the capability matrix a
-  measurement.
+- **`FlatAiFilterIT` / `OperatorAiFilterIT`** — both query sets through the variant's service, one test
+  method each. `canonicalQuery` runs the eight queries of `docs/canonical-query-set.md`, each scored on the
+  **resulting customer set**: the variant's `Specification` is executed against the seeded database and the
+  matching customer ids are compared with those of a reference predicate. Queries the variant cannot express
+  are marked `NO_MATCH_BY_DESIGN` and asserted to produce a *different* set — so 02(a)'s two reachable
+  categories and 02(b)'s five are pinned down by tests, and an accidental pass fails the build instead of
+  going unnoticed. `03-ai-structured-filter` and `04-ai-hybrid-filter` run the identical queries, which is
+  what makes the capability matrix a measurement.
+  `robustnessQuery` runs the five cases the canonical set does not probe: small talk, an unrelated
+  question, "show me all customers" and an explicit reset must each leave the grid *unfiltered* rather than
+  produce a hallucinated condition, plus one German query. None of them needs a filter type, so both
+  variants must pass all five and there is no `ExpectedResult` for them.
 - **`FlatCustomerListViewBrowserlessIT` / `OperatorCustomerListViewBrowserlessIT`** — the same eight
   queries and the same expectations, but through the UI and against a real native Ollama instance
   instead of a fake agent bean (they fail rather than skipping if unreachable), exercising the full
@@ -215,12 +219,7 @@ Against a real model (`verify -Pit-local-ollama`):
   isn't known upfront, the wait condition is "the filter field is re-enabled" (it's disabled for the
   duration of a search) rather than a fixed grid size. Because the pair runs identical input, the only
   variable left between them is the view layer.
-- **`FlatPromptRobustnessIT` / `OperatorPromptRobustnessIT`** — the five cases the canonical set does not
-  probe: small talk, an unrelated question, "show me all customers" and an explicit reset must each leave
-  the grid *unfiltered* rather than produce a hallucinated condition, plus one German query. None of them
-  needs a filter type, so both variants must pass all five.
-
-All three IT kinds extend a base class from `demo-commons`' test-jar and share the query sets with the
+Both IT kinds extend a base class from `demo-commons`' test-jar and share the query sets with the
 other AI modules, so what a module's ITs contain is one line: which agent or view to ask, and which
 queries its filter type can express.
 

@@ -131,7 +131,7 @@ block per call; a non-reasoning model like `llama3.1:8b` ignores the flag anyway
 
 ```bash
 ./mvnw -pl 03-ai-structured-filter test                        # unit tests only, no LLM, no UI
-./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama                            # StructuredCanonicalQueryIT + PromptRobustnessIT + CustomerListViewBrowserlessIT vs native Ollama (ollama is the default test profile)
+./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama                            # StructuredAiFilterIT + CustomerListViewBrowserlessIT vs native Ollama (ollama is the default test profile)
 ./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama -DAI_TEST_PROFILE=openai   # same suite, against the real OpenAI API
 ```
 
@@ -152,27 +152,29 @@ the test config overrides it to `ollama`.
 > That is a model-capability gap, not a bug in the prompt or schema. See
 > [`docs/capability-matrix.md` § Reliability across models](../docs/capability-matrix.md#reliability-across-models).
 
-- **`StructuredCanonicalQueryIT`** — the eight queries of `docs/canonical-query-set.md`, each scored on the
+- **`StructuredAiFilterIT`** — both query sets through the service, one test method each.
+  `canonicalQuery` runs the eight queries of `docs/canonical-query-set.md`, each scored on the
   **resulting customer set**: the returned `Specification` is executed against the seeded database and the
   matching ids are compared with those of a reference predicate. All eight are expected to pass here;
   `02-ai-agent-filter`'s two variants and `04-ai-hybrid-filter` run the identical queries, which is what
   makes the capability matrix a measurement rather than a claim.
-- **`PromptRobustnessIT`** — the opposite direction, which the canonical set does not probe: small talk,
+  `robustnessQuery` runs the opposite direction, which the canonical set does not probe: small talk,
   an unrelated question, "show me all customers" and an explicit reset must each leave the grid
   *unfiltered* rather than produce a hallucinated condition, and one German query must filter the same as
   its English equivalent. Expectations are computed from the seeded data, not hard-coded. None of the five
-  needs a filter type, so 02's two variants and 04 run them too and must all pass.
+  needs a filter type, so there is no `ExpectedResult` for them and 02's two variants and 04 must all pass
+  them too.
 - **`CustomerListViewBrowserlessIT`** — same Browserless setup, but against a real native Ollama
-  instance instead of a fake agent bean (it fails rather than skipping if unreachable, like the
-  canonical-query IT), exercising the full `TextField` → structured-output AI layer → `Grid`
+  instance instead of a fake agent bean (it fails rather than skipping if unreachable, like
+  `StructuredAiFilterIT`), exercising the full `TextField` → structured-output AI layer → `Grid`
   pipeline end to end. Since the real model's result size isn't known upfront, the wait condition
   is "the filter field is re-enabled" (it's disabled for the duration of a search) rather than a
   fixed grid size. It runs the same eight queries with the same expectations as
-  `StructuredCanonicalQueryIT`, so the only variable between the two is the view layer — and every other
+  `StructuredAiFilterIT`, so the only variable between the two is the view layer — and every other
   AI module runs the same eight through its UI as well, which makes the `-Pit-local-ollama` runs directly
   comparable on speed (per-test elapsed time in `target/failsafe-reports/`) and result quality.
 
-All three IT kinds extend a base class from `demo-commons`' test-jar and share the query sets with the
+Both IT kinds extend a base class from `demo-commons`' test-jar and share the query sets with the
 other AI modules, so what a module's ITs contain is one line: which agent or view to ask, and which
 queries its filter type can express.
 

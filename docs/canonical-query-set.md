@@ -11,10 +11,10 @@ Two places spell these queries out **verbatim**:
 | benchmark | `ollama-benchmark/BenchmarkLocalModels.java` |
 
 `CanonicalQuery` carries each query together with the reference predicate a correct answer must satisfy,
-and is read by every AI module through the service (`*CanonicalQueryIT`) and through the UI
+and is read by every AI module through the service (`*AiFilterIT`) and through the UI
 (`*CustomerListViewBrowserlessIT`) — eight queries, two paths, four variants, one text. What it
-deliberately does *not* carry is the expected outcome: that depends on the asking variant's filter type,
-so each variant states it in its own `*Outcomes` class. The benchmark script keeps a separate copy because
+deliberately does *not* carry is the expected result: that depends on the asking variant's filter type,
+so each variant states it in its own `expectedResultFor` method. The benchmark script keeps a separate copy because
 it is deliberately standalone and dependency-free.
 
 Both copies have to match this document verbatim, wording **and** order — that is what makes the

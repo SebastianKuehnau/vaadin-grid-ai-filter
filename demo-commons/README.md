@@ -26,14 +26,16 @@ It holds the shared test foundation, in package `canonicalquery`:
 |---|---|
 | `CanonicalQuery` | the eight queries of `docs/canonical-query-set.md`, each with the reference predicate a correct answer satisfies |
 | `RobustnessQuery` | the five cases that ask for *no* filter, plus one query in German |
-| `Outcome` | `SUCCESS` · `FAIL_BY_DESIGN` |
-| `AbstractCanonicalQueryIT` | the canonical set through a module's `CustomerSearchAgent` |
-| `AbstractCustomerListViewBrowserlessIT` | the same set through the UI: filter field in, grid rows out |
-| `AbstractPromptRobustnessIT` | the robustness set; no `Outcome`, every variant must pass all five |
+| `ExpectedResult` | `MATCH` · `NO_MATCH_BY_DESIGN` — which test result is achievable at all |
+| `AbstractAiFilterIT` | both query sets through a module's `CustomerSearchAgent`, one test method each |
+| `AbstractCustomerListViewBrowserlessIT` | the canonical set through the UI: filter field in, grid rows out |
+
+The robustness set needs no `ExpectedResult`: it does not depend on the filter type, so every variant must
+pass all five.
 
 The same rule applies here as to the main sources: what a variant can *express* is the comparison the talk
-is about, so it stays in the module — as a `*Outcomes` class with an exhaustive `switch`, read by both of
-that variant's ITs.
+is about, so it stays in the module — as an exhaustive `switch` in an `expectedResultFor` method, stated by
+both of that variant's ITs.
 
 ## What is in here
 

@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
  * The canonical query set of {@code docs/canonical-query-set.md}: eight natural-language queries, one per
  * capability category, each with the customer set a correct answer selects.
  * <p>
- * Defined once here and shared by every AI module — through the service (`*CanonicalQueryIT`) and through
+ * Defined once here and shared by every AI module — through the service (`*AiFilterIT`) and through
  * the UI (`*CustomerListViewBrowserlessIT`), so the two paths and the four variants are measured on
  * literally the same input. What a constant deliberately does <em>not</em> carry is an {@link Outcome}:
  * whether a query is expressible depends on the asking module's filter type, so each module states that

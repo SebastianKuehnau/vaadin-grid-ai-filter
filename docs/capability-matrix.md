@@ -43,8 +43,8 @@ those of a reference predicate — not on whether the extracted filter "looks ri
 | Date range — "between 2024-07-01 and 2025-03-31" (`C8_DATE_RANGE`) | ❌ | ❌ | ✅ | ✅ | 4 |
 | **Categories reached** | **2 / 8** | **5 / 8** | **8 / 8** | **8 / 8** | |
 
-Evidence: `FlatCanonicalQueryIT`, `OperatorCanonicalQueryIT` (both in `02-ai-agent-filter`) and
-`StructuredCanonicalQueryIT` (in `03-ai-structured-filter`) and `HybridCanonicalQueryIT` (in
+Evidence: `FlatAiFilterIT`, `OperatorAiFilterIT` (both in `02-ai-agent-filter`) and
+`StructuredAiFilterIT` (in `03-ai-structured-filter`) and `HybridAiFilterIT` (in
 `04-ai-hybrid-filter`). The ❌ cells are not skipped
 — they run, and the IT asserts that the resulting set *differs* from the expected one, so a ceiling is a
 recorded, non-erroring failure. If such a case ever matched, the test would fail loudly.
@@ -195,7 +195,7 @@ by the filter-shaped expectation and pass in the ITs.
 
 | Query type | 02(a) | 02(b) | 03 | 04 | Evidence |
 |---|---|---|---|---|---|
-| **Relative date via a live clock** ("in the last 12 months") | ❌ | ⚠️ chained `currentLocalDateTime()` — model-dependent | ✅ "today" baked into `systemPrompt(LocalDate)` | ⚠️ same prompt as 03, but model-dependent in practice | `OperatorCanonicalQueryIT` C7 passes on `qwen3:8b`; a weaker model such as `llama3.1:8b` reliably fails the two-hop chain (see `02-ai-agent-filter/README.md`, "Relative dates need two chained tool calls"). Across four models the 10-run benchmark gives C7 **40/40 for 03 and 20/40 for 04** — `gemma4:26b-mlx` and `llama3.1:8b` fail it through the tool call while passing it through structured output, on the identical prompt |
+| **Relative date via a live clock** ("in the last 12 months") | ❌ | ⚠️ chained `currentLocalDateTime()` — model-dependent | ✅ "today" baked into `systemPrompt(LocalDate)` | ⚠️ same prompt as 03, but model-dependent in practice | `OperatorAiFilterIT` C7 passes on `qwen3:8b`; a weaker model such as `llama3.1:8b` reliably fails the two-hop chain (see `02-ai-agent-filter/README.md`, "Relative dates need two chained tool calls"). Across four models the 10-run benchmark gives C7 **40/40 for 03 and 20/40 for 04** — `gemma4:26b-mlx` and `llama3.1:8b` fail it through the tool call while passing it through structured output, on the identical prompt |
 
 02(b) *can* resolve relative dates by chaining `currentLocalDateTime()` and computing an offset. It is a
 genuine capability, but a two-hop one, and it is the only category where the per-field variants have
