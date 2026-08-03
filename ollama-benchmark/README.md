@@ -87,14 +87,14 @@ report repeats this caveat next to the matrix, so a `0/1` there is never mistake
 
 - **Canonical query set** (primary): the eight queries of `../docs/canonical-query-set.md`, the same ones
   all four modules' ITs run. Their wording lives verbatim in this script — the second and last copy
-  besides `demo-commons`' `CanonicalQuery` enum, because this script is deliberately standalone and
+  besides `00-commons`' `CanonicalQuery` enum, because this script is deliberately standalone and
   dependency-free. Keeping it verbatim is what makes these token/latency figures comparable
   query-for-query with the ITs' pass/fail results.
   Each canonical case names the approaches whose filter type can express it at all; for the others the
   case is reported as `n/a` (and listed on stdout), because an architectural limit is not a reliability
   problem. The report's "Canonical query set" section is the resulting matrix: one row per query, one
   column per approach.
-- **Robustness set**: the five cases of `demo-commons`' `RobustnessQuery`, worded verbatim here — the same
+- **Robustness set**: the five cases of `00-commons`' `RobustnessQuery`, worded verbatim here — the same
   five the modules' `*CustomerSearchIT` assert, so together with the canonical eight this script covers
   exactly the 13 cases those ITs run. Four ask for *no* filter at all (small talk, an unrelated question,
   "show me all customers", an explicit reset) and are scored on every field staying empty; `GERMAN_QUERY`

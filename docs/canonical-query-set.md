@@ -7,7 +7,7 @@ Two places spell these queries out **verbatim**:
 
 | Copy | File |
 |---|---|
-| the shared enum | `demo-commons/src/test/java/.../canonicalquery/CanonicalQuery.java` |
+| the shared enum | `../00-commons/src/test/java/.../canonicalquery/CanonicalQuery.java` |
 | benchmark | `ollama-benchmark/BenchmarkLocalModels.java` |
 
 `CanonicalQuery` carries each query together with the reference predicate a correct answer must satisfy,
@@ -200,7 +200,7 @@ Same two copies as the eight, same rule — verbatim, in this order:
 
 | Copy | Where |
 |---|---|
-| the shared enum | `demo-commons/src/test/java/.../canonicalquery/RobustnessQuery.java` |
+| the shared enum | `../00-commons/src/test/java/.../canonicalquery/RobustnessQuery.java` |
 | benchmark | `ollama-benchmark/BenchmarkLocalModels.java`, group `ROBUSTNESS` |
 
 ### SMALL_TALK

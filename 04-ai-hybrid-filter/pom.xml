@@ -18,7 +18,7 @@
 			     this module's own explicit choice. See demo-commons/README.md for what may never move
 			     into it: the AI service, the filter type, the system prompt, the tool signature. -->
 			<groupId>dev.demo.vaadin</groupId>
-			<artifactId>demo-commons</artifactId>
+			<artifactId>00-demo-commons</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
@@ -77,7 +77,7 @@
 			<!-- The shared test foundation: the canonical query set, the robustness set and the abstract
 			     ITs this module's tests extend. Published by demo-commons as a test-jar; see its pom. -->
 			<groupId>dev.demo.vaadin</groupId>
-			<artifactId>demo-commons</artifactId>
+			<artifactId>00-demo-commons</artifactId>
 			<version>${project.version}</version>
 			<type>test-jar</type>
 			<scope>test</scope>

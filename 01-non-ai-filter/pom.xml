@@ -18,7 +18,7 @@
 			     and Micrometer dependencies are <optional> there, so this non-AI baseline resolves
 			     neither. See demo-commons/README.md. -->
 			<groupId>dev.demo.vaadin</groupId>
-			<artifactId>demo-commons</artifactId>
+			<artifactId>00-demo-commons</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>

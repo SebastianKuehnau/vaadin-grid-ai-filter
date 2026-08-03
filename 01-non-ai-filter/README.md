@@ -24,8 +24,8 @@ Both views build on `Grid<Customer>` subclasses instead of assembling columns in
 
 - **`CustomerGrid`** (base) — column configuration: keys, headers, revenue formatting, the
   `CreditScoreIndicator` component column, and the responsive breakpoint-based show/hide behavior
-  (768px / 1200px, applied on attach and window resize). It lives in **`demo-commons`**, because all
-  four apps of this repository show the very same grid; see `demo-commons/README.md`.
+  (768px / 1200px, applied on attach and window resize). It lives in **`00-commons`**, because all
+  four apps of this repository show the very same grid; see `../00-commons/README.md`.
 - **`FilterableCustomerGrid extends CustomerGrid`** — this module's own addition, and the thing that
   makes step 1 step 1: a header-row filter field per column (text / date / integer / credit-rating
   multi-select), owning the resulting filter state (`getFilterCustomer()`, `getAddressFilter()`,
@@ -55,10 +55,10 @@ default (the backend sorting the AI modules use):
 
 This module contains **no Spring AI code**, declares no model starter, and therefore autoconfigures no
 `ChatModel` — it is the non-AI baseline, and the comparison only means something if the baseline really is
-one. What it does inherit through `demo-commons` are the Spring AI *classes* on its classpath, because that
+one. What it does inherit through `00-commons` are the Spring AI *classes* on its classpath, because that
 module declares `spring-ai-client-chat` regularly so its `TokenUsageAdvisor` can be a single `@Component`
 instead of three copies of a configuration class. The one visible consequence is an idle
-`TokenUsageAdvisor` bean in this app, which nothing ever calls. See `demo-commons/README.md` for the trade.
+`TokenUsageAdvisor` bean in this app, which nothing ever calls. See `../00-commons/README.md` for the trade.
 
 ## Sources
 

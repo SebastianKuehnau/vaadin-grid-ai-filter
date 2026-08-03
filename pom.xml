@@ -32,7 +32,7 @@
 		     scaffolding all four apps share. Everything that *is* the comparison (the AI services, the
 		     filter types, the system prompts, the tool signatures, the views) stays duplicated per
 		     module. -->
-		<module>demo-commons</module>
+		<module>00-commons</module>
 	</modules>
 
 	<dependencyManagement>

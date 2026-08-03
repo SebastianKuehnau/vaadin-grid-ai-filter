@@ -9,7 +9,7 @@
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
-	<artifactId>demo-commons</artifactId>
+	<artifactId>00-demo-commons</artifactId>
 	<name>demo commons</name>
 	<description>Shared runtime infrastructure: the domain layer, the shared Vaadin components, the AI
 		layer's seam towards the view and the token measurement. No numeric prefix — this is not a demo

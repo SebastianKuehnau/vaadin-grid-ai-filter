@@ -28,12 +28,12 @@ as structured output, 04 as a tool call. Compare with the non-AI baselines in `0
   The subclasses differ only in their heading, that description, and which `CustomerSearchAgent` bean
   Spring injects. Neither has a single Spring AI import — they only know `CustomerSearchAgent` and apply
   the `Specification` it returns.
-- **`AbstractCustomerSearchView`** (in **`demo-commons`**) — the natural-language `TextField` above the
+- **`AbstractCustomerSearchView`** (in **`00-commons`**) — the natural-language `TextField` above the
   grid, the async search (`CompletableFuture` + `ui.access(...)`) and the error notification. Identical in
   all three AI modules, and deliberately so: that the view cannot tell a tool call from structured output
   is one of this repository's findings.
 - **`CustomerGrid`** — the `Grid<Customer>` itself (column config, backend sort configuration, and
-  responsive show/hide). It lives in **`demo-commons`**: all four apps show the same grid, and it says
+  responsive show/hide). It lives in **`00-commons`**: all four apps show the same grid, and it says
   nothing about how a filter came into being. Unlike `01-non-ai-filter`, this module needs no per-column
   filter fields — filtering is the one AI `TextField` above — and it keeps the shared grid's backend sort
   configuration unchanged.
@@ -219,7 +219,7 @@ Against a real model (`verify -Pit-local-ollama`):
   isn't known upfront, the wait condition is "the filter field is re-enabled" (it's disabled for the
   duration of a search) rather than a fixed grid size. Because the pair runs identical input, the only
   variable left between them is the view layer.
-Both IT kinds extend a base class from `demo-commons`' test-jar and share the query sets with the
+Both IT kinds extend a base class from `00-commons`' test-jar and share the query sets with the
 other AI modules, so what a module's ITs contain is one line: which agent or view to ask, and which
 queries its filter type can express.
 
@@ -228,8 +228,8 @@ queries its filter type can express.
 
 - `src/main/java/dev/demo/vaadin/aigridfilter/ui/` — the two variant views and their shared base class
   (the variant switcher and description; the filter field, grid and async search are inherited from
-  `demo-commons`)
+  `00-commons`)
 - `src/main/java/dev/demo/vaadin/aigridfilter/ai/` — the AI layer, one package per variant (see above)
-- `../demo-commons/` — the `Customer`/`Address` JPA model, `data.sql`, `CustomerGrid` and
+- `../00-commons/` — the `Customer`/`Address` JPA model, `data.sql`, `CustomerGrid` and
   `AbstractCustomerSearchView`, shared by all four apps
 - `src/test/java/dev/demo/vaadin/aigridfilter/` — tests (see [Tests](#tests) above)

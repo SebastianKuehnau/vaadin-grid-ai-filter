@@ -84,7 +84,7 @@ the finding: 04 has 03's capabilities with 02's delivery mechanism.
 
 ## Token cost and request duration
 
-Measured by the **`TokenUsageAdvisor`** (shared via `demo-commons`) on the *real application path*: it sits
+Measured by the **`TokenUsageAdvisor`** (shared via `00-commons`) on the *real application path*: it sits
 innermost in the advisor chain, so it sees every model call including the tool loop's follow-ups, logs
 prompt / completion / total tokens and the wall-clock time of each, and prints a per-IT-class summary. The
 figures below are that summary for each module's canonical-query IT — the **same eight queries** in every

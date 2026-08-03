@@ -17,12 +17,12 @@ also with the non-AI baselines in `01-non-ai-filter`; the root `README.md` has t
   query (and blurring/pressing enter) sends it to the AI layer; a blank query resets to all rows.
   The view has zero Spring AI imports — it only knows `CustomerSearchAgent` and applies the
   `Specification` it returns.
-- **`AbstractCustomerSearchView`** (in **`demo-commons`**) — the filter field, the async search
+- **`AbstractCustomerSearchView`** (in **`00-commons`**) — the filter field, the async search
   (`CompletableFuture` + `ui.access(...)`) and the error notification, shared with `02` and `04`. This
   module's view is a heading on top of it, which is the point: nothing up here reveals that the model
   returned an object rather than calling a tool.
 - **`CustomerGrid`** — the `Grid<Customer>` itself (column config, backend sort configuration, and
-  responsive show/hide). It lives in **`demo-commons`**: all four apps show the same grid, and it says
+  responsive show/hide). It lives in **`00-commons`**: all four apps show the same grid, and it says
   nothing about how a filter came into being. Unlike `01-non-ai-filter`, this module needs no per-column
   filter fields — filtering is the one AI `TextField` above — and it keeps the shared grid's backend sort
   configuration unchanged.
@@ -174,7 +174,7 @@ the test config overrides it to `ollama`.
   AI module runs the same eight through its UI as well, which makes the `-Pit-local-ollama` runs directly
   comparable on speed (per-test elapsed time in `target/failsafe-reports/`) and result quality.
 
-Both IT kinds extend a base class from `demo-commons`' test-jar and share the query sets with the
+Both IT kinds extend a base class from `00-commons`' test-jar and share the query sets with the
 other AI modules, so what a module's ITs contain is one line: which agent or view to ask, and which
 queries its filter type can express.
 
@@ -184,7 +184,7 @@ queries its filter type can express.
 - `src/main/java/dev/demo/vaadin/aigridfilter/ui/CustomerListView.java` — the view: a heading on top of
   the shared `AbstractCustomerSearchView`
 - `src/main/java/dev/demo/vaadin/aigridfilter/ai/` — the AI layer (see above)
-- `../demo-commons/` — the `Customer`/`Address` JPA model, `data.sql`, `CustomerGrid` and
+- `../00-commons/` — the `Customer`/`Address` JPA model, `data.sql`, `CustomerGrid` and
   `AbstractCustomerSearchView`, shared by all four apps
 - `src/test/java/dev/demo/vaadin/aigridfilter/` — tests (see [Tests](#tests) above)
 - `../ollama-benchmark/` — standalone benchmark script comparing local Ollama models on this

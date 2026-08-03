@@ -43,7 +43,7 @@ what this module demonstrates about 03, and sharing it would hide the claim bein
 - `ai/filter/CustomerFilterSpecifications.java` (conditions → JPA `Specification`)
 
 What this module does *not* copy is the scaffolding around it: the domain model, `data.sql`, the grid, the
-search view, the `CustomerSearchAgent` seam and the token measurement all come from `demo-commons`, which
+search view, the `CustomerSearchAgent` seam and the token measurement all come from `00-commons`, which
 all four apps depend on. None of those says anything about tool calling versus structured output.
 
 New, and the only interesting file in the module:
@@ -90,7 +90,7 @@ object, the enumerated `Operator` values, the `values` array and every descripti
   `AbstractCustomerSearchView` — the delivery mechanism is invisible from up here, which is part of the
   point.
 - **`CustomerGrid`** — the `Grid<Customer>` itself (column config, backend sort configuration, and
-  responsive show/hide). It lives in **`demo-commons`**: all four apps show the same grid, and it says
+  responsive show/hide). It lives in **`00-commons`**: all four apps show the same grid, and it says
   nothing about how a filter came into being. Unlike `01-non-ai-filter`, this module needs no per-column
   filter fields — filtering is the one AI `TextField` above — and it keeps the shared grid's backend sort
   configuration unchanged.
@@ -166,7 +166,7 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
 > model can produce a filter at all — see
 > [`docs/capability-matrix.md` § Delivery mechanism vs. model strength](../docs/capability-matrix.md#delivery-mechanism-vs-model-strength).
 
-All three IT kinds extend a base class from `demo-commons`' test-jar and share the query sets with the
+All three IT kinds extend a base class from `00-commons`' test-jar and share the query sets with the
 other AI modules, so what a module's ITs contain is one line: which agent or view to ask, and which
 queries its filter type can express.
 
@@ -178,6 +178,6 @@ queries its filter type can express.
 - `src/main/java/dev/demo/vaadin/aigridfilter/ai/filter/` — the filter type, copied 1:1 from 03
 - `src/main/java/dev/demo/vaadin/aigridfilter/ui/CustomerListView.java` — the view: a heading on top of
   the shared `AbstractCustomerSearchView`, and otherwise identical to 03's
-- `../demo-commons/` — the `Customer`/`Address` JPA model, `data.sql`, `CustomerGrid` and
+- `../00-commons/` — the `Customer`/`Address` JPA model, `data.sql`, `CustomerGrid` and
   `AbstractCustomerSearchView`, shared by all four apps
 - `src/test/java/dev/demo/vaadin/aigridfilter/` — tests (see [Tests](#tests) above)
