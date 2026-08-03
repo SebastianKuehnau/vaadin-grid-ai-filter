@@ -83,7 +83,7 @@ tool call, so `02b` cannot pass `C7_RELATIVE_DATE` here (that query needs its `c
 first); the module's canonical-query IT, which runs the real Spring AI tool loop, does. The generated
 report repeats this caveat next to the matrix, so a `0/1` there is never mistaken for a model failure.
 
-#### Two case groups
+#### Three case groups
 
 - **Canonical query set** (primary): the eight queries of `../docs/canonical-query-set.md`, the same ones
   all four modules' ITs run. Their wording lives verbatim in this script — the second and last copy
@@ -94,6 +94,16 @@ report repeats this caveat next to the matrix, so a `0/1` there is never mistake
   case is reported as `n/a` (and listed on stdout), because an architectural limit is not a reliability
   problem. The report's "Canonical query set" section is the resulting matrix: one row per query, one
   column per approach.
+- **Robustness set**: the five cases of `demo-commons`' `RobustnessQuery`, worded verbatim here — the same
+  five the modules' `*CustomerSearchIT` assert, so together with the canonical eight this script covers
+  exactly the 13 cases those ITs run. Four ask for *no* filter at all (small talk, an unrelated question,
+  "show me all customers", an explicit reset) and are scored on every field staying empty; `GERMAN_QUERY`
+  must filter exactly as its English equivalent `C1_SINGLE_VALUE` does.
+  There is no `n/a` in this group: none of these needs a filter type, so all four approaches run all five
+  and are expected to pass them. A failing cell is therefore a reliability finding — a hallucinated
+  condition slipped through the prompt — and not an architectural ceiling. That is the failure mode a live
+  demo hits first, which is why it gets its own matrix in the report rather than being folded into the
+  legacy set.
 - **Legacy set**: the older prompt-regression cases that used to mirror `03-ai-structured-filter`'s
   `CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`. Those two IT classes were superseded by the
   canonical query set and removed, so this script is now the only place the cases still run — which is
@@ -109,14 +119,15 @@ report repeats this caveat next to the matrix, so a `0/1` there is never mistake
 ### Approach performance summary
 
 The report's "Approach performance summary" table aggregates **across every tested model**, one row
-per approach: passed test runs (canonical and legacy separately), total prompt tokens, total completion
+per approach: passed test runs (canonical, robustness and legacy separately), total prompt tokens, total completion
 tokens, total tokens, and total wall-clock time — all true sums over every call actually made for that
 approach (not medians), so it reflects the approach's real cost independent of which models were
 benchmarked. The pass columns read `passed/performed (share)` rather than a bare percentage, because
 the percentage alone hides how many runs it rests on: one run is one case sent once to one model, so a
 group's run count is its case count times `--runs`, summed over every tested model — and a model that
 failed outright (an `ERROR` row) performs no runs and is not counted under "Models tested". A group
-that ran no cases at all (e.g. the legacy group under `--cases=canonical`) reads `n/a` instead of `0%`.
+that ran no cases at all (e.g. the legacy and robustness groups under `--cases=canonical`) reads `n/a`
+instead of `0%`.
 Which individual runs failed is in the per-case tables further down the report. This is what makes e.g. `02b-operator`'s 39-parameter tool schema's prompt-token overhead
 visible against `04-hybrid`'s single-parameter one, and lets 03/04's combined canonical+legacy pass
 rate and total time be compared directly against 02(a)/02(b)'s. Ollama's native API reports

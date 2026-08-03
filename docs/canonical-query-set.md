@@ -19,7 +19,11 @@ it is deliberately standalone and dependency-free.
 
 Both copies have to match this document verbatim, wording **and** order — that is what makes the
 token/latency figures from the benchmark line up query-for-query with the pass/fail reliability results
-from the IT suites.
+from the IT suites. There is no test that enforces this; keep them in sync by hand.
+
+Alongside the eight there is a second, smaller set that probes the opposite direction — input that asks for
+*no* filter. It is documented in [The robustness set](#the-robustness-set) at the end of this file, lives in
+the same two copies, and brings the total each `*CustomerSearchIT` runs to **13**.
 
 ## Why these eight
 
@@ -180,3 +184,66 @@ The window deliberately **spans two calendar years**: that is what makes it impo
 dates always mean the whole calendar year they fall in (its best attempt returns all of 2024, 5
 customers), and for 02(b), which has one operator per field and can therefore give only one of the two
 bounds (`>= 2024-07-01` alone returns 21 customers).
+
+## The robustness set
+
+Five cases that are deliberately **not** part of the eight, because they probe the opposite direction. C1–C8
+all describe a filter and differ in how hard it is to express; these differ in something else — four of them
+ask for no filter at all and must produce an *empty* filter rather than a hallucinated condition. That is
+the failure mode a live demo runs into first.
+
+None of them depends on the filter type, so unlike the canonical set there is nothing here that is out of
+reach for a variant: **every** AI module is expected to pass all five, and a failure is a reliability
+finding rather than a documented limit. Consequently they carry no `ExpectedResult`.
+
+Same two copies as the eight, same rule — verbatim, in this order:
+
+| Copy | Where |
+|---|---|
+| the shared enum | `demo-commons/src/test/java/.../canonicalquery/RobustnessQuery.java` |
+| benchmark | `ollama-benchmark/BenchmarkLocalModels.java`, group `ROBUSTNESS` |
+
+### SMALL_TALK
+
+```text
+Nice weather today, isn't it?
+```
+
+Expected: no filter — all 100 customers.
+
+### UNRELATED_QUESTION
+
+```text
+What's the capital of France?
+```
+
+Expected: no filter — all 100 customers. Whether the model answers "Paris" in prose is irrelevant; what
+matters is that nothing lands in the filter.
+
+### SHOW_ALL
+
+```text
+show me all customers
+```
+
+Expected: all 100 customers. An empty filter and a filter whose conditions happen to match everything are
+equally acceptable — the ITs score the resulting customer set, not the filter's shape.
+
+### RESET_FILTER
+
+```text
+remove the filter and show everything again
+```
+
+Expected: all 100 customers. This is how a user undoes a search, so it is the one of the five that a demo
+audience will actually see.
+
+### GERMAN_QUERY
+
+```text
+zeig mir alle Kunden aus Berlin
+```
+
+Expected: the same customers as `C1_SINGLE_VALUE` — `city` contains "Berlin", 18 customers. The system
+prompts are written in English throughout; this case is the check that a query in another language still
+filters identically.
