@@ -466,7 +466,7 @@ public class BenchmarkLocalModels {
     record ModelApproachResult(String model, Approach approach, List<CaseAggregate> cases,
                                 Map<String, Double> fieldAccuracy, Long modelSizeBytes, Long vramBytes,
                                 double avgCpuLoadPercent, long heapUsedBeforeBytes, long heapUsedAfterBytes,
-                                String gpuInfo, Long ttftMs, int coercedToolArgs, String fatalError) {
+                                Long ttftMs, int coercedToolArgs, String fatalError) {
         double meanPassRate() {
             return meanPassRate(cases);
         }
@@ -1144,7 +1144,7 @@ public class BenchmarkLocalModels {
                 client.chat(model, systemPrompt, "warm up");
             }
         } catch (Exception e) {
-            return new ModelApproachResult(model, approach, List.of(), Map.of(), null, null, 0, 0, 0, "n/a", null, 0,
+            return new ModelApproachResult(model, approach, List.of(), Map.of(), null, null, 0, 0, 0, null, 0,
                     e.getMessage());
         }
 
@@ -1234,7 +1234,7 @@ public class BenchmarkLocalModels {
         fieldTally.forEach((field, tally) -> fieldAccuracy.put(field, tally[1] == 0 ? 0 : (double) tally[0] / tally[1]));
 
         return new ModelApproachResult(model, approach, aggregates, fieldAccuracy, client.modelSizeBytes(model),
-                client.modelVramBytes(model), avgCpu, heapBefore, heapAfter, gpuInfo(), ttft,
+                client.modelVramBytes(model), avgCpu, heapBefore, heapAfter, ttft,
                 coercions.coercedToolArgs(), null);
     }
 
@@ -1927,20 +1927,6 @@ public class BenchmarkLocalModels {
         }
     }
 
-    private static String gpuInfo() {
-        try {
-            Process p = new ProcessBuilder("nvidia-smi",
-                    "--query-gpu=utilization.gpu,memory.used", "--format=csv,noheader").start();
-            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-            boolean finished = p.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
-            if (finished && p.exitValue() == 0 && !out.isBlank()) {
-                return out;
-            }
-        } catch (Exception ignored) {
-        }
-        return "n/a";
-    }
-
     private static Object get(String url) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(5)).GET().build();
         HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
@@ -2328,8 +2314,6 @@ public class BenchmarkLocalModels {
               .append(" | ").append(row.modelSize())
               .append(" |\n");
         }
-        sb.append("\nGPU: ").append(results.isEmpty() ? "n/a" : results.get(0).gpuInfo())
-          .append(" (nvidia-smi; \"n/a\" on hosts without an NVIDIA GPU, e.g. Apple Silicon)\n");
         sb.append("\n`RAM (JVM)` and `CPU` describe the *harness*, not the model: RAM is this benchmark's own ")
           .append("heap delta across the pass — negative whenever a GC ran, and 5-50 MB for identical work — ")
           .append("and CPU is system-wide host load. The model itself runs in the Ollama process; `Model Size` ")
