@@ -553,12 +553,14 @@ public class BenchmarkLocalModels {
     private static final String MLX_DEFAULT_BASE_URL = "http://localhost:8090";
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
+    /** Unscored requests sent before the probe of every model/approach, so it never measures a model load. */
+    private static final int WARM_UP_CALLS = 1;
+
     /**
-     * Requests sent before the TTFT probe of every model/approach, so it measures a loaded model <em>and</em>
-     * a cached prompt prefix. Two, because one only covers the model load — see the comment in
-     * {@link #runModelApproach}. Their cost is a few seconds per model/approach and they are not scored.
+     * How often the TTFT / tool-call probe is repeated before taking the median. Odd, so the median is a
+     * measured sample rather than an average of two — see {@link #medianProbe} and its call site.
      */
-    private static final int WARM_UP_CALLS = 2;
+    private static final int PROBE_SAMPLES = 3;
 
     record CliArgs(String backend, String baseUrlOverride, List<String> modelNames, boolean thinkDisabled,
                    boolean debugRaw, String mode, int runs, String approach, boolean quick, Double minPassRate,
@@ -1149,12 +1151,6 @@ public class BenchmarkLocalModels {
     private static ModelApproachResult runModelApproach(ApiClient client, String model, Approach approach,
             String systemPrompt, String toolsJson, List<EvalCase> cases, int runs) throws Exception {
         try {
-            // Two warm-up calls, not one. The first loads the model; the second is what actually gets
-            // Ollama's prompt-prefix KV cache to hold this system prompt, and every scored run below is a
-            // cache hit. With a single warm-up the probe was still paying full prompt evaluation and could
-            // report a "time to first token" larger than the whole request it belongs to: qwen3.5:4b-mlx
-            // measured 7149 ms uncached against 174 ms cached for the same ~2000-token prompt, which is how
-            // an earlier report ended up with a 4789 ms TTFT next to a 987 ms median latency.
             for (int i = 0; i < WARM_UP_CALLS; i++) {
                 if (approach.isToolCalling()) {
                     client.chatTools(model, systemPrompt, toolsJson, "warm up");
@@ -1167,10 +1163,14 @@ public class BenchmarkLocalModels {
                     e.getMessage());
         }
 
-        // Measured once, after the warm-up calls above and before the first scored run, carrying the same
-        // payload the scored runs carry (the tool schema where the approach has one). So it excludes both
-        // cold model load and uncached prompt evaluation, and is not part of any case's latency.
-        Long ttft = client.timeToFirstTokenMs(model, systemPrompt, cases.get(0).query(),
+        // Probed several times and reduced to the median, because a single sample measures whether this
+        // request happened to find Ollama's prompt-prefix KV cache holding this system prompt, not how fast
+        // the model is. The gap is enormous on the MLX builds — one measured qwen3.5:4b-mlx sequence went
+        // 8029 ms for the first request with a prefix and 171-194 ms for the next seven — and a warm-up call
+        // is not a reliable way to land in the warm state: in a four-approach run the probe still drew the
+        // cold value often enough to report a 4789 ms "time to first token" against a 987 ms median
+        // latency. Sampling and taking the median makes the figure independent of that lottery.
+        Long ttft = medianProbe(client, model, systemPrompt, cases.get(0).query(),
                 approach.isToolCalling() ? toolsJson : null);
 
         AtomicBoolean sampling = new AtomicBoolean(true);
@@ -1254,6 +1254,23 @@ public class BenchmarkLocalModels {
 
         return new ModelApproachResult(model, approach, aggregates, fieldAccuracy, client.modelSizeBytes(model),
                 client.modelVramBytes(model), avgCpu, ttft, coercions.coercedToolArgs(), null);
+    }
+
+    /**
+     * The median of {@link #PROBE_SAMPLES} streamed probes, or {@code null} if every one of them failed
+     * (the figure is best-effort and never fails a case). See the call site for why one sample is not
+     * enough.
+     */
+    private static Long medianProbe(ApiClient client, String model, String systemPrompt, String query,
+            String toolsJson) {
+        List<Long> samples = new ArrayList<>();
+        for (int i = 0; i < PROBE_SAMPLES; i++) {
+            Long sample = client.timeToFirstTokenMs(model, systemPrompt, query, toolsJson);
+            if (sample != null) samples.add(sample);
+        }
+        if (samples.isEmpty()) return null;
+        samples.sort(null);
+        return samples.get(samples.size() / 2);
     }
 
     private static Thread startCpuSampler(AtomicBoolean running, List<Double> samples) {
