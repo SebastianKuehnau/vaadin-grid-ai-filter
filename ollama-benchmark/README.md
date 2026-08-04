@@ -155,8 +155,11 @@ explained in the generated report itself:
   happened to find Ollama's prompt-prefix KV cache holding the system prompt: on `qwen3.5:4b-mlx` the first
   request with a given prefix took 8029 ms and the next seven 171–194 ms. A warm-up call alone does not
   reliably land in the warm state — a four-approach run still reported a 4908 ms "TTFT" next to a 1354 ms
-  median latency, while the same approach run on its own reported 83 ms. Since 2026-08-04 no row should
-  show a probe figure above its own median latency; if one does, that is a bug and not a slow model.
+  median latency, while the same approach run on its own reported 83 ms. Taking the median of three removed
+  that, but note what the probe is **not**: it runs a single query (the first canonical case), while
+  `Median Latency` is the median over *all* the run's cases. A probe figure above the median latency of its
+  row is therefore possible without anything being wrong — it happened twice in the 2026-08-04 sweep, both
+  on `gemma4:26b-mlx`. Read the pair as a smell test, not as an invariant.
 - **`CPU` describes the harness, not the model** — it is system-wide host load. The model runs in the
   Ollama process; `Model Size` (from `/api/tags`) is the only column that says anything about its
   footprint. There is no GPU column: the old one shelled out to `nvidia-smi`, so it read `n/a` on every

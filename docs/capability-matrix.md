@@ -110,31 +110,54 @@ Whether an approach *reliably* produces the right filter — as opposed to being
 — is a per-model question, answered by `ollama-benchmark` (`--approach=all`), which runs the same
 canonical queries as the ITs plus its own legacy prompt-regression set.
 
-> **Measured 2026-08-03**, `--approach=all --runs=5`, 49 cases per approach per model. The four models
-> were measured in **four separate invocations** (one model each, 20–30 min wall clock), not in one run.
+> **Two measurement dates in one table.** *Canonical* and *median latency* come from a **2026-08-04**
+> `--approach=all --cases=canonical --runs=5` sweep on the fixed harness, one invocation per model
+> (3–4 min each). *Legacy* is still the **2026-08-03** `--runs=5` run over all 49 cases, except
+> `llama3.1:8b` / 04, which was re-measured 2026-08-04 after the parsing fix below.
+>
 > `Canonical` is the mean over the queries that approach can express, so the columns do not cover the same
 > number of queries — 02(a) is scored on 2 of the 8, 02(b) on 5, 03 and 04 on all 8. A 100% in the 02(a)
 > column is therefore a property of that selection, not a quality verdict; its `Legacy` figure, which every
 > approach runs in full, is the comparable one.
->
-> **One cell is newer:** `llama3.1:8b` / 04 was re-measured **2026-08-04** with the same `--runs=5`
-> invocation, after the harness parsing bug that produced its old `0% · 11%` was fixed (see below). The
-> other fifteen cells are still the 2026-08-03 run; a full four-model re-measurement on the fixed harness
-> is pending and will replace this whole table.
 
 | Model | 02(a) | 02(b) | 03 | 04 |
 |---|---|---|---|---|
-| `qwen3.5:4b-mlx` | 100% · 64% · 813 ms | 60% · 64% · 1043 ms | 100% · 94% · 1034 ms | **100%** · 97% · 1376 ms |
-| `qwen3:8b` | 100% · 61% · 917 ms | 80% · 61% · 1205 ms | **100% · 100%** · 1194 ms | **100% · 100%** · 1887 ms |
-| `gemma4:26b-mlx` | 100% · 61% · 952 ms | 80% · 67% · 1188 ms | **100% · 100%** · 1560 ms | **100%** · 97% · 1355 ms |
-| `llama3.1:8b` | 100% · 69% · 797 ms | 80% · 64% · 1325 ms | 100% · 97% · 1142 ms | **100%** · 94% · 1701 ms |
+| `qwen3.5:4b-mlx` | 100% · 64% · 807 ms | 60% · 64% · 1089 ms | 100% · 94% · 971 ms | **100%** · 97% · 1323 ms |
+| `qwen3:8b` | 100% · 61% · 921 ms | 80% · 61% · 1198 ms | **100% · 100%** · 1181 ms | **100% · 100%** · 1846 ms |
+| `gemma4:26b-mlx` | 100% · 61% · 490 ms | 80% · 67% · 628 ms | **100% · 100%** · 1582 ms | ⚠️ 88% · 97% · 1181 ms |
+| `llama3.1:8b` | 100% · 69% · 824 ms | 80% · 64% · 1375 ms | 100% · 97% · 1227 ms | **100%** · 94% · 2130 ms |
 
-Each cell reads *canonical · legacy · median latency*. Reproduce with one invocation per model:
+Each cell reads *canonical · legacy · median latency*. Reproduce the canonical figures with one invocation
+per model:
 
 ```bash
 cd ollama-benchmark
-java BenchmarkLocalModels.java --approach=all --runs=5 llama3.1:8b
+java BenchmarkLocalModels.java --approach=all --cases=canonical --runs=5 llama3.1:8b
 ```
+
+The canonical means are unchanged from 2026-08-03 in fifteen of sixteen cells. The exception is the ⚠️ one,
+and it is a flake rather than a result — see below.
+
+### `gemma4:26b-mlx` on 04: the one cell that moves between runs
+
+That 88% is `C7_RELATIVE_DATE` failing 0/5 with an empty condition list, while the other seven canonical
+queries pass 5/5. The same query through **03 passes 5/5 on all four models**, on the same prompt and the
+same baked-in "today" — 04's `systemPrompt(LocalDate)` is deliberately identical to 03's.
+
+Across three recorded runs this cell reads:
+
+| Run | `gemma4:26b-mlx` C7 through 04 |
+|---|---|
+| 2026-07-31 (`--runs=10`) | 0/10 |
+| 2026-08-03 (`--runs=5`) | 5/5 |
+| 2026-08-04 (`--runs=5`) | 0/5 |
+
+So it is neither a stable ceiling nor a fixed defect: on this model, this one query is **flaky through the
+tool call and reliable through structured output**. An earlier revision of this document flattened it in
+both directions in turn — first as "04 fails it 0/10", then as "04 passes it 5/5" — and neither claim
+survived the next run. Treat it as what it is: the same filter type is less robustly delivered through a
+tool argument than through a response, for one model on one query. Nothing in this table justifies a
+stronger statement than that, and a talk should not build a point on this single cell.
 
 ### What the `llama3.1:8b` 04 column really shows — a tool argument with one extra encoding step
 
@@ -187,8 +210,8 @@ So `llama3.1:8b` performs comparably in 04 and 03 (100% canonical either way; 94
 claim this section previously made — that the model "cannot" produce a nested object array as a tool
 argument, and that structured output puts the condition list within reach of a model that cannot tool-call
 it — was **wrong**, and wrong in the direction that flattered the narrative. The `gemma4:26b-mlx` claim
-that used to stand here fell with it: that model passes `C7_RELATIVE_DATE` **5/5** through 04 and reaches
-100% on the canonical set, where an earlier report had it at 88%.
+that used to stand next to it has been retired for a different reason: it turned out to be a flake that
+reverses between runs, and is now recorded as such above rather than as a finding.
 
 What survives is narrower and worth keeping: a tool argument has to survive one more encoding step than a
 structured-output response, models differ in how they encode it, and **whatever consumes that argument —
@@ -246,7 +269,7 @@ by the filter-shaped expectation and pass in the ITs.
 
 | Query type | 02(a) | 02(b) | 03 | 04 | Evidence |
 |---|---|---|---|---|---|
-| **Relative date via a live clock** ("in the last 12 months") | ❌ | ⚠️ chained `currentLocalDateTime()` — model-dependent | ✅ "today" baked into `systemPrompt(LocalDate)` | ⚠️ same prompt as 03, but model-dependent in practice | `OperatorCustomerSearchIT` C7 passes on `qwen3:8b`; a weaker model such as `llama3.1:8b` reliably fails the two-hop chain (see `02-ai-agent-filter/README.md`, "Relative dates need two chained tool calls"). Across four models the 5-run benchmark gives C7 **20/20 for 03 and 20/20 for 04** (the 04 figure for `llama3.1:8b` from the 2026-08-04 re-measurement, the other three from 2026-08-03) — so the benchmark sees no delivery-mechanism gap here at all. Its module IT does fail C7 on that model (28 rows instead of 15): the benchmark's expectation allows any lower bound, the IT insists on the right one, which is a genuine, separate miss |
+| **Relative date via a live clock** ("in the last 12 months") | ❌ | ⚠️ chained `currentLocalDateTime()` — model-dependent | ✅ "today" baked into `systemPrompt(LocalDate)` | ⚠️ same prompt as 03, but model-dependent in practice | `OperatorCustomerSearchIT` C7 passes on `qwen3:8b`; a weaker model such as `llama3.1:8b` reliably fails the two-hop chain (see `02-ai-agent-filter/README.md`, "Relative dates need two chained tool calls"). Across four models the 2026-08-04 5-run benchmark gives C7 **20/20 for 03 and 15/20 for 04**, the whole 04 shortfall being `gemma4:26b-mlx` at 0/5 — a cell that read 5/5 the day before, so it is flakiness rather than a delivery-mechanism gap (see "the one cell that moves between runs" above). `llama3.1:8b`'s module IT does fail C7 (28 rows instead of 15): the benchmark's expectation allows any lower bound, the IT insists on the right one, which is a genuine, separate miss |
 
 02(b) *can* resolve relative dates by chaining `currentLocalDateTime()` and computing an offset. It is a
 genuine capability, but a two-hop one, and it is the only category where the per-field variants have
