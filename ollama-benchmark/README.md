@@ -137,22 +137,33 @@ rate and total time be compared directly against 02(a)/02(b)'s. Ollama's native 
 ### What the metric columns mean
 
 The report's other table has one row per model × approach: `Pass rate`, `Median Latency`, `TTFT`,
-`Tokens/s`, `RAM (JVM)`, `CPU` and `Model Size`. Two of them are easy to misread, so they are labelled and
+`Tool call`, `Tokens/s`, `CPU` and `Model Size`. Three of them are easy to misread, so they are labelled and
 explained in the generated report itself:
 
-- **`TTFT`** is one extra streamed request per model/approach, sent **after** the warm-up call and
-  **before** the first scored run, carrying the same payload the scored runs carry — the approach's tool
-  schema for `02a`/`02b`/`04`, the response format for `03`. It therefore excludes cold model load, is not
-  part of any case's latency, and stops on the first chunk with either text content or a `tool_calls` entry
-  (a tool-calling response has empty `content`, so waiting for text alone would never fix a TTFT for three
-  of the four approaches). Before 2026-08-04 the probe omitted the tool schema and ran inside the first
-  case's first run, which understated tool-calling TTFT by a factor of 2.5–6 and inflated that case's
-  latency.
-- **`RAM (JVM)` and `CPU` describe the harness, not the model.** RAM is this script's own heap delta across
-  the pass — negative whenever a GC ran, and 5–50 MB for identical work — and CPU is system-wide host load.
-  The model runs in the Ollama process; `Model Size` (from `/api/tags`) is the only column that says
-  anything about its footprint. There is no GPU column: the old one shelled out to `nvidia-smi`, so it read
-  `n/a` on every Apple Silicon host, and it was snapshotted *after* the pass rather than sampled during it.
+- **`TTFT` and `Tool call` are the same measurement in two columns**, and every row fills exactly one of
+  them. The probe is an extra streamed request per model/approach, sent **before** the first scored run and
+  carrying the same payload the scored runs carry — the approach's tool schema for `02a`/`02b`/`04`, the
+  response format for `03`. It stops on the first chunk with either text content or a `tool_calls` entry.
+  The split exists because **Ollama does not stream tool-call arguments**: a tool call arrives as one
+  chunk, so for the three tool-calling approaches the probe times the *complete* tool call and lands within
+  a few percent of that request's full duration by construction. Structured output streams token by token,
+  so only `03`'s figure is a real time-to-first-token. Measured on `qwen3:8b`: structured output produced
+  36 chunks with the first at 290 ms and the last at 1423 ms; the same query as a tool call produced 2
+  chunks, complete at 872 ms. Reported in one column, that reads as "structured output responds 6× faster",
+  which compares a first token against a finished answer.
+- **Both are the median of three probes**, not a single sample. One sample measures whether that request
+  happened to find Ollama's prompt-prefix KV cache holding the system prompt: on `qwen3.5:4b-mlx` the first
+  request with a given prefix took 8029 ms and the next seven 171–194 ms. A warm-up call alone does not
+  reliably land in the warm state — a four-approach run still reported a 4908 ms "TTFT" next to a 1354 ms
+  median latency, while the same approach run on its own reported 83 ms. Since 2026-08-04 no row should
+  show a probe figure above its own median latency; if one does, that is a bug and not a slow model.
+- **`CPU` describes the harness, not the model** — it is system-wide host load. The model runs in the
+  Ollama process; `Model Size` (from `/api/tags`) is the only column that says anything about its
+  footprint. There is no GPU column: the old one shelled out to `nvidia-smi`, so it read `n/a` on every
+  Apple Silicon host, and it was snapshotted *after* the pass rather than sampled during it. There is no
+  RAM column either: it reported this script's own JVM heap delta, which tracked GC timing rather than the
+  model — negative on whichever approach ran first after another model left the heap full, and 5–50 MB for
+  identical work otherwise.
 
 Below the table, a **coercion note** appears whenever a tool argument had to be parsed one step further than
 a strict reader would — a `conditions` value that arrives as a JSON-encoded string, or a bare array without
@@ -331,11 +342,13 @@ and paste the report's "Canonical query set" matrix into `../docs/capability-mat
 "Reliability across models" table now holds a 2026-08-03 `--runs=5` measurement of all four approaches
 over four models, with the `llama3.1:8b`/04 cell re-measured 2026-08-04 on the fixed harness).
 
-> **The `TTFT` column below is not comparable to a current report's.** These figures come from the pre-2026-08-04
-> probe, which ran as part of the first case's first run and could absorb the model's cold load — which is why
-> several of them (16.4 s for `gemma4:12b-mlx`, 9.3 s for `qwen3.5:9b-mlx`) exceed that row's median latency,
-> something a time-to-*first*-token cannot do. Read them as "load + first token" for a model that was not yet
-> resident.
+> **The `TTFT` column below is not comparable to a current report's.** These figures predate three changes
+> to the probe: it ran as part of the first case's first run and could absorb the model's cold load, it was
+> a single sample that could just as easily hit an uncached prompt prefix, and it was not yet split into
+> `TTFT` / `Tool call`, so a tool-calling row reported a completed tool call under a first-token heading.
+> That is why several of them (16.4 s for `gemma4:12b-mlx`, 9.3 s for `qwen3.5:9b-mlx`) exceed that row's
+> median latency, something a time-to-*first*-token cannot do. Read them as "load plus uncached first
+> token" for a model that was not yet resident.
 
 > **Fixed 2026-08-04 — `04-hybrid` used to score 0% for models that stringify the tool argument.**
 > `conditionLeaves` accepted `conditions` only as a JSON array, while `llama3.1:8b` sends the correct
