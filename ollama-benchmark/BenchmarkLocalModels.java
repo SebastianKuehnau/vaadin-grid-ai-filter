@@ -535,8 +535,12 @@ public class BenchmarkLocalModels {
         ChatResult chatTools(String model, String systemPrompt, String toolsJson, String query)
                 throws IOException, InterruptedException;
 
-        /** Best-effort: null if the measurement fails or streaming isn't available. */
-        Long timeToFirstTokenMs(String model, String systemPrompt, String query);
+        /**
+         * Best-effort: null if the measurement fails or streaming isn't available. {@code toolsJson} is the
+         * approach's tool schema for the tool-calling approaches and {@code null} for structured output, so
+         * the probe streams the same request shape the scored calls send.
+         */
+        Long timeToFirstTokenMs(String model, String systemPrompt, String query, String toolsJson);
 
         /** Best-effort: null if unknown or not exposed by this backend. */
         Long modelSizeBytes(String model);
@@ -1148,6 +1152,12 @@ public class BenchmarkLocalModels {
                     e.getMessage());
         }
 
+        // Measured once, after the warm-up call above and before the first scored run: on the warm-up's
+        // shape (tool schema included, where the approach has one) and on an already-loaded model, so the
+        // figure is a time-to-first-token and neither a cold model load nor part of a case's latency.
+        Long ttft = client.timeToFirstTokenMs(model, systemPrompt, cases.get(0).query(),
+                approach.isToolCalling() ? toolsJson : null);
+
         long heapBefore = usedHeapBytes();
         AtomicBoolean sampling = new AtomicBoolean(true);
         List<Double> cpuSamples = new ArrayList<>();
@@ -1156,7 +1166,6 @@ public class BenchmarkLocalModels {
         List<CaseAggregate> aggregates = new ArrayList<>();
         Map<String, int[]> fieldTally = new LinkedHashMap<>(); // field -> [correct, total]
         CoercionTally coercions = new CoercionTally();
-        Long ttft = null;
 
         for (EvalCase tc : cases) {
             List<Long> durations = new ArrayList<>();
@@ -1170,9 +1179,6 @@ public class BenchmarkLocalModels {
             for (int run = 0; run < runs; run++) {
                 long t0 = System.nanoTime();
                 try {
-                    if (ttft == null) {
-                        ttft = client.timeToFirstTokenMs(model, systemPrompt, tc.query());
-                    }
                     List<Leaf> actual;
                     ChatResult chatResult;
                     if (approach.isToolCalling()) {
@@ -1679,12 +1685,15 @@ public class BenchmarkLocalModels {
         }
 
         @Override
-        public Long timeToFirstTokenMs(String model, String systemPrompt, String query) {
+        public Long timeToFirstTokenMs(String model, String systemPrompt, String query, String toolsJson) {
+            // Same request the scored calls make: the tool schema for tool calling (it dominates that
+            // prompt), the response format for structured output — never a mix of the two.
+            String modeField = toolsJson != null ? "\"tools\":" + toolsJson : "\"format\":" + formatField();
             String payload = """
                     {"model":%s,"messages":[{"role":"system","content":%s},{"role":"user","content":%s}],
-                    "think":false,"stream":true,"format":%s,
+                    "think":false,"stream":true,%s,
                     "options":{"temperature":0,"num_ctx":4096,"num_predict":512}}
-                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(query), formatField());
+                    """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(query), modeField);
             try {
                 HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl.replaceAll("/$", "") + "/api/chat"))
                         .timeout(Duration.ofSeconds(300))
@@ -1699,7 +1708,7 @@ public class BenchmarkLocalModels {
                         if (line.isBlank()) continue;
                         Object chunk = Json.parse(line);
                         if (chunk instanceof Map<?, ?> m && m.get("message") instanceof Map<?, ?> msg
-                                && msg.get("content") instanceof String c && !c.isEmpty()) {
+                                && carriesFirstToken(msg)) {
                             return (System.nanoTime() - t0) / 1_000_000;
                         }
                     }
@@ -1880,12 +1889,15 @@ public class BenchmarkLocalModels {
         }
 
         @Override
-        public Long timeToFirstTokenMs(String model, String systemPrompt, String query) {
+        public Long timeToFirstTokenMs(String model, String systemPrompt, String query, String toolsJson) {
+            // Same request the scored calls make: the tool schema for tool calling, the response format for
+            // structured output (see OllamaClient#timeToFirstTokenMs).
+            String modeField = toolsJson != null ? ",\"tools\":" + toolsJson : responseFormatField();
             String payload = """
                     {"model":%s,"messages":[{"role":"system","content":%s},{"role":"user","content":%s}],
                     "temperature":0,"max_tokens":512,"stream":true%s}
                     """.formatted(jsonString(model), jsonString(systemPrompt), jsonString(effectiveQuery(query)),
-                    responseFormatField());
+                    modeField);
             try {
                 HttpRequest request = HttpRequest.newBuilder(
                                 URI.create(baseUrl.replaceAll("/$", "") + "/v1/chat/completions"))
@@ -1905,7 +1917,7 @@ public class BenchmarkLocalModels {
                         if (chunk instanceof Map<?, ?> m && m.get("choices") instanceof List<?> choices
                                 && !choices.isEmpty() && choices.get(0) instanceof Map<?, ?> choice
                                 && choice.get("delta") instanceof Map<?, ?> delta
-                                && delta.get("content") instanceof String c && !c.isEmpty()) {
+                                && carriesFirstToken(delta)) {
                             return (System.nanoTime() - t0) / 1_000_000;
                         }
                     }
@@ -1925,6 +1937,17 @@ public class BenchmarkLocalModels {
         public Long modelVramBytes(String model) {
             return null; // no equivalent endpoint in the OpenAI-compatible API
         }
+    }
+
+    /**
+     * Whether a streamed chunk is the first real output: either text content or the beginning of a tool
+     * call. A tool-calling response has an empty {@code content}, so waiting for text alone would never
+     * fix a TTFT for the three tool-calling approaches. Works for Ollama's {@code message} and for the
+     * OpenAI-compatible {@code delta} alike — both carry the same two keys.
+     */
+    private static boolean carriesFirstToken(Map<?, ?> messageOrDelta) {
+        if (messageOrDelta.get("content") instanceof String c && !c.isEmpty()) return true;
+        return messageOrDelta.get("tool_calls") instanceof List<?> calls && !calls.isEmpty();
     }
 
     private static Object get(String url) throws IOException, InterruptedException {
@@ -2314,6 +2337,11 @@ public class BenchmarkLocalModels {
               .append(" | ").append(row.modelSize())
               .append(" |\n");
         }
+        sb.append("\n`TTFT` is one streamed request per model/approach, sent after a warm-up call and before ")
+          .append("the first scored run, carrying the same payload those runs carry — the tool schema for the ")
+          .append("tool-calling approaches, the response format for structured output. It therefore excludes ")
+          .append("cold model load and is not part of any case's latency; it stops on the first chunk with ")
+          .append("either text content or a tool call.\n");
         sb.append("\n`RAM (JVM)` and `CPU` describe the *harness*, not the model: RAM is this benchmark's own ")
           .append("heap delta across the pass — negative whenever a GC ran, and 5-50 MB for identical work — ")
           .append("and CPU is system-wide host load. The model itself runs in the Ollama process; `Model Size` ")
