@@ -466,7 +466,7 @@ public class BenchmarkLocalModels {
     record ModelApproachResult(String model, Approach approach, List<CaseAggregate> cases,
                                 Map<String, Double> fieldAccuracy, Long modelSizeBytes, Long vramBytes,
                                 double avgCpuLoadPercent, long heapUsedBeforeBytes, long heapUsedAfterBytes,
-                                String gpuInfo, Long ttftMs, String fatalError) {
+                                String gpuInfo, Long ttftMs, int coercedToolArgs, String fatalError) {
         double meanPassRate() {
             return meanPassRate(cases);
         }
@@ -1144,7 +1144,7 @@ public class BenchmarkLocalModels {
                 client.chat(model, systemPrompt, "warm up");
             }
         } catch (Exception e) {
-            return new ModelApproachResult(model, approach, List.of(), Map.of(), null, null, 0, 0, 0, "n/a", null,
+            return new ModelApproachResult(model, approach, List.of(), Map.of(), null, null, 0, 0, 0, "n/a", null, 0,
                     e.getMessage());
         }
 
@@ -1155,6 +1155,7 @@ public class BenchmarkLocalModels {
 
         List<CaseAggregate> aggregates = new ArrayList<>();
         Map<String, int[]> fieldTally = new LinkedHashMap<>(); // field -> [correct, total]
+        CoercionTally coercions = new CoercionTally();
         Long ttft = null;
 
         for (EvalCase tc : cases) {
@@ -1176,7 +1177,7 @@ public class BenchmarkLocalModels {
                     ChatResult chatResult;
                     if (approach.isToolCalling()) {
                         chatResult = client.chatTools(model, systemPrompt, toolsJson, tc.query());
-                        actual = normalizeToolCallArgs(approach, chatResult.content());
+                        actual = normalizeToolCallArgs(approach, chatResult.content(), coercions);
                     } else {
                         chatResult = client.chat(model, systemPrompt, tc.query());
                         actual = normalizeStructuredResponse(chatResult.content());
@@ -1233,7 +1234,8 @@ public class BenchmarkLocalModels {
         fieldTally.forEach((field, tally) -> fieldAccuracy.put(field, tally[1] == 0 ? 0 : (double) tally[0] / tally[1]));
 
         return new ModelApproachResult(model, approach, aggregates, fieldAccuracy, client.modelSizeBytes(model),
-                client.modelVramBytes(model), avgCpu, heapBefore, heapAfter, gpuInfo(), ttft, null);
+                client.modelVramBytes(model), avgCpu, heapBefore, heapAfter, gpuInfo(), ttft,
+                coercions.coercedToolArgs(), null);
     }
 
     private static Thread startCpuSampler(AtomicBoolean running, List<Double> samples) {
@@ -1346,12 +1348,30 @@ public class BenchmarkLocalModels {
     // ---------------------------------------------------------------------------------------------
 
     /**
+     * How many tool-call arguments the normalizers had to coerce out of a shape a strict parser would
+     * reject — a JSON-encoded string instead of an array, or a bare array instead of the wrapper object.
+     * Tolerating those keeps the tool-calling path as lenient as {@link #normalizeStructuredResponse};
+     * counting them keeps the deviation visible in the report instead of silently normalized away.
+     */
+    static final class CoercionTally {
+        private int coercedToolArgs;
+
+        void countCoercion() {
+            coercedToolArgs++;
+        }
+
+        int coercedToolArgs() {
+            return coercedToolArgs;
+        }
+    }
+
+    /**
      * Tool calling: {@code content} is the JSON object of {@code searchCustomers}' arguments (already
      * parsed server-side by Ollama; for OpenAI-compatible backends it arrives as a JSON-encoded string and
      * is re-parsed by the client before reaching here). Each approach shapes those arguments differently,
      * so each gets its own reduction to the shared {@link Leaf} form the scoring works on.
      */
-    private static List<Leaf> normalizeToolCallArgs(Approach approach, String content) {
+    private static List<Leaf> normalizeToolCallArgs(Approach approach, String content, CoercionTally tally) {
         if (content == null || content.isBlank()) return List.of();
         Object parsed;
         try {
@@ -1359,13 +1379,39 @@ public class BenchmarkLocalModels {
         } catch (Exception e) {
             return List.of();
         }
+        // Some models JSON-encode the whole arguments object, and some send 04's condition list without
+        // the wrapper key. Both are the same payload one encoding step away, so both are accepted here.
+        parsed = reparseIfJsonString(parsed, tally);
+        if (parsed instanceof List<?> bareArray && approach == Approach.CONDITION_TOOL_CALLING) {
+            tally.countCoercion();
+            return conditionLeaves(Map.of("conditions", bareArray), tally);
+        }
         if (!(parsed instanceof Map<?, ?> args)) return List.of();
         return switch (approach) {
             case FLAT_TOOL_CALLING -> flatLeaves(args);
             case OPERATOR_TOOL_CALLING -> operatorLeaves(args);
-            case CONDITION_TOOL_CALLING -> conditionLeaves(args);
+            case CONDITION_TOOL_CALLING -> conditionLeaves(args, tally);
             case STRUCTURED -> throw new IllegalStateException("Structured output does not call a tool");
         };
+    }
+
+    /**
+     * A model that sends a nested tool argument as a JSON-*encoded string* (`"[{\"field\": …}]"`) means the
+     * same thing as one that sends the array itself — Spring AI binds both to {@code List<Condition>}. So
+     * parse the string once more and count the coercion; anything that isn't a parseable JSON string is
+     * returned unchanged.
+     */
+    private static Object reparseIfJsonString(Object value, CoercionTally tally) {
+        if (!(value instanceof String s) || s.isBlank()) return value;
+        Object reparsed;
+        try {
+            reparsed = Json.parse(s);
+        } catch (Exception e) {
+            return value;
+        }
+        if (!(reparsed instanceof Map<?, ?>) && !(reparsed instanceof List<?>)) return value;
+        tally.countCoercion();
+        return reparsed;
     }
 
     /** 02(a): one scalar value per field, no operator and no negate flag anywhere. */
@@ -1410,11 +1456,16 @@ public class BenchmarkLocalModels {
         return leaves;
     }
 
-    /** 04: the single {@code conditions} parameter — the same payload 03 returns, so the same expansion. */
+    /**
+     * 04: the single {@code conditions} parameter — the same payload 03 returns, so the same expansion.
+     * The value is accepted both as a JSON array and as a JSON-encoded string of that array (see
+     * {@link #reparseIfJsonString}), so a model that adds one encoding step scores on its filter and not
+     * on its encoding.
+     */
     @SuppressWarnings("unchecked")
-    private static List<Leaf> conditionLeaves(Map<?, ?> args) {
+    private static List<Leaf> conditionLeaves(Map<?, ?> args, CoercionTally tally) {
         List<Leaf> leaves = new ArrayList<>();
-        if (!(args.get("conditions") instanceof List<?> conditions)) return leaves;
+        if (!(reparseIfJsonString(args.get("conditions"), tally) instanceof List<?> conditions)) return leaves;
         for (Object condition : conditions) {
             if (condition instanceof Map<?, ?> m) {
                 expandCondition((Map<String, Object>) m, leaves);
@@ -2000,6 +2051,24 @@ public class BenchmarkLocalModels {
                 r.modelSizeBytes() != null ? formatBytes(r.modelSizeBytes()) : "n/a");
     }
 
+    /**
+     * One line naming every model/approach whose tool-call arguments had to be coerced into shape (see
+     * {@link CoercionTally}), or {@code null} when none were — so a clean run's report stays as it was and
+     * a deviation is never normalized away silently.
+     */
+    private static String coercionNote(List<ModelApproachResult> results) {
+        String perPair = results.stream()
+                .filter(r -> r.coercedToolArgs() > 0)
+                .map(r -> r.model() + " [" + r.approach().label + "]: " + r.coercedToolArgs())
+                .collect(Collectors.joining(", "));
+        if (perPair.isEmpty()) return null;
+        int total = results.stream().mapToInt(ModelApproachResult::coercedToolArgs).sum();
+        // Plain ASCII: this line goes to the console too, whose encoding is not guaranteed to be UTF-8.
+        return "Note: " + total + " tool-call argument coercion(s) - the argument arrived JSON-encoded as a "
+                + "string, or as a bare array without its wrapper key, and was parsed one step further so "
+                + "the filter is scored and not the encoding (" + perPair + ").";
+    }
+
     private static void printTable(List<ModelApproachResult> results) {
         System.out.println();
         System.out.printf("%-22s%-14s%-12s%-14s%-10s%-10s%-10s%-8s%-12s%n",
@@ -2014,6 +2083,11 @@ public class BenchmarkLocalModels {
             System.out.printf("%-22s%-14s%-12s%-14s%-10s%-10s%-10s%-8s%-12s%n",
                     row.model(), row.approach(), row.passRate(), row.medianLat(), row.ttft(), row.tokS(), row.ram(),
                     row.cpu(), row.modelSize());
+        }
+        String coercions = coercionNote(results);
+        if (coercions != null) {
+            System.out.println();
+            System.out.println(coercions);
         }
     }
 
@@ -2249,6 +2323,10 @@ public class BenchmarkLocalModels {
         }
         sb.append("\nGPU: ").append(results.isEmpty() ? "n/a" : results.get(0).gpuInfo())
           .append(" (nvidia-smi; \"n/a\" on hosts without an NVIDIA GPU, e.g. Apple Silicon)\n");
+        String coercions = coercionNote(results);
+        if (coercions != null) {
+            sb.append("\n").append(coercions).append("\n");
+        }
 
         renderCanonicalMatrix(sb, results);
         renderRobustnessMatrix(sb, results);
@@ -2457,6 +2535,10 @@ public class BenchmarkLocalModels {
             sb.append(String.format("%-22s%-14s%-12s%-14s%-10s%-10s%-10s%-8s%-12s%n",
                     row.model(), row.approach(), row.passRate(), row.medianLat(), row.ttft(), row.tokS(), row.ram(),
                     row.cpu(), row.modelSize()));
+        }
+        String coercions = coercionNote(results);
+        if (coercions != null) {
+            sb.append("\n").append(coercions).append("\n");
         }
         return sb.toString();
     }
