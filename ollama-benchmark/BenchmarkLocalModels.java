@@ -2072,7 +2072,7 @@ public class BenchmarkLocalModels {
     private static void printTable(List<ModelApproachResult> results) {
         System.out.println();
         System.out.printf("%-22s%-14s%-12s%-14s%-10s%-10s%-10s%-8s%-12s%n",
-                "Model", "Approach", "Pass rate", "Median Lat.", "TTFT", "tok/s", "RAM", "CPU", "Model Size");
+                "Model", "Approach", "Pass rate", "Median Lat.", "TTFT", "tok/s", "RAM (JVM)", "CPU", "Model Size");
         System.out.println("-".repeat(112));
         for (ModelApproachResult r : results) {
             if (r.fatalError() != null) {
@@ -2187,13 +2187,20 @@ public class BenchmarkLocalModels {
         }
     }
 
+    /**
+     * Sign-aware, so the RAM column's heap *delta* — which is negative whenever a GC ran during the pass —
+     * renders as a rounded {@code -167 MB} instead of the raw {@code -175308080 B} that overran its
+     * fixed-width column and collided with the next one.
+     */
     private static String formatBytes(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        double kb = bytes / 1024.0;
-        if (kb < 1024) return "%.0f KB".formatted(kb);
+        String sign = bytes < 0 ? "-" : "";
+        long abs = Math.abs(bytes);
+        if (abs < 1024) return sign + abs + " B";
+        double kb = abs / 1024.0;
+        if (kb < 1024) return sign + "%.0f KB".formatted(kb);
         double mb = kb / 1024.0;
-        if (mb < 1024) return "%.0f MB".formatted(mb);
-        return "%.1f GB".formatted(mb / 1024.0);
+        if (mb < 1024) return sign + "%.0f MB".formatted(mb);
+        return sign + "%.1f GB".formatted(mb / 1024.0);
     }
 
     /**
@@ -2323,6 +2330,10 @@ public class BenchmarkLocalModels {
         }
         sb.append("\nGPU: ").append(results.isEmpty() ? "n/a" : results.get(0).gpuInfo())
           .append(" (nvidia-smi; \"n/a\" on hosts without an NVIDIA GPU, e.g. Apple Silicon)\n");
+        sb.append("\n`RAM (JVM)` and `CPU` describe the *harness*, not the model: RAM is this benchmark's own ")
+          .append("heap delta across the pass — negative whenever a GC ran, and 5-50 MB for identical work — ")
+          .append("and CPU is system-wide host load. The model itself runs in the Ollama process; `Model Size` ")
+          .append("is the only column that says anything about its footprint.\n");
         String coercions = coercionNote(results);
         if (coercions != null) {
             sb.append("\n").append(coercions).append("\n");
@@ -2524,7 +2535,7 @@ public class BenchmarkLocalModels {
         sb.append("Backend: ").append(backendLabel(backendName)).append(", Base URL: ").append(baseUrl)
           .append("\n\n");
         sb.append(String.format("%-22s%-14s%-12s%-14s%-10s%-10s%-10s%-8s%-12s%n",
-                "Model", "Approach", "Pass rate", "Median Lat.", "TTFT", "tok/s", "RAM", "CPU", "Model Size"));
+                "Model", "Approach", "Pass rate", "Median Lat.", "TTFT", "tok/s", "RAM (JVM)", "CPU", "Model Size"));
         sb.append("-".repeat(112)).append("\n");
         for (ModelApproachResult r : results) {
             if (r.fatalError() != null) {
