@@ -171,16 +171,19 @@ are:
 | `qwen3.5:4b-mlx` | 100% | 60% | 100% | 100% |
 | `qwen3:8b` | 100% | 80% | 100% | 100% |
 | `gemma4:26b-mlx` | 100% | 80% | 100% | 100% |
-| `llama3.1:8b` | 100% | 80% | 100% | ⚠️ 0% |
+| `llama3.1:8b` | 100% | 80% | 100% | 100% |
 
 Each column is scored only on the queries that approach can express (02(a): 2 of 8, 02(b): 5 of 8, 03 and
 04: all 8), so a 100% for 02(a) describes that selection and not its quality.
 
-> ⚠️ **The `llama3.1:8b` zero is a harness bug, not a model result.** That model sends 04's `conditions`
-> argument as a JSON-encoded string rather than a JSON array; the harness accepts only an array and scores
-> the (correct) filter as empty. The module's own IT on the same model passes 11 of 13 cases. The evidence
-> and the fix are in the [capability matrix](capability-matrix.md#reliability-across-models) and
-> `tasks/benchmark-argument-parsing-and-ram-readout.md`. Every other cell in the table is sound.
+> **The `llama3.1:8b` 04 cell was re-measured 2026-08-04** and reads 100% where it used to read `⚠️ 0%`.
+> That model sends 04's `conditions` argument as a JSON-encoded *string* rather than a JSON array, and the
+> harness accepted only an array, scoring the correct filter as empty — a harness bug, now fixed: the
+> stringified form is parsed and the coercion is reported. The module's own IT always passed 11 of 13 cases
+> on this model, because Spring AI binds that argument without complaint. **Every model in this table now
+> delivers the condition list through both delivery mechanisms**; details in the
+> [capability matrix](capability-matrix.md#reliability-across-models). A full four-model re-measurement on
+> the fixed harness is pending and will refresh the other cells.
 
 On the configured default `qwen3:8b` the ITs agree with this: every expressible canonical query produced
 the exact expected customer set in all four approaches, and every inexpressible one failed in the

@@ -143,10 +143,13 @@ environment variable, respecting `OPENAI_API_KEY` the same as the app itself) to
 test classes against the real OpenAI API instead. The app's *own* default profile is `openai`; only
 the test config overrides it to `ollama`.
 
-> **Note:** structured output is the most model-tolerant of the four approaches, which a 2026-08-03 5-run
-> benchmark over four models makes concrete: **every** model passed all eight canonical queries here.
-> (04 reaches the same 100% on three of those models; its `llama3.1:8b` zero is a harness parsing bug,
-> not a delivery-mechanism gap — see the capability matrix.) The only weak spot left is one legacy case
+> **Note:** structured output is easy on the model here, which a 5-run benchmark over four models makes
+> concrete: **every** model passed all eight canonical queries. That used to read "the most model-tolerant of
+> the four approaches", on the strength of a `llama3.1:8b` zero in 04 — which turned out to be a harness
+> parsing bug, not a delivery-mechanism gap. With it fixed, **04 reaches the same 100% on all four models**,
+> so the honest version of this note is that a condition list is within reach of every tested model through
+> either delivery mechanism; what tool calling adds is one more encoding step for the consumer to tolerate
+> (see the capability matrix). The only weak spot left is one legacy case
 > that stacks a negation, a revenue floor and a bare-year date range: `llama3.1:8b` gets it wrong 5/5
 > there (it reads "last ordered in 2024" as an open-ended lower bound and drops the upper one), while the
 > other three models get it right 5/5. That is a model-capability gap, not a bug in the prompt or schema. See

@@ -158,14 +158,16 @@ See `02-ai-agent-filter/README.md` for the full rationale behind the two starter
 
 > **Models encode this tool argument differently — expect that, don't fear it.** 04 asks the model for a
 > nested object array as a tool argument (`searchCustomers(List<Condition>)`), which has to survive one
-> more encoding step than 03's structured-output response. In the 2026-08-03 5-run benchmark all four
-> tested models produce the right conditions; `llama3.1:8b` simply sends them as a JSON-*encoded string*
-> rather than a JSON array. Spring AI binds that to `List<Condition>` without complaint — this module's
-> `HybridCustomerSearchIT` passes **11 of 13** cases on that model — while the benchmark harness rejects it
-> and scores 0%, which is a harness bug being fixed, not a property of the model or of this module.
+> more encoding step than 03's structured-output response. In the 5-run benchmark all four tested models
+> produce the right conditions; `llama3.1:8b` simply sends them as a JSON-*encoded string* rather than a
+> JSON array. Spring AI binds that to `List<Condition>` without complaint — this module's
+> `HybridCustomerSearchIT` passes **11 of 13** cases on that model, and since the benchmark harness learned
+> to accept the same shape (2026-08-04) it scores **100% of the canonical set** there too, where it used to
+> report 0%. The zero was the harness's, never the model's or this module's.
 > The lesson worth carrying over into your own code: whatever consumes a tool argument should be as
-> tolerant of shape deviations as a structured-output parser is. See
-> [`docs/capability-matrix.md` § the `llama3.1:8b` zero](../docs/capability-matrix.md#reliability-across-models).
+> tolerant of shape deviations as a structured-output parser is — and should say when it had to be, rather
+> than normalizing the deviation away in silence. See
+> [`docs/capability-matrix.md` § the `llama3.1:8b` 04 column](../docs/capability-matrix.md#reliability-across-models).
 
 All three IT kinds extend a base class from `00-commons`' test-jar and share the query sets with the
 other AI modules, so what a module's ITs contain is one line: which agent or view to ask, and which

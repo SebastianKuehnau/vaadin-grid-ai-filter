@@ -134,6 +134,36 @@ rate and total time be compared directly against 02(a)/02(b)'s. Ollama's native 
 `prompt_eval_count`/`eval_count`; the MLX (OpenAI-compatible) backend reports the equivalent
 `usage.prompt_tokens`/`usage.completion_tokens`.
 
+### What the metric columns mean
+
+The report's other table has one row per model × approach: `Pass rate`, `Median Latency`, `TTFT`,
+`Tokens/s`, `RAM (JVM)`, `CPU` and `Model Size`. Two of them are easy to misread, so they are labelled and
+explained in the generated report itself:
+
+- **`TTFT`** is one extra streamed request per model/approach, sent **after** the warm-up call and
+  **before** the first scored run, carrying the same payload the scored runs carry — the approach's tool
+  schema for `02a`/`02b`/`04`, the response format for `03`. It therefore excludes cold model load, is not
+  part of any case's latency, and stops on the first chunk with either text content or a `tool_calls` entry
+  (a tool-calling response has empty `content`, so waiting for text alone would never fix a TTFT for three
+  of the four approaches). Before 2026-08-04 the probe omitted the tool schema and ran inside the first
+  case's first run, which understated tool-calling TTFT by a factor of 2.5–6 and inflated that case's
+  latency.
+- **`RAM (JVM)` and `CPU` describe the harness, not the model.** RAM is this script's own heap delta across
+  the pass — negative whenever a GC ran, and 5–50 MB for identical work — and CPU is system-wide host load.
+  The model runs in the Ollama process; `Model Size` (from `/api/tags`) is the only column that says
+  anything about its footprint. There is no GPU column: the old one shelled out to `nvidia-smi`, so it read
+  `n/a` on every Apple Silicon host, and it was snapshotted *after* the pass rather than sampled during it.
+
+Below the table, a **coercion note** appears whenever a tool argument had to be parsed one step further than
+a strict reader would — a `conditions` value that arrives as a JSON-encoded string, or a bare array without
+its wrapper key. It names the count per model/approach, so tolerating the deviation does not hide it:
+
+```text
+Note: 205 tool-call argument coercion(s) - the argument arrived JSON-encoded as a string, or as a bare
+array without its wrapper key, and was parsed one step further so the filter is scored and not the
+encoding (llama3.1:8b [04-hybrid]: 205).
+```
+
 ### Pass-rate over K runs (`--runs`)
 
 `--runs=N` (default `1`, i.e. today's single-shot pass/fail) runs every case `N` times and reports,
@@ -299,14 +329,21 @@ java BenchmarkLocalModels.java --approach=all --runs=5 qwen3:8b llama3.1:8b
 
 and paste the report's "Canonical query set" matrix into `../docs/capability-matrix.md` (whose
 "Reliability across models" table now holds a 2026-08-03 `--runs=5` measurement of all four approaches
-over four models).
+over four models, with the `llama3.1:8b`/04 cell re-measured 2026-08-04 on the fixed harness).
 
-> **Known bug — `04-hybrid` scores 0% for models that stringify the tool argument.** `conditionLeaves`
-> accepts `conditions` only as a JSON array; `llama3.1:8b` sends the correct condition list as a
-> JSON-*encoded string*, and every such call normalizes to an empty filter. Structured output's parser
-> already tolerates this class of deviation, tool calling's does not, and the asymmetry makes tool calling
-> look worse than it is. Reproduce with `--approach=04 --quick --debug-raw llama3.1:8b`; fix planned in
-> `../tasks/benchmark-argument-parsing-and-ram-readout.md`.
+> **The `TTFT` column below is not comparable to a current report's.** These figures come from the pre-2026-08-04
+> probe, which ran as part of the first case's first run and could absorb the model's cold load — which is why
+> several of them (16.4 s for `gemma4:12b-mlx`, 9.3 s for `qwen3.5:9b-mlx`) exceed that row's median latency,
+> something a time-to-*first*-token cannot do. Read them as "load + first token" for a model that was not yet
+> resident.
+
+> **Fixed 2026-08-04 — `04-hybrid` used to score 0% for models that stringify the tool argument.**
+> `conditionLeaves` accepted `conditions` only as a JSON array, while `llama3.1:8b` sends the correct
+> condition list as a JSON-*encoded string*, so every such call normalized to an empty filter. Structured
+> output's parser had always tolerated this class of deviation and tool calling's had not, which made tool
+> calling look worse than it is. Both paths are now equally lenient, and the coercion is counted and
+> reported (see "What the metric columns mean"). On `llama3.1:8b` the 04 column went from `0% · 11%` to
+> `100% · 94%` on the same 49 cases.
 
 **Test system:** MacBook Pro, Apple **M2 Pro** (12 cores: 8 performance + 4 efficiency), 32 GB
 unified memory, macOS 26.5.1 (build 25F80), Ollama 0.30.11. Apple-Silicon-optimized `mlx` variants
@@ -336,9 +373,10 @@ Takeaways:
   was the earlier default and is kept here as the weaker-model reference point.
 - **`llama3.2:1b` is unsuitable** (12/32) — too small to reliably produce the structured
   multi-condition filter.
-- **High TTFT hurts the "MLX" quantizations** despite otherwise-decent accuracy — `gemma4:12b-mlx`
-  (16.4 s) and `qwen3.5:9b-mlx` (9.3 s) feel slow to first response even though their token throughput
-  is fine once generation starts.
+- **The "MLX" quantizations are slow to become usable** despite otherwise-decent accuracy — `gemma4:12b-mlx`
+  (16.4 s) and `qwen3.5:9b-mlx` (9.3 s). Given the caveat above, that is a first-use cost (load plus first
+  token) rather than a per-request one, and it is what a user feels on the first query after a model switch;
+  re-measure on the current harness before treating it as steady-state TTFT.
 - Alternative models are available by uncommenting the corresponding line in
   `../03-ai-structured-filter/src/main/resources/application.properties`.
 

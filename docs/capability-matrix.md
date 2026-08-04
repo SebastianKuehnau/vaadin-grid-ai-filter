@@ -116,13 +116,18 @@ canonical queries as the ITs plus its own legacy prompt-regression set.
 > number of queries — 02(a) is scored on 2 of the 8, 02(b) on 5, 03 and 04 on all 8. A 100% in the 02(a)
 > column is therefore a property of that selection, not a quality verdict; its `Legacy` figure, which every
 > approach runs in full, is the comparable one.
+>
+> **One cell is newer:** `llama3.1:8b` / 04 was re-measured **2026-08-04** with the same `--runs=5`
+> invocation, after the harness parsing bug that produced its old `0% · 11%` was fixed (see below). The
+> other fifteen cells are still the 2026-08-03 run; a full four-model re-measurement on the fixed harness
+> is pending and will replace this whole table.
 
 | Model | 02(a) | 02(b) | 03 | 04 |
 |---|---|---|---|---|
 | `qwen3.5:4b-mlx` | 100% · 64% · 813 ms | 60% · 64% · 1043 ms | 100% · 94% · 1034 ms | **100%** · 97% · 1376 ms |
 | `qwen3:8b` | 100% · 61% · 917 ms | 80% · 61% · 1205 ms | **100% · 100%** · 1194 ms | **100% · 100%** · 1887 ms |
 | `gemma4:26b-mlx` | 100% · 61% · 952 ms | 80% · 67% · 1188 ms | **100% · 100%** · 1560 ms | **100%** · 97% · 1355 ms |
-| `llama3.1:8b` | 100% · 69% · 797 ms | 80% · 64% · 1325 ms | 100% · 97% · 1142 ms | ⚠️ 0% · 11% · 2064 ms |
+| `llama3.1:8b` | 100% · 69% · 797 ms | 80% · 64% · 1325 ms | 100% · 97% · 1142 ms | **100%** · 94% · 1701 ms |
 
 Each cell reads *canonical · legacy · median latency*. Reproduce with one invocation per model:
 
@@ -131,27 +136,40 @@ cd ollama-benchmark
 java BenchmarkLocalModels.java --approach=all --runs=5 llama3.1:8b
 ```
 
-### ⚠️ The `llama3.1:8b` zero in the 04 column is a harness artefact, not a model result
+### What the `llama3.1:8b` 04 column really shows — a tool argument with one extra encoding step
 
-**Do not use this cell as evidence about the model.** It is a parsing bug in `ollama-benchmark`, and the
-correction is more interesting than the original claim was.
+That cell used to read `⚠️ 0% · 11%` and was documented as a delivery-mechanism gap. It was a parsing bug
+in the harness, and the correction is more interesting than the original claim was.
 
-What `llama3.1:8b` actually sends for "show me all customers in Berlin" (captured with `--debug-raw`):
+What `llama3.1:8b` sends for "show me all customers in Berlin" (captured with `--debug-raw`):
 
 ```json
 "arguments": {"conditions": "[{\"field\": \"city\", \"operator\": \"CONTAINS\", \"values\": [\"Berlin\"], \"negate\": false}]"}
 ```
 
-That is the correct condition list — right field, right operator, right value. The model even gets
-`C6_REVENUE_RANGE` right, emitting the two sibling conditions a range needs. But `conditions` arrives as a
-**JSON-encoded string** rather than a JSON array, and the harness's `conditionLeaves`
-(`BenchmarkLocalModels.java:1417`) accepts only `instanceof List<?>`, so every one of those calls
-normalizes to an empty leaf list and scores 0. The structured-output path deliberately tolerates exactly
-this kind of shape deviation (`normalizeStructuredResponse` also accepts a bare top-level array); the tool-
-calling path does not. **The asymmetry between the two parsers is what produced the 0%, and it sits in the
-one place that would make tool calling look worse than structured output.**
+That is the correct condition list — right field, right operator, right value. `conditions` merely arrives
+as a **JSON-encoded string** instead of a JSON array. The harness's `conditionLeaves` accepted only
+`instanceof List<?>`, so every such call normalized to an empty leaf list and scored 0, while the
+structured-output path deliberately tolerated exactly this class of deviation (`normalizeStructuredResponse`
+also accepts a bare top-level array). **That asymmetry between the two parsers produced the 0%, and it sat
+in the one place that would make tool calling look worse than structured output.**
 
-The counter-evidence is the module's own IT, run against the same model:
+`conditionLeaves` now parses the stringified form one step further and counts the coercion, so the
+deviation shows up as a note in the report instead of as a zero. Re-measured on the same model, same
+`--runs=5`, same 49 cases:
+
+| | before (2026-08-03) | after the fix (2026-08-04) |
+|---|---|---|
+| Canonical | 0% | **8 of 8, 40/40 runs** |
+| Robustness | — | 25/25 runs |
+| Legacy | 11% | **170/180 runs (94%)** |
+| Median latency | 2064 ms | 1701 ms |
+
+The report for that run also names the deviation explicitly: *205 tool-call argument coercion(s)
+(llama3.1:8b [04-hybrid]: 205)* — every scored call on this model arrives stringified.
+
+The module's own IT is the second source, re-run the same day on the same model, and it agrees on the point
+that matters:
 
 ```bash
 SPRING_AI_OLLAMA_CHAT_MODEL=llama3.1:8b \
@@ -160,20 +178,21 @@ SPRING_AI_OLLAMA_CHAT_MODEL=llama3.1:8b \
 
 **11 of 13 cases pass** — all five robustness cases and six of the eight canonical ones, each scored on the
 exact resulting customer set. Only `C2_MULTI_VALUE_OR` (0 rows instead of 35) and `C7_RELATIVE_DATE`
-(28 rows instead of 15) fail. So Spring AI does bind the model's stringified argument to
-`List<Condition>`, and the real application delivers the nested condition list on this model. The claim
-this section previously made — that `llama3.1:8b` "cannot" produce a nested object array as a tool
-argument, and that structured output puts the condition list within reach of a model that cannot tool-call
-it — was **wrong**, and wrong in the direction that flattered the narrative.
+(28 rows instead of 15) fail, and both are genuine, separate misses of the kind § *Where the ITs and the
+benchmark disagree* describes: the benchmark accepts the two sibling `city` conditions C2 needs without
+modelling that the app ANDs them, and C7's expectation allows any lower bound, where the IT insists on the
+right one. Spring AI binds the stringified argument to `List<Condition>` without complaint.
 
-The `gemma4:26b-mlx` claim that used to stand here fell with it: in the 2026-08-03 run that model passes
-`C7_RELATIVE_DATE` **5/5** through 04 and reaches 100% on the canonical set, where the earlier report had
-it at 88%.
+So `llama3.1:8b` performs comparably in 04 and 03 (100% canonical either way; 94% vs 97% legacy), and the
+claim this section previously made — that the model "cannot" produce a nested object array as a tool
+argument, and that structured output puts the condition list within reach of a model that cannot tool-call
+it — was **wrong**, and wrong in the direction that flattered the narrative. The `gemma4:26b-mlx` claim
+that used to stand here fell with it: that model passes `C7_RELATIVE_DATE` **5/5** through 04 and reaches
+100% on the canonical set, where an earlier report had it at 88%.
 
 What survives is narrower and worth keeping: a tool argument has to survive one more encoding step than a
 structured-output response, models differ in how they encode it, and **whatever consumes that argument —
 harness or application — has to be as tolerant of shape deviations as the structured-output path is.**
-Fixing the harness and re-measuring is planned in `tasks/benchmark-argument-parsing-and-ram-readout.md`.
 
 ### Cost per query, across all models and cases
 
@@ -181,7 +200,7 @@ Fixing the harness and re-measuring is planned in `tasks/benchmark-argument-pars
 |---|---|---|
 | 02(a) flat | ~1 330 | 2 of 8 |
 | 03 structured | ~1 860 | 8 of 8, 100% on every model |
-| 04 hybrid | ~2 350 | 8 of 8, 100% on the three models the harness parses correctly |
+| 04 hybrid | ~2 350 | 8 of 8, 100% on every model |
 | 02(b) operator | **~3 730** | 5 of 8 |
 
 02(b) is the most expensive approach measured and the weakest of the three expressive ones: **39** tool
@@ -195,7 +214,7 @@ every ✅ in the capability matrix passed and every ❌ failed in the way it des
 consecutive runs** with identical results each time.
 
 The two harnesses nevertheless score different things, which shows up in three places on the canonical
-set — and the third one is a bug rather than a design difference:
+set — all three legitimate differences in what is being measured:
 
 - The ITs score the **resulting customer set**; the benchmark scores the **extracted filter**, and counts a
   field the query did not ask for as a failure even when it changes nothing. In a recorded run 02(b) added
@@ -204,11 +223,18 @@ set — and the third one is a bug rather than a design difference:
 - The benchmark performs a **single round trip** and does not execute chained tool calls, so 02(b)'s
   `C7_RELATIVE_DATE` — which needs its `currentLocalDateTime()` hop — fails there by construction. The IT,
   running the real Spring AI tool loop, passes it. That is why C7 is ✅ for 02(b) above.
-- The two **deserialize tool arguments differently**, and only Spring AI is tolerant. When a model sends
-  04's `conditions` as a JSON-encoded string instead of a JSON array, Spring AI binds it to
-  `List<Condition>` and the app filters correctly; the benchmark's `conditionLeaves` drops it and scores 0.
-  This is the whole `llama3.1:8b` 04 column — see the ⚠️ section above. Unlike the first two, it is not a
-  legitimate difference in what is being measured, and it is being fixed.
+- The benchmark scores the **leaves of the filter and not how they combine**. `C2_MULTI_VALUE_OR` expects a
+  `city CONTAINS berlin` and a `city CONTAINS hamburg` condition, and a model that emits exactly those two
+  sibling conditions passes — while the app ANDs sibling conditions, so the same filter selects 0 rows and
+  the IT fails. That is what `llama3.1:8b` does in 04: the benchmark reads a correct pair of conditions, the
+  IT reads an empty grid. The right shape for an OR is *one* condition with two values, and only the IT can
+  see the difference.
+
+A fourth divergence used to sit here and is gone: the two **deserialized tool arguments differently**, and
+only Spring AI was tolerant of a `conditions` argument that arrives as a JSON-encoded string. That was a
+harness bug, not a difference in what is being measured; `conditionLeaves` now accepts the stringified form
+and reports the coercion, which is what turned the `llama3.1:8b` 04 column from 0% into 100% (see the
+section above).
 
 The 2026-08-03 report contains two instances of the first kind, worth naming so they are not misread as
 model failures: 02(b) on `qwen3.5:4b-mlx` answered `C5_COMBINED_AND` with `city EQUALS Hamburg` where the
@@ -220,7 +246,7 @@ by the filter-shaped expectation and pass in the ITs.
 
 | Query type | 02(a) | 02(b) | 03 | 04 | Evidence |
 |---|---|---|---|---|---|
-| **Relative date via a live clock** ("in the last 12 months") | ❌ | ⚠️ chained `currentLocalDateTime()` — model-dependent | ✅ "today" baked into `systemPrompt(LocalDate)` | ⚠️ same prompt as 03, but model-dependent in practice | `OperatorCustomerSearchIT` C7 passes on `qwen3:8b`; a weaker model such as `llama3.1:8b` reliably fails the two-hop chain (see `02-ai-agent-filter/README.md`, "Relative dates need two chained tool calls"). Across four models the 2026-08-03 5-run benchmark gives C7 **20/20 for 03 and 15/20 for 04**, and the only 04 miss is `llama3.1:8b` — whose whole 04 column is the harness parsing artefact described above, so C7 is not evidence of a delivery-mechanism gap here. Its module IT does fail C7 on that model (28 rows instead of 15), which is a genuine, separate miss |
+| **Relative date via a live clock** ("in the last 12 months") | ❌ | ⚠️ chained `currentLocalDateTime()` — model-dependent | ✅ "today" baked into `systemPrompt(LocalDate)` | ⚠️ same prompt as 03, but model-dependent in practice | `OperatorCustomerSearchIT` C7 passes on `qwen3:8b`; a weaker model such as `llama3.1:8b` reliably fails the two-hop chain (see `02-ai-agent-filter/README.md`, "Relative dates need two chained tool calls"). Across four models the 5-run benchmark gives C7 **20/20 for 03 and 20/20 for 04** (the 04 figure for `llama3.1:8b` from the 2026-08-04 re-measurement, the other three from 2026-08-03) — so the benchmark sees no delivery-mechanism gap here at all. Its module IT does fail C7 on that model (28 rows instead of 15): the benchmark's expectation allows any lower bound, the IT insists on the right one, which is a genuine, separate miss |
 
 02(b) *can* resolve relative dates by chaining `currentLocalDateTime()` and computing an offset. It is a
 genuine capability, but a two-hop one, and it is the only category where the per-field variants have
