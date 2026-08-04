@@ -465,8 +465,8 @@ public class BenchmarkLocalModels {
 
     record ModelApproachResult(String model, Approach approach, List<CaseAggregate> cases,
                                 Map<String, Double> fieldAccuracy, Long modelSizeBytes, Long vramBytes,
-                                double avgCpuLoadPercent, long heapUsedBeforeBytes, long heapUsedAfterBytes,
-                                Long ttftMs, int coercedToolArgs, String fatalError) {
+                                double avgCpuLoadPercent, Long ttftMs, int coercedToolArgs,
+                                String fatalError) {
         double meanPassRate() {
             return meanPassRate(cases);
         }
@@ -552,6 +552,13 @@ public class BenchmarkLocalModels {
     private static final String OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434";
     private static final String MLX_DEFAULT_BASE_URL = "http://localhost:8090";
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+
+    /**
+     * Requests sent before the TTFT probe of every model/approach, so it measures a loaded model <em>and</em>
+     * a cached prompt prefix. Two, because one only covers the model load — see the comment in
+     * {@link #runModelApproach}. Their cost is a few seconds per model/approach and they are not scored.
+     */
+    private static final int WARM_UP_CALLS = 2;
 
     record CliArgs(String backend, String baseUrlOverride, List<String> modelNames, boolean thinkDisabled,
                    boolean debugRaw, String mode, int runs, String approach, boolean quick, Double minPassRate,
@@ -1142,23 +1149,30 @@ public class BenchmarkLocalModels {
     private static ModelApproachResult runModelApproach(ApiClient client, String model, Approach approach,
             String systemPrompt, String toolsJson, List<EvalCase> cases, int runs) throws Exception {
         try {
-            if (approach.isToolCalling()) {
-                client.chatTools(model, systemPrompt, toolsJson, "warm up");
-            } else {
-                client.chat(model, systemPrompt, "warm up");
+            // Two warm-up calls, not one. The first loads the model; the second is what actually gets
+            // Ollama's prompt-prefix KV cache to hold this system prompt, and every scored run below is a
+            // cache hit. With a single warm-up the probe was still paying full prompt evaluation and could
+            // report a "time to first token" larger than the whole request it belongs to: qwen3.5:4b-mlx
+            // measured 7149 ms uncached against 174 ms cached for the same ~2000-token prompt, which is how
+            // an earlier report ended up with a 4789 ms TTFT next to a 987 ms median latency.
+            for (int i = 0; i < WARM_UP_CALLS; i++) {
+                if (approach.isToolCalling()) {
+                    client.chatTools(model, systemPrompt, toolsJson, "warm up");
+                } else {
+                    client.chat(model, systemPrompt, "warm up");
+                }
             }
         } catch (Exception e) {
-            return new ModelApproachResult(model, approach, List.of(), Map.of(), null, null, 0, 0, 0, null, 0,
+            return new ModelApproachResult(model, approach, List.of(), Map.of(), null, null, 0, null, 0,
                     e.getMessage());
         }
 
-        // Measured once, after the warm-up call above and before the first scored run: on the warm-up's
-        // shape (tool schema included, where the approach has one) and on an already-loaded model, so the
-        // figure is a time-to-first-token and neither a cold model load nor part of a case's latency.
+        // Measured once, after the warm-up calls above and before the first scored run, carrying the same
+        // payload the scored runs carry (the tool schema where the approach has one). So it excludes both
+        // cold model load and uncached prompt evaluation, and is not part of any case's latency.
         Long ttft = client.timeToFirstTokenMs(model, systemPrompt, cases.get(0).query(),
                 approach.isToolCalling() ? toolsJson : null);
 
-        long heapBefore = usedHeapBytes();
         AtomicBoolean sampling = new AtomicBoolean(true);
         List<Double> cpuSamples = new ArrayList<>();
         Thread sampler = startCpuSampler(sampling, cpuSamples);
@@ -1232,7 +1246,6 @@ public class BenchmarkLocalModels {
 
         sampling.set(false);
         sampler.join(2000);
-        long heapAfter = usedHeapBytes();
         double avgCpu = cpuSamples.isEmpty() ? 0
                 : cpuSamples.stream().mapToDouble(Double::doubleValue).average().orElse(0) * 100;
 
@@ -1240,8 +1253,7 @@ public class BenchmarkLocalModels {
         fieldTally.forEach((field, tally) -> fieldAccuracy.put(field, tally[1] == 0 ? 0 : (double) tally[0] / tally[1]));
 
         return new ModelApproachResult(model, approach, aggregates, fieldAccuracy, client.modelSizeBytes(model),
-                client.modelVramBytes(model), avgCpu, heapBefore, heapAfter, ttft,
-                coercions.coercedToolArgs(), null);
+                client.modelVramBytes(model), avgCpu, ttft, coercions.coercedToolArgs(), null);
     }
 
     private static Thread startCpuSampler(AtomicBoolean running, List<Double> samples) {
@@ -1264,11 +1276,6 @@ public class BenchmarkLocalModels {
         t.setDaemon(true);
         t.start();
         return t;
-    }
-
-    private static long usedHeapBytes() {
-        Runtime rt = Runtime.getRuntime();
-        return rt.totalMemory() - rt.freeMemory();
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -2042,20 +2049,37 @@ public class BenchmarkLocalModels {
 
     /** Shared cell values for one model/approach's row, reused by printTable/renderMarkdown/renderText. */
     private record RowCells(String model, String approach, String passRate, String medianLat, String ttft,
-                             String tokS, String ram, String cpu, String modelSize) {
+                             String toolCall, String tokS, String cpu, String modelSize) {
     }
 
+    /**
+     * Column widths of the fixed-width table, shared by the console and the {@code .txt} report so the two
+     * cannot drift apart. Sums to the 112 characters the separator rule under the header uses.
+     */
+    private static final String TABLE_FORMAT = "%-22s%-14s%-12s%-14s%-10s%-11s%-9s%-8s%-12s%n";
+
+    /**
+     * One probe result, two columns — because the same measurement means different things per approach.
+     * Structured output streams its answer token by token, so the probe's first chunk really is a first
+     * token. Ollama does not stream tool-call arguments: the whole call arrives as a single chunk, so for
+     * the tool-calling approaches the probe times the <em>complete</em> tool call and is close to the
+     * request's full duration by construction. Reporting both in one column invited the reading that
+     * structured output "responds faster", which is not what was measured, so each approach fills only the
+     * column that is true for it.
+     */
     private static RowCells buildRow(ModelApproachResult r) {
         double medianMs = median(r.cases().stream().map(c -> (long) c.medianDurationMs()).collect(Collectors.toList()));
         double tokS = median(r.cases().stream().map(CaseAggregate::medianTokS).collect(Collectors.toList()));
+        String probe = r.ttftMs() != null ? r.ttftMs() + " ms" : "n/a";
+        boolean toolCalling = r.approach().isToolCalling();
         return new RowCells(
                 r.model(),
                 r.approach().label,
                 "%.0f%%".formatted(r.meanPassRate() * 100),
                 "%.0f ms".formatted(medianMs),
-                r.ttftMs() != null ? r.ttftMs() + " ms" : "n/a",
+                toolCalling ? "n/a" : probe,
+                toolCalling ? probe : "n/a",
                 "%.1f".formatted(tokS),
-                formatBytes(r.heapUsedAfterBytes() - r.heapUsedBeforeBytes()),
                 "%.0f%%".formatted(r.avgCpuLoadPercent()),
                 r.modelSizeBytes() != null ? formatBytes(r.modelSizeBytes()) : "n/a");
     }
@@ -2080,8 +2104,8 @@ public class BenchmarkLocalModels {
 
     private static void printTable(List<ModelApproachResult> results) {
         System.out.println();
-        System.out.printf("%-22s%-14s%-12s%-14s%-10s%-10s%-10s%-8s%-12s%n",
-                "Model", "Approach", "Pass rate", "Median Lat.", "TTFT", "tok/s", "RAM (JVM)", "CPU", "Model Size");
+        System.out.printf(TABLE_FORMAT, "Model", "Approach", "Pass rate", "Median Lat.", "TTFT", "Tool call",
+                "tok/s", "CPU", "Model Size");
         System.out.println("-".repeat(112));
         for (ModelApproachResult r : results) {
             if (r.fatalError() != null) {
@@ -2089,9 +2113,8 @@ public class BenchmarkLocalModels {
                 continue;
             }
             RowCells row = buildRow(r);
-            System.out.printf("%-22s%-14s%-12s%-14s%-10s%-10s%-10s%-8s%-12s%n",
-                    row.model(), row.approach(), row.passRate(), row.medianLat(), row.ttft(), row.tokS(), row.ram(),
-                    row.cpu(), row.modelSize());
+            System.out.printf(TABLE_FORMAT, row.model(), row.approach(), row.passRate(), row.medianLat(),
+                    row.ttft(), row.toolCall(), row.tokS(), row.cpu(), row.modelSize());
         }
         String coercions = coercionNote(results);
         if (coercions != null) {
@@ -2197,9 +2220,10 @@ public class BenchmarkLocalModels {
     }
 
     /**
-     * Sign-aware, so the RAM column's heap *delta* — which is negative whenever a GC ran during the pass —
-     * renders as a rounded {@code -167 MB} instead of the raw {@code -175308080 B} that overran its
-     * fixed-width column and collided with the next one.
+     * Sign-aware. Today's only caller is {@code Model Size}, which is never negative; the handling is kept
+     * because the column this was written for — a JVM heap *delta*, negative whenever a GC ran — printed
+     * raw bytes ({@code -175308080 B}) that overran the fixed-width layout and collided with the next
+     * column. That column is gone, but any future delta-shaped figure would hit the same trap.
      */
     private static String formatBytes(long bytes) {
         String sign = bytes < 0 ? "-" : "";
@@ -2317,7 +2341,7 @@ public class BenchmarkLocalModels {
 
         renderApproachSummary(sb, results);
 
-        sb.append("\n| Model | Approach | Pass rate | Median Latency | TTFT | Tokens/s | RAM (JVM) | CPU | Model Size |\n");
+        sb.append("\n| Model | Approach | Pass rate | Median Latency | TTFT | Tool call | Tokens/s | CPU | Model Size |\n");
         sb.append("|---|---|---|---|---|---|---|---|---|\n");
         for (ModelApproachResult r : results) {
             if (r.fatalError() != null) {
@@ -2331,21 +2355,27 @@ public class BenchmarkLocalModels {
               .append(" | ").append(row.passRate())
               .append(" | ").append(row.medianLat())
               .append(" | ").append(row.ttft())
+              .append(" | ").append(row.toolCall())
               .append(" | ").append(row.tokS())
-              .append(" | ").append(row.ram())
               .append(" | ").append(row.cpu())
               .append(" | ").append(row.modelSize())
               .append(" |\n");
         }
-        sb.append("\n`TTFT` is one streamed request per model/approach, sent after a warm-up call and before ")
-          .append("the first scored run, carrying the same payload those runs carry — the tool schema for the ")
-          .append("tool-calling approaches, the response format for structured output. It therefore excludes ")
-          .append("cold model load and is not part of any case's latency; it stops on the first chunk with ")
-          .append("either text content or a tool call.\n");
-        sb.append("\n`RAM (JVM)` and `CPU` describe the *harness*, not the model: RAM is this benchmark's own ")
-          .append("heap delta across the pass — negative whenever a GC ran, and 5-50 MB for identical work — ")
-          .append("and CPU is system-wide host load. The model itself runs in the Ollama process; `Model Size` ")
-          .append("is the only column that says anything about its footprint.\n");
+        sb.append("\n`TTFT` and `Tool call` are the same measurement — one streamed request per ")
+          .append("model/approach, sent after the warm-up calls and before the first scored run, carrying the ")
+          .append("payload those runs carry — reported in two columns because it means two different things. ")
+          .append("Structured output streams its answer token by token, so its first chunk is a genuine ")
+          .append("**time to first token**. Ollama does not stream tool-call arguments: the whole call arrives ")
+          .append("as a single chunk, so for the tool-calling approaches the figure is the time until the ")
+          .append("**complete tool call** has been generated, and it is close to that request's full duration ")
+          .append("by construction. Reading one against the other as \"structured output responds faster\" ")
+          .append("would compare a first token with a finished answer.\n");
+        sb.append("\nBoth exclude cold model load and uncached prompt evaluation (two warm-up calls precede ")
+          .append("the probe, the second one so Ollama's prompt-prefix cache holds the system prompt), and ")
+          .append("neither is part of any case's latency.\n");
+        sb.append("\n`CPU` describes the *harness*, not the model: it is system-wide host load. The model ")
+          .append("itself runs in the Ollama process; `Model Size` is the only column that says anything ")
+          .append("about its footprint.\n");
         String coercions = coercionNote(results);
         if (coercions != null) {
             sb.append("\n").append(coercions).append("\n");
@@ -2546,8 +2576,8 @@ public class BenchmarkLocalModels {
         StringBuilder sb = new StringBuilder();
         sb.append("Backend: ").append(backendLabel(backendName)).append(", Base URL: ").append(baseUrl)
           .append("\n\n");
-        sb.append(String.format("%-22s%-14s%-12s%-14s%-10s%-10s%-10s%-8s%-12s%n",
-                "Model", "Approach", "Pass rate", "Median Lat.", "TTFT", "tok/s", "RAM (JVM)", "CPU", "Model Size"));
+        sb.append(String.format(TABLE_FORMAT, "Model", "Approach", "Pass rate", "Median Lat.", "TTFT",
+                "Tool call", "tok/s", "CPU", "Model Size"));
         sb.append("-".repeat(112)).append("\n");
         for (ModelApproachResult r : results) {
             if (r.fatalError() != null) {
@@ -2555,9 +2585,8 @@ public class BenchmarkLocalModels {
                 continue;
             }
             RowCells row = buildRow(r);
-            sb.append(String.format("%-22s%-14s%-12s%-14s%-10s%-10s%-10s%-8s%-12s%n",
-                    row.model(), row.approach(), row.passRate(), row.medianLat(), row.ttft(), row.tokS(), row.ram(),
-                    row.cpu(), row.modelSize()));
+            sb.append(String.format(TABLE_FORMAT, row.model(), row.approach(), row.passRate(), row.medianLat(),
+                    row.ttft(), row.toolCall(), row.tokS(), row.cpu(), row.modelSize()));
         }
         String coercions = coercionNote(results);
         if (coercions != null) {
