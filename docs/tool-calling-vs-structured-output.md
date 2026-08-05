@@ -162,25 +162,31 @@ filter type:
 "Reliable vs. flaky" is a different question from "expressible vs. not", and it is per model. It is
 answered by the benchmark's pass-rates (`--approach=all --runs=5`), not by single JUnit runs.
 
-**Measured 2026-08-03**, `--approach=all --runs=5`, 49 cases, one invocation per model. The full table
-lives in the [capability matrix](capability-matrix.md#reliability-across-models); the canonical-set means
-are:
+**Measured 2026-08-04**, `--approach=all --cases=canonical --runs=5`, one invocation per model. The full
+table, including the legacy set and latencies, lives in the
+[capability matrix](capability-matrix.md#reliability-across-models); the canonical-set means are:
 
 | Model | 02(a) | 02(b) | 03 | 04 |
 |---|---|---|---|---|
 | `qwen3.5:4b-mlx` | 100% | 60% | 100% | 100% |
 | `qwen3:8b` | 100% | 80% | 100% | 100% |
-| `gemma4:26b-mlx` | 100% | 80% | 100% | 100% |
-| `llama3.1:8b` | 100% | 80% | 100% | ⚠️ 0% |
+| `gemma4:26b-mlx` | 100% | 80% | 100% | ⚠️ 88% |
+| `llama3.1:8b` | 100% | 80% | 100% | 100% |
 
 Each column is scored only on the queries that approach can express (02(a): 2 of 8, 02(b): 5 of 8, 03 and
 04: all 8), so a 100% for 02(a) describes that selection and not its quality.
 
-> ⚠️ **The `llama3.1:8b` zero is a harness bug, not a model result.** That model sends 04's `conditions`
-> argument as a JSON-encoded string rather than a JSON array; the harness accepts only an array and scores
-> the (correct) filter as empty. The module's own IT on the same model passes 11 of 13 cases. The evidence
-> and the fix are in the [capability matrix](capability-matrix.md#reliability-across-models) and
-> `tasks/benchmark-argument-parsing-and-ram-readout.md`. Every other cell in the table is sound.
+> **The `llama3.1:8b` 04 cell reads 100% where it used to read `⚠️ 0%`.** That model sends 04's
+> `conditions` argument as a JSON-encoded *string* rather than a JSON array, and the harness accepted only
+> an array, scoring the correct filter as empty — a harness bug, now fixed: the stringified form is parsed
+> and the coercion is reported (40 of them in this run). The module's own IT always passed 11 of 13 cases
+> on this model, because Spring AI binds that argument without complaint.
+>
+> **The `gemma4:26b-mlx` 04 cell is a flake, not a finding.** It is `C7_RELATIVE_DATE` returning an empty
+> condition list 0/5, on a query 03 passes 5/5 on every model with the identical prompt. The same cell read
+> 0/10 on 2026-07-31, 5/5 on 2026-08-03 and 0/5 here. Across those runs the honest reading is that this one
+> query is less robust through a tool argument than through a response *on this model* — not that either
+> delivery mechanism wins. Details in the [capability matrix](capability-matrix.md#reliability-across-models).
 
 On the configured default `qwen3:8b` the ITs agree with this: every expressible canonical query produced
 the exact expected customer set in all four approaches, and every inexpressible one failed in the

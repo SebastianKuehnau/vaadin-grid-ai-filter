@@ -119,7 +119,7 @@ report repeats this caveat next to the matrix, so a `0/1` there is never mistake
 ### Approach performance summary
 
 The report's "Approach performance summary" table aggregates **across every tested model**, one row
-per approach: passed test runs (canonical, robustness and legacy separately), total prompt tokens, total completion
+per approach: canonical reach, passed test runs (canonical, robustness and legacy separately), total prompt tokens, total completion
 tokens, total tokens, and total wall-clock time — all true sums over every call actually made for that
 approach (not medians), so it reflects the approach's real cost independent of which models were
 benchmarked. The pass columns read `passed/performed (share)` rather than a bare percentage, because
@@ -128,11 +128,75 @@ group's run count is its case count times `--runs`, summed over every tested mod
 failed outright (an `ERROR` row) performs no runs and is not counted under "Models tested". A group
 that ran no cases at all (e.g. the legacy and robustness groups under `--cases=canonical`) reads `n/a`
 instead of `0%`.
+
+**Reliability and reach are separate columns, and a pass figure alone answers only half the question.**
+`Canonical reach` reads `performed/possible`: how many canonical runs the approach's filter type could
+attempt at all, the rest being queries it has no way to express — the `n/a` cells in the matrix. The pass
+columns are scored **only on what was performed**. Without the reach column these two rows look identical:
+
+```
+| 02a-flat      | 4/4 (100%)   |   <- 2 of 8 canonical queries expressible; 6 never ran
+| 03-structured | 16/16 (100%) |   <- all 8 ran
+```
+
+so a 100% beside a 25% reach means "right about the little it could try", not "as good as the others".
+There is no reach column for robustness and legacy: `EvalCase.robustness(...)` and `EvalCase.legacy(...)`
+register every case for every approach, so those groups always reach 100%. The same split appears per model
+in the matrices, as the `Passed / run` and `Cases attempted` rows, and in the model × approach table, where
+`Canonical reach` sits left of `Pass rate`.
 Which individual runs failed is in the per-case tables further down the report. This is what makes e.g. `02b-operator`'s 39-parameter tool schema's prompt-token overhead
 visible against `04-hybrid`'s single-parameter one, and lets 03/04's combined canonical+legacy pass
 rate and total time be compared directly against 02(a)/02(b)'s. Ollama's native API reports
 `prompt_eval_count`/`eval_count`; the MLX (OpenAI-compatible) backend reports the equivalent
 `usage.prompt_tokens`/`usage.completion_tokens`.
+
+### What the metric columns mean
+
+The report's other table has one row per model × approach: `Canonical reach`, `Pass rate`, `Median Latency`,
+`TTFT`, `Tool call`, `Tokens/s`, `CPU` and `Model Size`. Four of them are easy to misread, so they are
+labelled and explained in the generated report itself:
+
+- **`Canonical reach` against `Pass rate`.** Reach is that model/approach's canonical runs performed against
+  the number possible; `Pass rate` is its mean over the cases it actually ran, across all three groups. See
+  "Approach performance summary" above for why the pass figure alone is not a verdict.
+
+- **`TTFT` and `Tool call` are the same measurement in two columns**, and every row fills exactly one of
+  them. The probe is an extra streamed request per model/approach, sent **before** the first scored run and
+  carrying the same payload the scored runs carry — the approach's tool schema for `02a`/`02b`/`04`, the
+  response format for `03`. It stops on the first chunk with either text content or a `tool_calls` entry.
+  The split exists because **Ollama does not stream tool-call arguments**: a tool call arrives as one
+  chunk, so for the three tool-calling approaches the probe times the *complete* tool call and lands within
+  a few percent of that request's full duration by construction. Structured output streams token by token,
+  so only `03`'s figure is a real time-to-first-token. Measured on `qwen3:8b`: structured output produced
+  36 chunks with the first at 290 ms and the last at 1423 ms; the same query as a tool call produced 2
+  chunks, complete at 872 ms. Reported in one column, that reads as "structured output responds 6× faster",
+  which compares a first token against a finished answer.
+- **Both are the median of three probes**, not a single sample. One sample measures whether that request
+  happened to find Ollama's prompt-prefix KV cache holding the system prompt: on `qwen3.5:4b-mlx` the first
+  request with a given prefix took 8029 ms and the next seven 171–194 ms. A warm-up call alone does not
+  reliably land in the warm state — a four-approach run still reported a 4908 ms "TTFT" next to a 1354 ms
+  median latency, while the same approach run on its own reported 83 ms. Taking the median of three removed
+  that, but note what the probe is **not**: it runs a single query (the first canonical case), while
+  `Median Latency` is the median over *all* the run's cases. A probe figure above the median latency of its
+  row is therefore possible without anything being wrong — it happened twice in the 2026-08-04 sweep, both
+  on `gemma4:26b-mlx`. Read the pair as a smell test, not as an invariant.
+- **`CPU` describes the harness, not the model** — it is system-wide host load. The model runs in the
+  Ollama process; `Model Size` (from `/api/tags`) is the only column that says anything about its
+  footprint. There is no GPU column: the old one shelled out to `nvidia-smi`, so it read `n/a` on every
+  Apple Silicon host, and it was snapshotted *after* the pass rather than sampled during it. There is no
+  RAM column either: it reported this script's own JVM heap delta, which tracked GC timing rather than the
+  model — negative on whichever approach ran first after another model left the heap full, and 5–50 MB for
+  identical work otherwise.
+
+Below the table, a **coercion note** appears whenever a tool argument had to be parsed one step further than
+a strict reader would — a `conditions` value that arrives as a JSON-encoded string, or a bare array without
+its wrapper key. It names the count per model/approach, so tolerating the deviation does not hide it:
+
+```text
+Note: 205 tool-call argument coercion(s) - the argument arrived JSON-encoded as a string, or as a bare
+array without its wrapper key, and was parsed one step further so the filter is scored and not the
+encoding (llama3.1:8b [04-hybrid]: 205).
+```
 
 ### Pass-rate over K runs (`--runs`)
 
@@ -299,14 +363,23 @@ java BenchmarkLocalModels.java --approach=all --runs=5 qwen3:8b llama3.1:8b
 
 and paste the report's "Canonical query set" matrix into `../docs/capability-matrix.md` (whose
 "Reliability across models" table now holds a 2026-08-03 `--runs=5` measurement of all four approaches
-over four models).
+over four models, with the `llama3.1:8b`/04 cell re-measured 2026-08-04 on the fixed harness).
 
-> **Known bug — `04-hybrid` scores 0% for models that stringify the tool argument.** `conditionLeaves`
-> accepts `conditions` only as a JSON array; `llama3.1:8b` sends the correct condition list as a
-> JSON-*encoded string*, and every such call normalizes to an empty filter. Structured output's parser
-> already tolerates this class of deviation, tool calling's does not, and the asymmetry makes tool calling
-> look worse than it is. Reproduce with `--approach=04 --quick --debug-raw llama3.1:8b`; fix planned in
-> `../tasks/benchmark-argument-parsing-and-ram-readout.md`.
+> **The `TTFT` column below is not comparable to a current report's.** These figures predate three changes
+> to the probe: it ran as part of the first case's first run and could absorb the model's cold load, it was
+> a single sample that could just as easily hit an uncached prompt prefix, and it was not yet split into
+> `TTFT` / `Tool call`, so a tool-calling row reported a completed tool call under a first-token heading.
+> That is why several of them (16.4 s for `gemma4:12b-mlx`, 9.3 s for `qwen3.5:9b-mlx`) exceed that row's
+> median latency, something a time-to-*first*-token cannot do. Read them as "load plus uncached first
+> token" for a model that was not yet resident.
+
+> **Fixed 2026-08-04 — `04-hybrid` used to score 0% for models that stringify the tool argument.**
+> `conditionLeaves` accepted `conditions` only as a JSON array, while `llama3.1:8b` sends the correct
+> condition list as a JSON-*encoded string*, so every such call normalized to an empty filter. Structured
+> output's parser had always tolerated this class of deviation and tool calling's had not, which made tool
+> calling look worse than it is. Both paths are now equally lenient, and the coercion is counted and
+> reported (see "What the metric columns mean"). On `llama3.1:8b` the 04 column went from `0% · 11%` to
+> `100% · 94%` on the same 49 cases.
 
 **Test system:** MacBook Pro, Apple **M2 Pro** (12 cores: 8 performance + 4 efficiency), 32 GB
 unified memory, macOS 26.5.1 (build 25F80), Ollama 0.30.11. Apple-Silicon-optimized `mlx` variants
@@ -336,9 +409,10 @@ Takeaways:
   was the earlier default and is kept here as the weaker-model reference point.
 - **`llama3.2:1b` is unsuitable** (12/32) — too small to reliably produce the structured
   multi-condition filter.
-- **High TTFT hurts the "MLX" quantizations** despite otherwise-decent accuracy — `gemma4:12b-mlx`
-  (16.4 s) and `qwen3.5:9b-mlx` (9.3 s) feel slow to first response even though their token throughput
-  is fine once generation starts.
+- **The "MLX" quantizations are slow to become usable** despite otherwise-decent accuracy — `gemma4:12b-mlx`
+  (16.4 s) and `qwen3.5:9b-mlx` (9.3 s). Given the caveat above, that is a first-use cost (load plus first
+  token) rather than a per-request one, and it is what a user feels on the first query after a model switch;
+  re-measure on the current harness before treating it as steady-state TTFT.
 - Alternative models are available by uncommenting the corresponding line in
   `../03-ai-structured-filter/src/main/resources/application.properties`.
 
