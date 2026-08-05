@@ -119,7 +119,7 @@ report repeats this caveat next to the matrix, so a `0/1` there is never mistake
 ### Approach performance summary
 
 The report's "Approach performance summary" table aggregates **across every tested model**, one row
-per approach: passed test runs (canonical, robustness and legacy separately), total prompt tokens, total completion
+per approach: canonical reach, passed test runs (canonical, robustness and legacy separately), total prompt tokens, total completion
 tokens, total tokens, and total wall-clock time — all true sums over every call actually made for that
 approach (not medians), so it reflects the approach's real cost independent of which models were
 benchmarked. The pass columns read `passed/performed (share)` rather than a bare percentage, because
@@ -128,6 +128,22 @@ group's run count is its case count times `--runs`, summed over every tested mod
 failed outright (an `ERROR` row) performs no runs and is not counted under "Models tested". A group
 that ran no cases at all (e.g. the legacy and robustness groups under `--cases=canonical`) reads `n/a`
 instead of `0%`.
+
+**Reliability and reach are separate columns, and a pass figure alone answers only half the question.**
+`Canonical reach` reads `performed/possible`: how many canonical runs the approach's filter type could
+attempt at all, the rest being queries it has no way to express — the `n/a` cells in the matrix. The pass
+columns are scored **only on what was performed**. Without the reach column these two rows look identical:
+
+```
+| 02a-flat      | 4/4 (100%)   |   <- 2 of 8 canonical queries expressible; 6 never ran
+| 03-structured | 16/16 (100%) |   <- all 8 ran
+```
+
+so a 100% beside a 25% reach means "right about the little it could try", not "as good as the others".
+There is no reach column for robustness and legacy: `EvalCase.robustness(...)` and `EvalCase.legacy(...)`
+register every case for every approach, so those groups always reach 100%. The same split appears per model
+in the matrices, as the `Passed / run` and `Cases attempted` rows, and in the model × approach table, where
+`Canonical reach` sits left of `Pass rate`.
 Which individual runs failed is in the per-case tables further down the report. This is what makes e.g. `02b-operator`'s 39-parameter tool schema's prompt-token overhead
 visible against `04-hybrid`'s single-parameter one, and lets 03/04's combined canonical+legacy pass
 rate and total time be compared directly against 02(a)/02(b)'s. Ollama's native API reports
@@ -136,9 +152,13 @@ rate and total time be compared directly against 02(a)/02(b)'s. Ollama's native 
 
 ### What the metric columns mean
 
-The report's other table has one row per model × approach: `Pass rate`, `Median Latency`, `TTFT`,
-`Tool call`, `Tokens/s`, `CPU` and `Model Size`. Three of them are easy to misread, so they are labelled and
-explained in the generated report itself:
+The report's other table has one row per model × approach: `Canonical reach`, `Pass rate`, `Median Latency`,
+`TTFT`, `Tool call`, `Tokens/s`, `CPU` and `Model Size`. Four of them are easy to misread, so they are
+labelled and explained in the generated report itself:
+
+- **`Canonical reach` against `Pass rate`.** Reach is that model/approach's canonical runs performed against
+  the number possible; `Pass rate` is its mean over the cases it actually ran, across all three groups. See
+  "Approach performance summary" above for why the pass figure alone is not a verdict.
 
 - **`TTFT` and `Tool call` are the same measurement in two columns**, and every row fills exactly one of
   them. The probe is an extra streamed request per model/approach, sent **before** the first scored run and

@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -189,6 +190,47 @@ public class BenchmarkLocalModels {
         static EvalCase legacy(String name, String query, String tag, Expectation... expected) {
             return new EvalCase(name, query, Set.of(tag), CaseGroup.LEGACY, ALL_APPROACHES,
                     List.of(expected));
+        }
+    }
+
+    /**
+     * How many cases of each group this run selected, and how many times each is sent — together, the
+     * denominator every <em>reach</em> figure needs.
+     * <p>
+     * Every pass figure in the report answers "of the runs performed, how many passed?". On its own that
+     * makes {@code 4/4 (100%)} and {@code 16/16 (100%)} look alike, although the first approach only ever
+     * attempted 2 of the 8 canonical queries: the rest are not expressible by its filter type and were
+     * never run. Reach is the second number — performed against possible — and it is what keeps the two
+     * apart.
+     * <p>
+     * Only the canonical group can fall short: {@link EvalCase#robustness} and {@link EvalCase#legacy}
+     * register every case for {@link #ALL_APPROACHES}. The counts are still kept per group so those
+     * matrices can state their {@code n of n} explicitly, rather than leaving a reader to infer that full
+     * reach is what a missing row would have meant.
+     */
+    record CaseBudget(Map<CaseGroup, Integer> casesPerGroup, int runs) {
+
+        static CaseBudget of(List<EvalCase> selectedCases, int runs) {
+            Map<CaseGroup, Integer> perGroup = new EnumMap<>(CaseGroup.class);
+            for (EvalCase c : selectedCases) {
+                perGroup.merge(c.group(), 1, Integer::sum);
+            }
+            return new CaseBudget(perGroup, runs);
+        }
+
+        /** Cases of this group the run selected, whether or not any approach can express them. */
+        int cases(CaseGroup group) {
+            return casesPerGroup.getOrDefault(group, 0);
+        }
+
+        /** Runs one model/approach could perform in this group if its filter type expressed every case. */
+        int possibleRuns(CaseGroup group) {
+            return cases(group) * runs;
+        }
+
+        /** The same across several models — the aggregate summary's denominator. */
+        int possibleRuns(CaseGroup group, int models) {
+            return possibleRuns(group) * models;
         }
     }
 
@@ -656,8 +698,9 @@ public class BenchmarkLocalModels {
         }
         long wallClockMs = (System.nanoTime() - wallClockStart) / 1_000_000;
 
-        printApproachSummary(results);
-        printTable(results);
+        CaseBudget budget = CaseBudget.of(selectedCases, cli.runs());
+        printApproachSummary(results, budget);
+        printTable(results, budget);
         printFieldAccuracy(results);
         printFailures(results);
         printFieldPrecisionExample(results);
@@ -667,9 +710,11 @@ public class BenchmarkLocalModels {
         Path mdPath = Path.of("benchmark-report-" + timestamp + ".md");
         Path txtPath = Path.of("benchmark-report-" + timestamp + ".txt");
         Files.writeString(mdPath,
-                renderMarkdown(results, client.backendName(), baseUrl, cli, selectedCases.size(), wallClockMs),
+                renderMarkdown(results, client.backendName(), baseUrl, cli, selectedCases.size(), wallClockMs,
+                        budget),
                 StandardCharsets.UTF_8);
-        Files.writeString(txtPath, renderText(results, client.backendName(), baseUrl), StandardCharsets.UTF_8);
+        Files.writeString(txtPath, renderText(results, client.backendName(), baseUrl, budget),
+                StandardCharsets.UTF_8);
         System.out.println();
         System.out.println("Reports written: " + mdPath.toAbsolutePath() + ", " + txtPath.toAbsolutePath());
         System.out.println("Wall clock: " + formatWallClock(wallClockMs) + " for " + selectedCases.size() + " cases"
@@ -2065,15 +2110,19 @@ public class BenchmarkLocalModels {
     }
 
     /** Shared cell values for one model/approach's row, reused by printTable/renderMarkdown/renderText. */
-    private record RowCells(String model, String approach, String passRate, String medianLat, String ttft,
-                             String toolCall, String tokS, String cpu, String modelSize) {
+    private record RowCells(String model, String approach, String reach, String passRate, String medianLat,
+                             String ttft, String toolCall, String tokS, String cpu, String modelSize) {
     }
 
-    /**
-     * Column widths of the fixed-width table, shared by the console and the {@code .txt} report so the two
-     * cannot drift apart. Sums to the 112 characters the separator rule under the header uses.
-     */
-    private static final String TABLE_FORMAT = "%-22s%-14s%-12s%-14s%-10s%-11s%-9s%-8s%-12s%n";
+    /** Column widths of the fixed-width table, shared by the console and the {@code .txt} report. */
+    private static final int[] TABLE_WIDTHS = {22, 14, 13, 11, 13, 10, 11, 9, 7, 11};
+
+    /** Built from {@link #TABLE_WIDTHS}, so adding a column cannot leave the format string behind. */
+    private static final String TABLE_FORMAT =
+            Arrays.stream(TABLE_WIDTHS).mapToObj("%%-%ds"::formatted).collect(Collectors.joining()) + "%n";
+
+    /** Width of the rule under the header — derived, never a hand-maintained literal. */
+    private static final int TABLE_WIDTH = Arrays.stream(TABLE_WIDTHS).sum();
 
     /**
      * One probe result, two columns — because the same measurement means different things per approach.
@@ -2084,7 +2133,7 @@ public class BenchmarkLocalModels {
      * structured output "responds faster", which is not what was measured, so each approach fills only the
      * column that is true for it.
      */
-    private static RowCells buildRow(ModelApproachResult r) {
+    private static RowCells buildRow(ModelApproachResult r, CaseBudget budget) {
         double medianMs = median(r.cases().stream().map(c -> (long) c.medianDurationMs()).collect(Collectors.toList()));
         double tokS = median(r.cases().stream().map(CaseAggregate::medianTokS).collect(Collectors.toList()));
         String probe = r.ttftMs() != null ? r.ttftMs() + " ms" : "n/a";
@@ -2092,6 +2141,8 @@ public class BenchmarkLocalModels {
         return new RowCells(
                 r.model(),
                 r.approach().label,
+                formatPassCount(r.performedRuns(CaseGroup.CANONICAL),
+                        budget.possibleRuns(CaseGroup.CANONICAL)),
                 "%.0f%%".formatted(r.meanPassRate() * 100),
                 "%.0f ms".formatted(medianMs),
                 toolCalling ? "n/a" : probe,
@@ -2119,19 +2170,19 @@ public class BenchmarkLocalModels {
                 + "the filter is scored and not the encoding (" + perPair + ").";
     }
 
-    private static void printTable(List<ModelApproachResult> results) {
+    private static void printTable(List<ModelApproachResult> results, CaseBudget budget) {
         System.out.println();
-        System.out.printf(TABLE_FORMAT, "Model", "Approach", "Pass rate", "Median Lat.", "TTFT", "Tool call",
-                "tok/s", "CPU", "Model Size");
-        System.out.println("-".repeat(112));
+        System.out.printf(TABLE_FORMAT, "Model", "Approach", "Canon. reach", "Pass rate", "Median Lat.",
+                "TTFT", "Tool call", "tok/s", "CPU", "Model Size");
+        System.out.println("-".repeat(TABLE_WIDTH));
         for (ModelApproachResult r : results) {
             if (r.fatalError() != null) {
                 System.out.printf("%-22s%-14sERROR: %s%n", r.model(), r.approach().label, r.fatalError());
                 continue;
             }
-            RowCells row = buildRow(r);
-            System.out.printf(TABLE_FORMAT, row.model(), row.approach(), row.passRate(), row.medianLat(),
-                    row.ttft(), row.toolCall(), row.tokS(), row.cpu(), row.modelSize());
+            RowCells row = buildRow(r, budget);
+            System.out.printf(TABLE_FORMAT, row.model(), row.approach(), row.reach(), row.passRate(),
+                    row.medianLat(), row.ttft(), row.toolCall(), row.tokS(), row.cpu(), row.modelSize());
         }
         String coercions = coercionNote(results);
         if (coercions != null) {
@@ -2141,17 +2192,19 @@ public class BenchmarkLocalModels {
     }
 
     /** Console counterpart of {@link #renderApproachSummary}. */
-    private static void printApproachSummary(List<ModelApproachResult> results) {
+    private static void printApproachSummary(List<ModelApproachResult> results, CaseBudget budget) {
         List<ModelApproachResult> usable = results.stream().filter(r -> r.fatalError() == null).toList();
         if (usable.isEmpty()) return;
         System.out.println();
         System.out.println("Approach performance summary (across all tested models):");
-        System.out.println("  Pass columns count individual test runs as passed/performed: one run is one case "
-                + "sent once");
-        System.out.println("  to one model, so a group's run count is its cases times --runs, summed over every "
-                + "tested model.");
-        System.out.printf("  %-16s%-8s%-17s%-17s%-17s%-14s%-14s%-14s%-10s%n",
-                "Approach", "Models", "Canonical", "Robustness", "Legacy",
+        System.out.println("  Reach = canonical runs performed / possible: what the filter type could attempt "
+                + "at all.");
+        System.out.println("  Pass columns = passed/performed, scored only on what was performed - so 100% next "
+                + "to a");
+        System.out.println("  low reach means \"right about the little it could try\". Robustness and legacy "
+                + "always reach 100%.");
+        System.out.printf("  %-16s%-8s%-15s%-15s%-15s%-15s%-13s%-13s%-13s%-10s%n",
+                "Approach", "Models", "Canon. reach", "Canonical", "Robustness", "Legacy",
                 "Prompt tok", "Compl. tok", "Tokens", "Time");
         for (Approach approach : Approach.values()) {
             List<ModelApproachResult> forApproach = usable.stream().filter(r -> r.approach() == approach).toList();
@@ -2165,8 +2218,10 @@ public class BenchmarkLocalModels {
             long promptTokens = forApproach.stream().mapToLong(ModelApproachResult::totalPromptTokens).sum();
             long completionTokens = forApproach.stream().mapToLong(ModelApproachResult::totalCompletionTokens).sum();
             long totalMs = forApproach.stream().mapToLong(ModelApproachResult::totalDurationMs).sum();
-            System.out.printf("  %-16s%-8d%-17s%-17s%-17s%-14d%-14d%-14d%-10s%n",
+            System.out.printf("  %-16s%-8d%-15s%-15s%-15s%-15s%-13d%-13d%-13d%-10s%n",
                     approach.label, forApproach.size(),
+                    formatPassCount(canonicalPerformed,
+                            budget.possibleRuns(CaseGroup.CANONICAL, forApproach.size())),
                     formatPassCount(canonicalPassed, canonicalPerformed),
                     formatPassCount(robustnessPassed, robustnessPerformed),
                     formatPassCount(legacyPassed, legacyPerformed),
@@ -2175,13 +2230,18 @@ public class BenchmarkLocalModels {
     }
 
     /** Per-case pass-rate breakdown, one table per model/approach, canonical cases first. */
-    private static void printPerCaseTable(StringBuilder sb, ModelApproachResult r) {
+    private static void printPerCaseTable(StringBuilder sb, ModelApproachResult r, CaseBudget budget) {
         sb.append("\n### ").append(r.model()).append(" [").append(r.approach().label).append("]\n\n");
         for (CaseGroup group : CaseGroup.values()) {
             List<CaseAggregate> cases = r.cases().stream().filter(c -> c.group() == group).toList();
             if (cases.isEmpty()) continue;
+            // Both numbers, for the same reason the matrices carry two summary rows: the mean alone hides
+            // how many of the group's cases this approach could attempt.
             sb.append("**").append(group.label)
-              .append("** — mean ").append("%.0f%%".formatted(r.meanPassRate(group) * 100)).append("\n\n");
+              .append("** — ").append(cases.size()).append(" of ").append(budget.cases(group))
+              .append(" cases attempted, ")
+              .append(formatPassCount(r.passedRuns(group), r.performedRuns(group)))
+              .append(" runs passed\n\n");
             sb.append("| Case | Pass rate | Query |\n|---|---|---|\n");
             for (CaseAggregate c : cases) {
                 sb.append("| ").append(c.name()).append(" | ").append(c.passRateLabel()).append(" | `")
@@ -2293,21 +2353,29 @@ public class BenchmarkLocalModels {
      * cost — including that a 39-parameter tool schema (02(b)) costs far more prompt tokens per request
      * than a single-parameter one (04), independent of the model used.
      */
-    private static void renderApproachSummary(StringBuilder sb, List<ModelApproachResult> results) {
+    private static void renderApproachSummary(StringBuilder sb, List<ModelApproachResult> results,
+            CaseBudget budget) {
         List<ModelApproachResult> usable = results.stream().filter(r -> r.fatalError() == null).toList();
         if (usable.isEmpty()) return;
 
         sb.append("\n## Approach performance summary (across all tested models)\n\n");
-        sb.append("The pass columns read `passed/performed (share)` and count individual test runs: one run is ")
-          .append("one case sent once to one model, so a group's run count is its case count times `--runs`, ")
-          .append("summed over every tested model. A run counts as passed only if every field of the expected ")
-          .append("filter matches — see the per-case tables below for which runs failed. A model that failed ")
-          .append("outright (an `ERROR` row further down) performs no runs and is not counted under *Models ")
-          .append("tested*, so both counts describe only what actually ran. Token and time totals are true ")
-          .append("sums over every call made for that approach, across every model, case and run.\n\n");
-        sb.append("| Approach | Models tested | Canonical passed | Robustness passed | Legacy passed | ")
-          .append("Prompt tokens (Σ) | Completion tokens (Σ) | Tokens (Σ) | Time (Σ) |\n");
-        sb.append("|---|---|---|---|---|---|---|---|---|\n");
+        sb.append("**`Canonical reach` and `Canonical passed` answer different questions, and neither is ")
+          .append("meaningful without the other.** Reach reads `performed/possible`: how many of the canonical ")
+          .append("runs this approach's filter type could attempt at all, the rest being queries it has no way ")
+          .append("to express (the `n/a` cells in the matrices below). The pass columns read ")
+          .append("`passed/performed (share)` and are scored **only on what was performed** — so a 100% beside ")
+          .append("a low reach says \"right about the little it could try\", not \"as good as the others\". ")
+          .append("There is no reach column for robustness and legacy: every case in those groups runs against ")
+          .append("every approach, so their reach is always 100%.\n\n");
+        sb.append("One run is one case sent once to one model, so a group's run count is its case count times ")
+          .append("`--runs`, summed over every tested model. A run counts as passed only if every field of the ")
+          .append("expected filter matches — see the per-case tables below for which runs failed. A model that ")
+          .append("failed outright (an `ERROR` row further down) performs no runs and is not counted under ")
+          .append("*Models tested*, so every count describes only what actually ran. Token and time totals are ")
+          .append("true sums over every call made for that approach, across every model, case and run.\n\n");
+        sb.append("| Approach | Models tested | Canonical reach | Canonical passed | Robustness passed | ")
+          .append("Legacy passed | Prompt tokens (Σ) | Completion tokens (Σ) | Tokens (Σ) | Time (Σ) |\n");
+        sb.append("|---|---|---|---|---|---|---|---|---|---|\n");
         for (Approach approach : Approach.values()) {
             List<ModelApproachResult> forApproach = usable.stream().filter(r -> r.approach() == approach).toList();
             if (forApproach.isEmpty()) continue;
@@ -2322,6 +2390,8 @@ public class BenchmarkLocalModels {
             long totalMs = forApproach.stream().mapToLong(ModelApproachResult::totalDurationMs).sum();
             sb.append("| ").append(approach.label)
               .append(" | ").append(forApproach.size())
+              .append(" | ").append(formatPassCount(canonicalPerformed,
+                      budget.possibleRuns(CaseGroup.CANONICAL, forApproach.size())))
               .append(" | ").append(formatPassCount(canonicalPassed, canonicalPerformed))
               .append(" | ").append(formatPassCount(robustnessPassed, robustnessPerformed))
               .append(" | ").append(formatPassCount(legacyPassed, legacyPerformed))
@@ -2334,7 +2404,7 @@ public class BenchmarkLocalModels {
     }
 
     private static String renderMarkdown(List<ModelApproachResult> results, String backendName, String baseUrl,
-            CliArgs cli, int caseCount, long wallClockMs) {
+            CliArgs cli, int caseCount, long wallClockMs, CaseBudget budget) {
         StringBuilder sb = new StringBuilder();
         sb.append("# Local Model Prompt-Reliability Eval\n\n");
         sb.append("Generated: ").append(java.time.LocalDateTime.now()).append("\n\n");
@@ -2356,19 +2426,20 @@ public class BenchmarkLocalModels {
           .append("one field, or a range, which 02(a)/02(b) cannot express at all, so those show up as a ")
           .append("low or zero pass rate for those approaches rather than as \"n/a\".\n\n");
 
-        renderApproachSummary(sb, results);
+        renderApproachSummary(sb, results, budget);
 
-        sb.append("\n| Model | Approach | Pass rate | Median Latency | TTFT | Tool call | Tokens/s | CPU | Model Size |\n");
-        sb.append("|---|---|---|---|---|---|---|---|---|\n");
+        sb.append("\n| Model | Approach | Canonical reach | Pass rate | Median Latency | TTFT | Tool call | Tokens/s | CPU | Model Size |\n");
+        sb.append("|---|---|---|---|---|---|---|---|---|---|\n");
         for (ModelApproachResult r : results) {
             if (r.fatalError() != null) {
                 sb.append("| ").append(r.model()).append(" | ").append(r.approach().label)
-                  .append(" | ERROR: ").append(r.fatalError()).append(" | | | | | | |\n");
+                  .append(" | ERROR: ").append(r.fatalError()).append(" | | | | | | | |\n");
                 continue;
             }
-            RowCells row = buildRow(r);
+            RowCells row = buildRow(r, budget);
             sb.append("| ").append(row.model())
               .append(" | ").append(row.approach())
+              .append(" | ").append(row.reach())
               .append(" | ").append(row.passRate())
               .append(" | ").append(row.medianLat())
               .append(" | ").append(row.ttft())
@@ -2378,6 +2449,10 @@ public class BenchmarkLocalModels {
               .append(" | ").append(row.modelSize())
               .append(" |\n");
         }
+        sb.append("\n`Canonical reach` is this model/approach's canonical runs performed against the number ")
+          .append("possible; `Pass rate` is its mean over the cases it actually ran, across all three case ")
+          .append("groups. Read them together — a high pass rate on a quarter of the queries is not the same ")
+          .append("result as the same pass rate on all of them.\n");
         sb.append("\n`TTFT` and `Tool call` are the same measurement — one streamed request per ")
           .append("model/approach, sent after the warm-up calls and before the first scored run, carrying the ")
           .append("payload those runs carry — reported in two columns because it means two different things. ")
@@ -2398,14 +2473,14 @@ public class BenchmarkLocalModels {
             sb.append("\n").append(coercions).append("\n");
         }
 
-        renderCanonicalMatrix(sb, results);
-        renderRobustnessMatrix(sb, results);
-        renderLegacyMatrix(sb, results);
+        renderCanonicalMatrix(sb, results, budget);
+        renderRobustnessMatrix(sb, results, budget);
+        renderLegacyMatrix(sb, results, budget);
 
         sb.append("\n## Per-case pass rate\n");
         for (ModelApproachResult r : results) {
             if (r.fatalError() != null) continue;
-            printPerCaseTable(sb, r);
+            printPerCaseTable(sb, r, budget);
         }
 
         sb.append("\n## Per-field accuracy\n\n");
@@ -2457,8 +2532,9 @@ public class BenchmarkLocalModels {
      * limit) and where it can but the model gets it wrong (a pass rate below the run count, a reliability
      * limit). The per-approach sections elsewhere in this report never put the same query side by side.
      */
-    private static void renderCanonicalMatrix(StringBuilder sb, List<ModelApproachResult> results) {
-        renderCaseMatrix(sb, results, CaseGroup.CANONICAL, "Canonical query set",
+    private static void renderCanonicalMatrix(StringBuilder sb, List<ModelApproachResult> results,
+            CaseBudget budget) {
+        renderCaseMatrix(sb, results, budget, CaseGroup.CANONICAL, "Canonical query set",
                 "The eight queries of `docs/canonical-query-set.md`, run against every selected "
                         + "approach. `n/a` = the approach's filter type cannot express that query at all, so it "
                         + "is not run (the modules' canonical-query ITs assert those expected failures against "
@@ -2482,8 +2558,9 @@ public class BenchmarkLocalModels {
      * no architectural excuse — every approach is expected to pass all five, and any cell below the run
      * count is a reliability finding.
      */
-    private static void renderRobustnessMatrix(StringBuilder sb, List<ModelApproachResult> results) {
-        renderCaseMatrix(sb, results, CaseGroup.ROBUSTNESS, "Robustness set",
+    private static void renderRobustnessMatrix(StringBuilder sb, List<ModelApproachResult> results,
+            CaseBudget budget) {
+        renderCaseMatrix(sb, results, budget, CaseGroup.ROBUSTNESS, "Robustness set",
                 "The five cases of `demo-commons`' `RobustnessQuery`, run against every approach — the same "
                         + "five the modules' `*CustomerSearchIT` assert. Four of them ask for no filter at all "
                         + "(small talk, an unrelated question, \"show me all customers\", an explicit reset) and "
@@ -2501,8 +2578,9 @@ public class BenchmarkLocalModels {
      * case runs against all four, so a {@code 0/N} for 02(a)/02(b) on e.g. a negation or multi-value-OR
      * case means "cannot express this at all", not "unreliable"; read those cells with that in mind.
      */
-    private static void renderLegacyMatrix(StringBuilder sb, List<ModelApproachResult> results) {
-        renderCaseMatrix(sb, results, CaseGroup.LEGACY, "Legacy set",
+    private static void renderLegacyMatrix(StringBuilder sb, List<ModelApproachResult> results,
+            CaseBudget budget) {
+        renderCaseMatrix(sb, results, budget, CaseGroup.LEGACY, "Legacy set",
                 "The older prompt-regression cases mirroring `03-ai-structured-filter`'s "
                         + "`CustomerSearchAgentIT`/`CustomerSearchAgentExtraIT`, run against every approach. "
                         + "Unlike the canonical matrix above, there is no `n/a` here: every case actually runs "
@@ -2515,8 +2593,8 @@ public class BenchmarkLocalModels {
     /** Shared rendering for {@link #renderCanonicalMatrix} and {@link #renderLegacyMatrix}: one row per
      * case, one column per approach, for every model, plus mean-pass-rate/median-latency/median-tok/s
      * summary rows. */
-    private static void renderCaseMatrix(StringBuilder sb, List<ModelApproachResult> results, CaseGroup group,
-            String heading, String intro) {
+    private static void renderCaseMatrix(StringBuilder sb, List<ModelApproachResult> results, CaseBudget budget,
+            CaseGroup group, String heading, String intro) {
         List<ModelApproachResult> groupResults = results.stream()
                 .filter(r -> r.fatalError() == null)
                 .filter(r -> r.cases().stream().anyMatch(c -> c.group() == group))
@@ -2552,10 +2630,21 @@ public class BenchmarkLocalModels {
                 }
                 sb.append("\n");
             }
-            sb.append("| **Mean (expressible cases)** |");
+            // Two rows, not the single "Mean (expressible cases)" this used to print: a bare 100% reads the
+            // same whether it rests on two cases or on eight, and the difference is the whole point of the
+            // n/a cells above it. Passed/run scores what was attempted; Cases attempted says how much that
+            // was. The second row is constant at "n of n" for robustness and legacy — deliberately, so the
+            // canonical matrix's partial reach reads as a property of the approach and not as a quirk of
+            // this table.
+            sb.append("| **Passed / run** |");
             for (ModelApproachResult r : perApproach) {
-                sb.append(" **").append("%.0f%%".formatted(r.meanPassRate(group) * 100))
+                sb.append(" **").append(formatPassCount(r.passedRuns(group), r.performedRuns(group)))
                   .append("** |");
+            }
+            sb.append("\n| **Cases attempted** |");
+            for (ModelApproachResult r : perApproach) {
+                long attempted = r.cases().stream().filter(c -> c.group() == group).count();
+                sb.append(" **").append(attempted).append(" of ").append(budget.cases(group)).append("** |");
             }
             sb.append("\n| **Median latency** |");
             for (ModelApproachResult r : perApproach) {
@@ -2589,21 +2678,22 @@ public class BenchmarkLocalModels {
                 + "\n...[truncated, " + rawBody.length() + " bytes total]";
     }
 
-    private static String renderText(List<ModelApproachResult> results, String backendName, String baseUrl) {
+    private static String renderText(List<ModelApproachResult> results, String backendName, String baseUrl,
+            CaseBudget budget) {
         StringBuilder sb = new StringBuilder();
         sb.append("Backend: ").append(backendLabel(backendName)).append(", Base URL: ").append(baseUrl)
           .append("\n\n");
-        sb.append(String.format(TABLE_FORMAT, "Model", "Approach", "Pass rate", "Median Lat.", "TTFT",
-                "Tool call", "tok/s", "CPU", "Model Size"));
-        sb.append("-".repeat(112)).append("\n");
+        sb.append(String.format(TABLE_FORMAT, "Model", "Approach", "Canon. reach", "Pass rate", "Median Lat.",
+                "TTFT", "Tool call", "tok/s", "CPU", "Model Size"));
+        sb.append("-".repeat(TABLE_WIDTH)).append("\n");
         for (ModelApproachResult r : results) {
             if (r.fatalError() != null) {
                 sb.append(String.format("%-22s%-14sERROR: %s%n", r.model(), r.approach().label, r.fatalError()));
                 continue;
             }
-            RowCells row = buildRow(r);
-            sb.append(String.format(TABLE_FORMAT, row.model(), row.approach(), row.passRate(), row.medianLat(),
-                    row.ttft(), row.toolCall(), row.tokS(), row.cpu(), row.modelSize()));
+            RowCells row = buildRow(r, budget);
+            sb.append(String.format(TABLE_FORMAT, row.model(), row.approach(), row.reach(), row.passRate(),
+                    row.medianLat(), row.ttft(), row.toolCall(), row.tokS(), row.cpu(), row.modelSize()));
         }
         String coercions = coercionNote(results);
         if (coercions != null) {
