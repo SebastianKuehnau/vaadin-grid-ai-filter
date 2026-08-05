@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -2111,11 +2112,11 @@ public class BenchmarkLocalModels {
 
     /** Shared cell values for one model/approach's row, reused by printTable/renderMarkdown/renderText. */
     private record RowCells(String model, String approach, String reach, String passRate, String medianLat,
-                             String ttft, String toolCall, String tokS, String cpu, String modelSize) {
+                             String ttft, String toolCall, String tokS, String modelSize) {
     }
 
     /** Column widths of the fixed-width table, shared by the console and the {@code .txt} report. */
-    private static final int[] TABLE_WIDTHS = {22, 14, 13, 11, 13, 10, 11, 9, 7, 11};
+    private static final int[] TABLE_WIDTHS = {22, 14, 13, 11, 13, 10, 11, 9, 11};
 
     /** Built from {@link #TABLE_WIDTHS}, so adding a column cannot leave the format string behind. */
     private static final String TABLE_FORMAT =
@@ -2134,7 +2135,7 @@ public class BenchmarkLocalModels {
      * column that is true for it.
      */
     private static RowCells buildRow(ModelApproachResult r, CaseBudget budget) {
-        double medianMs = median(r.cases().stream().map(c -> (long) c.medianDurationMs()).collect(Collectors.toList()));
+        double medianMs = medianLatencyMs(r);
         double tokS = median(r.cases().stream().map(CaseAggregate::medianTokS).collect(Collectors.toList()));
         String probe = r.ttftMs() != null ? r.ttftMs() + " ms" : "n/a";
         boolean toolCalling = r.approach().isToolCalling();
@@ -2148,8 +2149,13 @@ public class BenchmarkLocalModels {
                 toolCalling ? "n/a" : probe,
                 toolCalling ? probe : "n/a",
                 "%.1f".formatted(tokS),
-                "%.0f%%".formatted(r.avgCpuLoadPercent()),
                 r.modelSizeBytes() != null ? formatBytes(r.modelSizeBytes()) : "n/a");
+    }
+
+    /** This row's median case latency in ms — the same figure {@link #buildRow} prints, reused by the
+     *  markdown report to pick the fastest row without reparsing a formatted string. */
+    private static double medianLatencyMs(ModelApproachResult r) {
+        return median(r.cases().stream().map(c -> (long) c.medianDurationMs()).collect(Collectors.toList()));
     }
 
     /**
@@ -2173,7 +2179,7 @@ public class BenchmarkLocalModels {
     private static void printTable(List<ModelApproachResult> results, CaseBudget budget) {
         System.out.println();
         System.out.printf(TABLE_FORMAT, "Model", "Approach", "Canon. reach", "Pass rate", "Median Lat.",
-                "TTFT", "Tool call", "tok/s", "CPU", "Model Size");
+                "TTFT", "Tool call", "tok/s", "Model Size");
         System.out.println("-".repeat(TABLE_WIDTH));
         for (ModelApproachResult r : results) {
             if (r.fatalError() != null) {
@@ -2182,7 +2188,7 @@ public class BenchmarkLocalModels {
             }
             RowCells row = buildRow(r, budget);
             System.out.printf(TABLE_FORMAT, row.model(), row.approach(), row.reach(), row.passRate(),
-                    row.medianLat(), row.ttft(), row.toolCall(), row.tokS(), row.cpu(), row.modelSize());
+                    row.medianLat(), row.ttft(), row.toolCall(), row.tokS(), row.modelSize());
         }
         String coercions = coercionNote(results);
         if (coercions != null) {
@@ -2428,16 +2434,23 @@ public class BenchmarkLocalModels {
 
         renderApproachSummary(sb, results, budget);
 
-        sb.append("\n| Model | Approach | Canonical reach | Pass rate | Median Latency | TTFT | Tool call | Tokens/s | CPU | Model Size |\n");
-        sb.append("|---|---|---|---|---|---|---|---|---|---|\n");
+        List<ModelApproachResult> usableRows = results.stream().filter(r -> r.fatalError() == null).toList();
+        ModelApproachResult fastestRow = usableRows.stream()
+                .min(Comparator.comparingDouble(BenchmarkLocalModels::medianLatencyMs)).orElse(null);
+        ModelApproachResult mostCorrectRow = usableRows.stream()
+                .max(Comparator.comparingDouble(ModelApproachResult::meanPassRate)).orElse(null);
+
+        sb.append("\n| Model | Approach | Canonical reach | Pass rate | Median Latency | TTFT | Tool call | Tokens/s | Model Size |\n");
+        sb.append("|---|---|---|---|---|---|---|---|---|\n");
         for (ModelApproachResult r : results) {
             if (r.fatalError() != null) {
                 sb.append("| ").append(r.model()).append(" | ").append(r.approach().label)
-                  .append(" | ERROR: ").append(r.fatalError()).append(" | | | | | | | |\n");
+                  .append(" | ERROR: ").append(r.fatalError()).append(" | | | | | | |\n");
                 continue;
             }
             RowCells row = buildRow(r, budget);
-            sb.append("| ").append(row.model())
+            String modelCell = r == fastestRow || r == mostCorrectRow ? "**" + row.model() + "**" : row.model();
+            sb.append("| ").append(modelCell)
               .append(" | ").append(row.approach())
               .append(" | ").append(row.reach())
               .append(" | ").append(row.passRate())
@@ -2445,9 +2458,20 @@ public class BenchmarkLocalModels {
               .append(" | ").append(row.ttft())
               .append(" | ").append(row.toolCall())
               .append(" | ").append(row.tokS())
-              .append(" | ").append(row.cpu())
               .append(" | ").append(row.modelSize())
               .append(" |\n");
+        }
+        if (fastestRow != null || mostCorrectRow != null) {
+            sb.append("\n**Bold**: ");
+            if (fastestRow == mostCorrectRow) {
+                sb.append(fastestRow.model()).append(" [").append(fastestRow.approach().label)
+                  .append("] — fastest (lowest median latency) and most correct (highest pass rate) row.\n");
+            } else {
+                sb.append(fastestRow.model()).append(" [").append(fastestRow.approach().label)
+                  .append("] is the fastest row (lowest median latency); ")
+                  .append(mostCorrectRow.model()).append(" [").append(mostCorrectRow.approach().label)
+                  .append("] is the most correct row (highest pass rate).\n");
+            }
         }
         sb.append("\n`Canonical reach` is this model/approach's canonical runs performed against the number ")
           .append("possible; `Pass rate` is its mean over the cases it actually ran, across all three case ")
@@ -2465,9 +2489,6 @@ public class BenchmarkLocalModels {
         sb.append("\nBoth exclude cold model load and uncached prompt evaluation (two warm-up calls precede ")
           .append("the probe, the second one so Ollama's prompt-prefix cache holds the system prompt), and ")
           .append("neither is part of any case's latency.\n");
-        sb.append("\n`CPU` describes the *harness*, not the model: it is system-wide host load. The model ")
-          .append("itself runs in the Ollama process; `Model Size` is the only column that says anything ")
-          .append("about its footprint.\n");
         String coercions = coercionNote(results);
         if (coercions != null) {
             sb.append("\n").append(coercions).append("\n");
@@ -2684,7 +2705,7 @@ public class BenchmarkLocalModels {
         sb.append("Backend: ").append(backendLabel(backendName)).append(", Base URL: ").append(baseUrl)
           .append("\n\n");
         sb.append(String.format(TABLE_FORMAT, "Model", "Approach", "Canon. reach", "Pass rate", "Median Lat.",
-                "TTFT", "Tool call", "tok/s", "CPU", "Model Size"));
+                "TTFT", "Tool call", "tok/s", "Model Size"));
         sb.append("-".repeat(TABLE_WIDTH)).append("\n");
         for (ModelApproachResult r : results) {
             if (r.fatalError() != null) {
@@ -2693,7 +2714,7 @@ public class BenchmarkLocalModels {
             }
             RowCells row = buildRow(r, budget);
             sb.append(String.format(TABLE_FORMAT, row.model(), row.approach(), row.reach(), row.passRate(),
-                    row.medianLat(), row.ttft(), row.toolCall(), row.tokS(), row.cpu(), row.modelSize()));
+                    row.medianLat(), row.ttft(), row.toolCall(), row.tokS(), row.modelSize()));
         }
         String coercions = coercionNote(results);
         if (coercions != null) {

@@ -153,8 +153,10 @@ rate and total time be compared directly against 02(a)/02(b)'s. Ollama's native 
 ### What the metric columns mean
 
 The report's other table has one row per model × approach: `Canonical reach`, `Pass rate`, `Median Latency`,
-`TTFT`, `Tool call`, `Tokens/s`, `CPU` and `Model Size`. Four of them are easy to misread, so they are
-labelled and explained in the generated report itself:
+`TTFT`, `Tool call`, `Tokens/s` and `Model Size`. In the `.md` report, the `Model` cell of the row with the
+lowest median latency and the row with the highest pass rate are marked **bold** (the same row when both
+coincide) — a way to spot the fastest and most correct row without scanning the whole table. The trickier
+columns are labelled and explained in the generated report itself:
 
 - **`Canonical reach` against `Pass rate`.** Reach is that model/approach's canonical runs performed against
   the number possible; `Pass rate` is its mean over the cases it actually ran, across all three groups. See
@@ -180,13 +182,13 @@ labelled and explained in the generated report itself:
   `Median Latency` is the median over *all* the run's cases. A probe figure above the median latency of its
   row is therefore possible without anything being wrong — it happened twice in the 2026-08-04 sweep, both
   on `gemma4:26b-mlx`. Read the pair as a smell test, not as an invariant.
-- **`CPU` describes the harness, not the model** — it is system-wide host load. The model runs in the
-  Ollama process; `Model Size` (from `/api/tags`) is the only column that says anything about its
-  footprint. There is no GPU column: the old one shelled out to `nvidia-smi`, so it read `n/a` on every
-  Apple Silicon host, and it was snapshotted *after* the pass rather than sampled during it. There is no
-  RAM column either: it reported this script's own JVM heap delta, which tracked GC timing rather than the
-  model — negative on whichever approach ran first after another model left the heap full, and 5–50 MB for
-  identical work otherwise.
+- **There is no CPU, GPU, or RAM column.** `CPU` used to report system-wide host load, not anything about
+  the model itself, so it was dropped; `Model Size` (from `/api/tags`) is the only column that says anything
+  about a model's footprint. There is no GPU column: the old one shelled out to `nvidia-smi`, so it read
+  `n/a` on every Apple Silicon host, and it was snapshotted *after* the pass rather than sampled during it.
+  There is no RAM column either: it reported this script's own JVM heap delta, which tracked GC timing
+  rather than the model — negative on whichever approach ran first after another model left the heap full,
+  and 5–50 MB for identical work otherwise.
 
 Below the table, a **coercion note** appears whenever a tool argument had to be parsed one step further than
 a strict reader would — a `conditions` value that arrives as a JSON-encoded string, or a bare array without
