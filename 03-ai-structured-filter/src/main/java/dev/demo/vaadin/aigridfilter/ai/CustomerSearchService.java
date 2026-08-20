@@ -64,7 +64,7 @@ public class CustomerSearchService implements CustomerSearchAgent {
                     // Temperature (0 for deterministic structure) is set per active profile in
                     // application-<provider>.properties, not here.
                     .call()
-                    .entity(CustomerFilter.class);
+                    .entity(CustomerFilter.class, ChatClient.EntityParamSpec::useProviderStructuredOutput);
             logger.info("requestFilter('{}') -> {}", naturalLanguageQuery, filter);
             return filter;
         } catch (Exception e) {
