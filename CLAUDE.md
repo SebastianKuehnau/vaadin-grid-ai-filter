@@ -62,10 +62,10 @@ A task is only finished when:
    (through the service — the eight canonical queries and the five robustness cases) and the
    browserless IT (the same eight through the UI). 02 has one of each per variant, so four.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
-   `00-commons`' `CanonicalQuery` enum and into `ollama-benchmark/BenchmarkLocalModels.java` —
-   verbatim in both copies, kept in sync by hand. Each variant then has to say what the new query
-   means for it: its `expectedResultFor` method is an exhaustive `switch`, in both of its ITs, so all
-   of them stop compiling until that decision is made — `MATCH` or `NO_MATCH_BY_DESIGN`.
+   every AI module's two IT classes as one named `@Test` — the prompt as a string literal, the
+   expected customer set computed from the seeded data. Where a variant's filter type cannot express
+   it, the test still spells out what it would assert and carries `@Disabled` with the reason. No
+   compile-time gate enforces this; the table in that document is the checklist.
 
 Points 1–3 apply before **every** commit, not only at the end of the task.
 Iterate on your own until all points are met before reporting the task as done.
@@ -93,9 +93,10 @@ or file changes on your own initiative.
   stays in its module. See `00-commons/README.md`.
 - The test layer is the second exception, and it is shared through `00-commons`' **test-jar**
   (`<type>test-jar</type><scope>test</scope>`), never through `src/main` — otherwise JUnit and
-  browserless would land in all four apps' runtime classpath. It owns the query sets, the two abstract
-  ITs and the `TokenUsageExtension` that measures them. What stays per module is the one thing that
-  differs: an `expectedResultFor` method saying which queries that variant's filter type can express.
+  browserless would land in all four apps' runtime classpath. It owns **only mechanism**:
+  `AbstractCustomerSearchViewIT.search(query)` (navigate, type, await, read the grid),
+  `TokenUsageExtension` and `TestNameLoggingExtension`. Every query, every expectation and every
+  `@Disabled` reason stays in the module's own IT class, spelled out — that is what a reader looks at.
 - CSS belongs in theme files, not inline in Java components.
 - Commit after every completed, verified step (Conventional Commits, no push).
 - Never commit benchmark reports, logs, or other generated artifacts unless the
