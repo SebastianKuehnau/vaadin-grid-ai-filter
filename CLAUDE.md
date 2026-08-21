@@ -18,10 +18,6 @@ The single `data.sql` lives in `00-commons` and is picked up from the jar (Boot'
 `optional:classpath*:data.sql`) — there must never be a second copy, or the data is seeded twice.
 Each module's architecture is meant to be read from its own source; there are no per-module READMEs.
 
-`ollama-benchmark` is **not** a Maven module (no `pom.xml`, not in the root `<modules>` list):
-it's a standalone, dependency-free script benchmarking local Ollama models against all four AI
-approaches. See `ollama-benchmark/README.md`.
-
 The eight natural-language queries all AI modules are measured with live in
 `docs/canonical-query-set.md` — the single source of truth; see the Definition of Done below.
 
@@ -99,9 +95,9 @@ or file changes on your own initiative.
   `@Disabled` reason stays in the module's own IT class, spelled out — that is what a reader looks at.
 - CSS belongs in theme files, not inline in Java components.
 - Commit after every completed, verified step (Conventional Commits, no push).
-- Never commit benchmark reports, logs, or other generated artifacts unless the
-    task explicitly says so — they are covered by .gitignore; verify the staged
-    file list (`git status`) before every commit.
+- Never commit logs or other generated artifacts unless the task explicitly says
+    so — they are covered by .gitignore; verify the staged file list (`git status`)
+    before every commit.
 - For Spring test configuration, prefer test-scoped `application.properties`
   files over custom `ActiveProfilesResolver` or `@DynamicPropertySource`
   mechanisms — choose the simplest configuration approach that works.

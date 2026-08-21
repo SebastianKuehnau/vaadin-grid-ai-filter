@@ -80,8 +80,8 @@ public class CustomerSearchService implements CustomerSearchAgent {
     /**
      * Asks the LLM to call {@code searchCustomers} and returns the {@link CustomerFilter} it passed.
      * Package-private so the AI layer can be tested directly on the produced filter — same name and
-     * same return type as module 03's {@code requestFilter}, so both modules' tests and the benchmark
-     * stay directly comparable. Returns a filter with an empty conditions list (match all) if the model
+     * same return type as module 03's {@code requestFilter}, so both modules stay directly
+     * comparable. Returns a filter with an empty conditions list (match all) if the model
      * produces nothing usable, so the UI never breaks on a bad response.
      */
     CustomerFilter requestFilter(String naturalLanguageQuery) {
