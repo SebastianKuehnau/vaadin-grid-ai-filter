@@ -44,8 +44,11 @@ watches `../demo-commons/target/classes` (`spring.devtools.restart.additional-pa
 restarts it and picks up the new jar. Use `install`, not `compile` — `compile` fires the trigger but
 leaves the jar the app loads untouched.
 
-AI provider is selected via Spring profiles: `openai` (default) or `ollama` (expects Ollama at
-`OLLAMA_BASE_URL`; inside the dev container this is `http://host.docker.internal:11434`).
+AI provider is selected via Spring profiles: `ollama` (default; expects Ollama at `OLLAMA_BASE_URL`,
+inside the dev container `http://host.docker.internal:11434`) or `openai` (needs `OPENAI_API_KEY`).
+
+`./mvnw verify` runs the Ollama-backed ITs — they are the default, not behind a profile. Add
+`-DskipITs` for a build without a model.
 
 ## Verification — Definition of Done
 
@@ -54,11 +57,10 @@ A task is only finished when:
 1. `./mvnw verify -pl <affected modules> -am` passes.
 2. For UI changes: the app has been started and the change verified via a Playwright screenshot
    (save screenshots to `~/screenshots/`).
-3. For changes to filter/AI logic: the affected module's IT classes pass, run via `-Pit-local-ollama`
-   (against a native Ollama instance). Every AI module runs two kinds, both extending a shared base
-   in `00-commons`' test-jar: the `*CustomerSearchIT` (through the service — the eight canonical queries
-   and the five robustness cases, one test method each) and the browserless IT (the same eight
-   through the UI). 02 has one of each per variant, so four.
+3. For changes to filter/AI logic: the affected module's IT classes pass against a native Ollama
+   instance (they run in plain `verify`). Every AI module has two kinds: the `*CustomerSearchIT`
+   (through the service — the eight canonical queries and the five robustness cases) and the
+   browserless IT (the same eight through the UI). 02 has one of each per variant, so four.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
    `00-commons`' `CanonicalQuery` enum and into `ollama-benchmark/BenchmarkLocalModels.java` —
    verbatim in both copies, kept in sync by hand. Each variant then has to say what the new query
@@ -117,4 +119,3 @@ or file changes on your own initiative.
 
 - No framework/dependency upgrades without an explicit request (the Spring AI version is pinned on purpose).
 - Do not restructure `data.sql`, only extend it — the demo data is tailored to the talks.
-- Do not rewrite this file on your own initiative; it is maintained via `/update-claude-md`.
