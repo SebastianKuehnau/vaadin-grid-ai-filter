@@ -19,37 +19,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * The AI layer: turns a natural-language query into a JPA {@link Specification} — the <b>hybrid</b>
- * step of the tutorial.
- * <p>
- * It uses genuine <em>tool calling</em>, like {@code 02-ai-agent-filter}, but the tool takes exactly
- * one parameter: the same {@code List<Condition>} that {@code 03-ai-structured-filter} receives as
- * <em>structured output</em>. {@link Condition}, {@link dev.demo.vaadin.aigridfilter.ai.filter.Operator},
- * {@link CustomerFilter} and {@link CustomerFilterSpecifications} are copied from module 03 unchanged,
- * Jackson annotations included, and Spring AI turns those very annotations into the tool's parameter
- * schema. So this module differs from 03 in <b>one</b> respect only — how the finished filter
- * travels from the model to Java:
- * <ul>
- *   <li>03: {@code .call().entity(CustomerFilter.class)} — the model <em>returns</em> the filter,</li>
- *   <li>04: {@code @Tool searchCustomers(List<Condition>)} — the model <em>calls</em> a method with it.</li>
- * </ul>
- * That makes the point the escalation ladder builds up to: what a filter can express is a property of
- * its <em>type</em>, not of the delivery mechanism. Multi-value OR (several {@code values} in one
- * condition) and real ranges (two sibling conditions on one field) work here exactly as they do in 03 —
- * and both are out of reach for 02(a)'s and 02(b)'s per-field tool parameters, no matter how many of
- * them there are.
- * <p>
- * Like 03, "today" is baked into the prompt via {@link #systemPrompt(LocalDate)} rather than fetched
- * through a second live-clock tool call, so relative dates need no extra round trip.
- * <p>
- * {@code @Scope("prototype")}: the tool call writes its result into {@link #filter}, and
- * {@code CustomerListView} (the only injection point) is not a singleton either — Vaadin creates a
- * fresh view instance per navigation, so each view gets its own service instance. Different browser
- * tabs/sessions never share one, and within one instance the view only ever has one search in flight
- * at a time (it disables the filter field for the duration of a search). {@link #filter} is reset at
- * the top of {@link #requestFilter}, since it outlives a single call.
- */
+/** The hybrid step: tool calling like 02, but the tool takes 03's {@code List<Condition>} as its one parameter. */
 @Service
 @Scope("prototype")
 public class CustomerSearchService implements CustomerSearchAgent {
@@ -67,36 +37,23 @@ public class CustomerSearchService implements CustomerSearchAgent {
         this.tokenUsageAdvisor = tokenUsageAdvisor;
     }
 
-    /**
-     * Turns the query into a JPA {@link Specification}: ask the LLM to call the search tool
-     * ({@link #requestFilter}) and translate the conditions it passed. An empty conditions list (e.g.
-     * on a bad response, or the model never called the tool) matches all.
-     */
+    /** Asks the LLM to call the search tool and turns the conditions it passed into a {@link Specification}. */
     @Override
     public Specification<Customer> resolveFilter(String naturalLanguageQuery) {
         return CustomerFilterSpecifications.from(requestFilter(naturalLanguageQuery));
     }
 
-    /**
-     * Asks the LLM to call {@code searchCustomers} and returns the {@link CustomerFilter} it passed.
-     * Package-private so the AI layer can be tested directly on the produced filter — same name and
-     * same return type as module 03's {@code requestFilter}, so both modules' tests and the benchmark
-     * stay directly comparable. Returns a filter with an empty conditions list (match all) if the model
-     * produces nothing usable, so the UI never breaks on a bad response.
-     */
+    /** Asks the LLM to call {@code searchCustomers}; an empty filter (match all) if it produced nothing usable. */
     CustomerFilter requestFilter(String naturalLanguageQuery) {
         filter = null;
         try {
-            // The tool call is the point: by the time this returns, searchCustomers(...) has already
-            // written into `criteria`, so the model's answer text is irrelevant. Token usage and
-            // duration are recorded by tokenUsageAdvisor, not here.
+            // By the time this returns, searchCustomers(...) has run; the answer text is irrelevant.
             chatClient.prompt()
                     .system(systemPrompt(LocalDate.now()))
                     .user(naturalLanguageQuery)
                     .tools(this)
                     .advisors(SimpleLoggerAdvisor.builder().build(), tokenUsageAdvisor)
-                    // Temperature (0 for deterministic structure) is set per active profile in
-                    // application-<provider>.properties, not here.
+                    // Temperature is set per profile in application-<provider>.properties.
                     .call()
                     .chatResponse();
         } catch (Exception e) {
@@ -108,12 +65,7 @@ public class CustomerSearchService implements CustomerSearchAgent {
         return filter == null ? new CustomerFilter(List.of()) : filter;
     }
 
-    /**
-     * The one tool of this module: a single parameter carrying the whole condition list — exactly the
-     * payload module 03 receives as structured output. Spring AI derives the parameter schema from
-     * {@link Condition}'s Jackson annotations, so the model sees the same field/operator/values/negate
-     * vocabulary in both modules.
-     */
+    /** The one tool of this module: a single parameter carrying the whole condition list - 03's payload. */
     @Tool(description = """
             Search and filter the customer grid. Returns nothing; it updates the grid in place to show
             only the matching customers, replacing any previous filter (filters are not additive).
@@ -128,12 +80,8 @@ public class CustomerSearchService implements CustomerSearchAgent {
     ) {
         CustomerFilter incoming = new CustomerFilter(conditions == null ? List.of() : conditions);
 
-        // A tool call is a message the model can repeat: since the tool is void, Spring AI answers it
-        // with a bare "Done", and a model that reads that as "nothing happened" sometimes calls the tool
-        // again with an empty list, wiping the filter it just built (observed with qwen3:8b). A filter
-        // that was already built is therefore never overwritten by a later empty one. Structured output
-        // (module 03) cannot run into this at all — one response, one filter — so this is a genuine
-        // property of the delivery mechanism, not of the filter type.
+        // The model sometimes calls the tool again with an empty list, so never overwrite a built filter.
+        // Structured output (03) cannot hit this: one response, one filter.
         if (filter != null && !filter.conditions().isEmpty() && incoming.conditions().isEmpty()) {
             logger.warn("Ignoring a repeated searchCustomers call with an empty conditions list; keeping {}", filter);
             return;
@@ -143,14 +91,7 @@ public class CustomerSearchService implements CustomerSearchAgent {
         logger.info("searchCustomers -> {}", filter);
     }
 
-    /**
-     * Builds the system prompt for the given "today". Package-private and date-parameterized so it
-     * can be unit-tested deterministically without calling the model.
-     * <p>
-     * Deliberately the same rules, wording and examples as module 03's {@code systemPrompt(LocalDate)}
-     * — only the framing differs ("call the searchCustomers tool" instead of "return a CustomerFilter"),
-     * because that is the only thing that actually differs between the two modules.
-     */
+    /** Builds the system prompt for the given "today", so it can be unit-tested without calling the model. */
     static String systemPrompt(LocalDate today) {
         LocalDate yesterday = today.minusDays(1);
         LocalDate thisWeekMonday = today.minusDays(today.getDayOfWeek().getValue() - 1L);

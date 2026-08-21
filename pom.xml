@@ -27,11 +27,7 @@
 		<module>02-ai-agent-filter</module>
 		<module>03-ai-structured-filter</module>
 		<module>04-ai-hybrid-filter</module>
-		<!-- No numeric prefix on purpose: not a demo step of the talk, but the one deliberate
-		     exception to this repository's "duplication per module is on purpose" rule — the runtime
-		     scaffolding all four apps share. Everything that *is* the comparison (the AI services, the
-		     filter types, the system prompts, the tool signatures, the views) stays duplicated per
-		     module. -->
+		<!-- No numeric prefix: not a step of the talk, but the runtime scaffolding all four apps share. -->
 		<module>00-commons</module>
 	</modules>
 

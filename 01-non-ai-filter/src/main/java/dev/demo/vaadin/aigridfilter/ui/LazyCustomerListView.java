@@ -39,8 +39,7 @@ public class LazyCustomerListView extends VerticalLayout {
         add(new H1("Customer Grid – Lazy Filter"));
 
         grid = new FilterableCustomerGrid();
-        // The shared grid already sorts address and creditRating by these properties; annualRevenue is
-        // only marked sortable there, so this view adds the property that makes the backend sort work.
+        // annualRevenue is only marked sortable in the shared grid; this adds its sort property.
         grid.getColumnByKey("annualRevenue").setSortProperty("annualRevenue");
         grid.getColumnByKey("address").setFlexGrow(2);
 
@@ -106,8 +105,7 @@ public class LazyCustomerListView extends VerticalLayout {
 
             var creditRatingFilterSet = grid.getCreditRatingFilterSet();
             if (creditRatingFilterSet != null && !creditRatingFilterSet.isEmpty()) {
-                // Selected ratings are alternatives: a score matches if it falls into ANY of their
-                // ranges, so combine the per-rating ranges with OR (not AND, which would be empty).
+                // Selected ratings are alternatives, so combine their score ranges with OR.
                 List<Predicate> ratingAlternatives = new ArrayList<>();
                 creditRatingFilterSet.forEach(creditRatingFilter ->
                         ratingAlternatives.add(criteriaBuilder.between(root.get("creditScore"),

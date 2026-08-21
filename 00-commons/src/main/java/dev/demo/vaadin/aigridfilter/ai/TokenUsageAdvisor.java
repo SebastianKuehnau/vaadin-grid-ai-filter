@@ -10,23 +10,7 @@ import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
 
-/**
- * The repository's whole token and latency measurement: passed to
- * {@code ChatClient.prompt().advisors(...)}, it keeps the running totals the ITs report, and leaves each
- * {@code CustomerSearchService} with nothing but its prompt and its tool.
- * <p>
- * <b>{@link #getOrder()} decides what gets counted.</b> Spring AI's tool loop re-enters the advisor chain
- * for the follow-up call, so a tool-calling query passes through twice. Innermost, this advisor sees both
- * and its totals are the real cost of a query; outermost it would see only the final round trip — for 04
- * a nine-token epilogue — and miss the one that produced the filter. So {@code requests} counts model
- * calls, not queries, exactly as the Micrometer counter this class replaces did.
- * <p>
- * A {@code @Component}, so all four apps get the bean from the component scan — including
- * {@code 01-non-ai-filter}, which creates it and never calls it, because no {@code ChatClient} exists
- * there. That is the deliberate cost of declaring the wiring once instead of in three identical
- * {@code @Configuration} classes; {@code demo-commons/README.md} records the trade. Synchronized because
- * searches run off the UI thread.
- */
+/** Counts tokens and latency per model call; passed to {@code ChatClient.prompt().advisors(...)}. */
 @Component
 public class TokenUsageAdvisor implements CallAdvisor {
 

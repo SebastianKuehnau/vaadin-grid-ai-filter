@@ -11,16 +11,12 @@ Top priority for all code: **easy to understand, presentable, extensible** — c
 | `02-ai-agent-filter` | 8082 | AI filtering via tool calling, in two variants behind two routes of one app: 02(a) one scalar value per field (`/`), 02(b) value + operator + negate per field (`/operator`) |
 | `03-ai-structured-filter` | 8083 | AI filtering via structured output (`CustomerFilter` → JPA Specifications), against local Ollama models |
 | `04-ai-hybrid-filter` | 8084 | AI filtering via tool calling with 03's `List<Condition>` filter type, copied 1:1 — same capability, different delivery |
-| `00-commons` | — | Shared **runtime** infrastructure: the domain layer (`Customer`, `Address`, `CreditRating`, `CustomerRepository`, `data.sql`), the shared Vaadin components (`CustomerGrid`, `AbstractCustomerSearchView`) and the AI layer's seam plus token measurement (`CustomerSearchAgent`, `TokenUsageAdvisor`). No numeric prefix — not a step of the talk. See `00-commons/README.md` for the rule on what must never move there |
+| `00-commons` | — | Shared **runtime** infrastructure: the domain layer (`Customer`, `Address`, `CreditRating`, `CustomerRepository`, `data.sql`), the shared Vaadin components (`CustomerGrid`, `AbstractCustomerSearchView`) and the AI layer's seam plus token measurement (`CustomerSearchAgent`, `TokenUsageAdvisor`). No numeric prefix — not a step of the talk |
 
 Each of the four numbered modules above is a standalone Spring Boot app (`<ModuleName>Application`).
 The single `data.sql` lives in `00-commons` and is picked up from the jar (Boot's default
 `optional:classpath*:data.sql`) — there must never be a second copy, or the data is seeded twice.
-For a module's architecture details, see `<module>/README.md` — do **not** duplicate them here.
-
-`ollama-benchmark` is **not** a Maven module (no `pom.xml`, not in the root `<modules>` list):
-it's a standalone, dependency-free script benchmarking local Ollama models against all four AI
-approaches. See `ollama-benchmark/README.md`.
+Each module's architecture is meant to be read from its own source; there are no per-module READMEs.
 
 The eight natural-language queries all AI modules are measured with live in
 `docs/canonical-query-set.md` — the single source of truth; see the Definition of Done below.
@@ -39,13 +35,16 @@ Maven has to build first. Without it a `-pl` build fails to resolve that depende
 
 `spring-boot:run` cannot use `-am` (it would try to run `00-commons` too) and resolves dependencies
 from `~/.m2`, so `00-commons` has to be installed once — `./mvnw install -DskipTests` — and again after
-every change to it. With a running app, `./mvnw install -pl demo-commons -DskipTests` is enough: each app
-watches `../demo-commons/target/classes` (`spring.devtools.restart.additional-paths`), so devtools
+every change to it. With a running app, `./mvnw install -pl 00-commons -DskipTests` is enough: each app
+watches `../00-commons/target/classes` (`spring.devtools.restart.additional-paths`), so devtools
 restarts it and picks up the new jar. Use `install`, not `compile` — `compile` fires the trigger but
 leaves the jar the app loads untouched.
 
-AI provider is selected via Spring profiles: `openai` (default) or `ollama` (expects Ollama at
-`OLLAMA_BASE_URL`; inside the dev container this is `http://host.docker.internal:11434`).
+AI provider is selected via Spring profiles: `ollama` (default; expects Ollama at `OLLAMA_BASE_URL`,
+inside the dev container `http://host.docker.internal:11434`) or `openai` (needs `OPENAI_API_KEY`).
+
+`./mvnw verify` runs the Ollama-backed ITs — they are the default, not behind a profile. Add
+`-DskipITs` for a build without a model.
 
 ## Verification — Definition of Done
 
@@ -54,16 +53,15 @@ A task is only finished when:
 1. `./mvnw verify -pl <affected modules> -am` passes.
 2. For UI changes: the app has been started and the change verified via a Playwright screenshot
    (save screenshots to `~/screenshots/`).
-3. For changes to filter/AI logic: the affected module's IT classes pass, run via `-Pit-local-ollama`
-   (against a native Ollama instance). Every AI module runs two kinds, both extending a shared base
-   in `00-commons`' test-jar: the `*CustomerSearchIT` (through the service — the eight canonical queries
-   and the five robustness cases, one test method each) and the browserless IT (the same eight
-   through the UI). 02 has one of each per variant, so four.
+3. For changes to filter/AI logic: the affected module's IT classes pass against a native Ollama
+   instance (they run in plain `verify`). Every AI module has two kinds: the `*CustomerSearchIT`
+   (through the service — the eight canonical queries and the five robustness cases) and the
+   browserless IT (the same eight through the UI). 02 has one of each per variant, so four.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
-   `00-commons`' `CanonicalQuery` enum and into `ollama-benchmark/BenchmarkLocalModels.java` —
-   verbatim in both copies, kept in sync by hand. Each variant then has to say what the new query
-   means for it: its `expectedResultFor` method is an exhaustive `switch`, in both of its ITs, so all
-   of them stop compiling until that decision is made — `MATCH` or `NO_MATCH_BY_DESIGN`.
+   every AI module's two IT classes as one named `@Test` — the prompt as a string literal, the
+   expected customer set computed from the seeded data. Where a variant's filter type cannot express
+   it, the test still spells out what it would assert and carries `@Disabled` with the reason. No
+   compile-time gate enforces this; the table in that document is the checklist.
 
 Points 1–3 apply before **every** commit, not only at the end of the task.
 Iterate on your own until all points are met before reporting the task as done.
@@ -88,17 +86,21 @@ or file changes on your own initiative.
   measurement. **Never** the AI services, the `Criteria`/`Condition`/`Specifications` types, the
   `SYSTEM_PROMPT`s, the tool signatures or any `@Route` view. The rule when in doubt: if a reader of
   the talk would need to see it on a slide to understand the difference between two approaches, it
-  stays in its module. See `00-commons/README.md`.
+  stays in its module.
 - The test layer is the second exception, and it is shared through `00-commons`' **test-jar**
   (`<type>test-jar</type><scope>test</scope>`), never through `src/main` — otherwise JUnit and
-  browserless would land in all four apps' runtime classpath. It owns the query sets, the two abstract
-  ITs and the `TokenUsageExtension` that measures them. What stays per module is the one thing that
-  differs: an `expectedResultFor` method saying which queries that variant's filter type can express.
+  browserless would land in all four apps' runtime classpath. It owns **only mechanism**:
+  `AbstractCustomerSearchViewIT.search(query)` (navigate, type, await, read the grid),
+  `TokenUsageExtension` and `TestNameLoggingExtension`. Every query, every expectation and every
+  `@Disabled` reason stays in the module's own IT class, spelled out — that is what a reader looks at.
+- Comments are one-liners: a single-line Javadoc per class, and per method or field only where the
+  name is not enough. No multi-paragraph rationale in code — this repository is read by beginners at a
+  conference, and a wall of prose above a five-line method is what they stop reading at.
 - CSS belongs in theme files, not inline in Java components.
 - Commit after every completed, verified step (Conventional Commits, no push).
-- Never commit benchmark reports, logs, or other generated artifacts unless the
-    task explicitly says so — they are covered by .gitignore; verify the staged
-    file list (`git status`) before every commit.
+- Never commit logs or other generated artifacts unless the task explicitly says
+    so — they are covered by .gitignore; verify the staged file list (`git status`)
+    before every commit.
 - For Spring test configuration, prefer test-scoped `application.properties`
   files over custom `ActiveProfilesResolver` or `@DynamicPropertySource`
   mechanisms — choose the simplest configuration approach that works.
@@ -117,4 +119,3 @@ or file changes on your own initiative.
 
 - No framework/dependency upgrades without an explicit request (the Spring AI version is pinned on purpose).
 - Do not restructure `data.sql`, only extend it — the demo data is tailored to the talks.
-- Do not rewrite this file on your own initiative; it is maintained via `/update-claude-md`.

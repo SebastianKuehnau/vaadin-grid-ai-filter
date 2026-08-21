@@ -14,14 +14,13 @@ ad-hoc, because it is the instruction file every future session starts from.
    - the root `pom.xml`'s `<modules>` list (which modules exist, and in which order),
    - each module's directory and its `README.md` (what the module actually demonstrates),
    - each module's `src/main/resources/application.properties` (`server.port`).
-   Keep the "Approach" wording short enough to stay a table cell; the details belong in the module's
-   own README, which the table should point at rather than duplicate.
+   Keep the "Approach" wording short enough to stay a table cell.
 3. **Non-Maven directories** — anything that is a directory in the repo but deliberately *not* in
-   `<modules>` (e.g. the standalone benchmark script). Verify the path, that it has no `pom.xml`, and
-   that the reason it stays out of the reactor is still accurate.
+   `<modules>`. Verify the path, that it has no `pom.xml`, and that the reason it stays out of the
+   reactor is still accurate.
 4. **Build & run commands** — every command block must work as written for the modules that exist.
-5. **Verification / Definition of Done** — the referenced profiles (`-Pit-local-ollama`) and test
-   class names must exist. If a class was renamed or split, name what exists now.
+5. **Verification / Definition of Done** — the referenced test class names must exist. If a class was
+   renamed or split, name what exists now.
 6. **Everything else** (conventions, guidelines, "What NOT to do") — leave alone unless a statement
    has become factually false, e.g. because it names a file or module that no longer exists.
 

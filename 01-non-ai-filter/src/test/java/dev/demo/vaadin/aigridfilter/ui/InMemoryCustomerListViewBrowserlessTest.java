@@ -4,6 +4,7 @@ import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.browserless.ViewPackages;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.dependency.StyleSheet;
+import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.GridTester;
 import com.vaadin.flow.data.provider.SortDirection;
 import dev.demo.vaadin.aigridfilter.data.Customer;
@@ -69,17 +70,7 @@ class InMemoryCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
                 .containsOnly("Berlin");
     }
 
-    /**
-     * The credit-rating column is the one cell of the shared {@link CustomerGrid} that renders a
-     * component rather than text, and the only one whose appearance depends on a CSS file — both of
-     * which now live in {@code demo-commons} rather than in this module. This test is what proves the
-     * move kept them working: the cell must be the indicator component, carry the base class plus the
-     * modifier class matching that row's rating, and still declare the stylesheet that colours it.
-     * <p>
-     * All four apps render this very same class, so proving it once here covers them all; that the CSS
-     * file itself is served out of the dependency jar is a deployment question, checked per app with a
-     * request against {@code /credit-score-indicator.css}.
-     */
+    /** The only cell that renders a component and needs CSS - checked once here for all four apps. */
     @Test
     void creditRatingColumnRendersTheColouredIndicator() {
         InMemoryCustomerListView view = navigate(InMemoryCustomerListView.class);
@@ -101,11 +92,25 @@ class InMemoryCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
                     .isEqualTo("Credit rating: " + customer.getCreditRating().getLabel()
                             + ", score " + customer.getCreditScore());
             assertThat(cell.getClass().getAnnotation(StyleSheet.class))
-                    .as("the indicator must still declare its stylesheet after moving into demo-commons")
-                    .isNotNull()
+                                        .isNotNull()
                     .extracting(StyleSheet::value)
                     .isEqualTo("credit-score-indicator.css");
         }
+    }
+
+    /** The left-aligned Annual Revenue header needs the part name and the stylesheet using it. */
+    @Test
+    void annualRevenueHeaderIsStyleableSeparatelyFromItsValues() {
+        var grid = navigate(InMemoryCustomerListView.class).grid;
+        var column = grid.getColumnByKey("annualRevenue");
+
+        assertThat(column.getTextAlign()).isEqualTo(ColumnTextAlign.END);
+        assertThat(column.getHeaderPartName()).isEqualTo("annual-revenue-header");
+        assertThat(CustomerGrid.class.getAnnotation(StyleSheet.class))
+                .as("the part name is only styleable while the grid declares the stylesheet")
+                .isNotNull()
+                .extracting(StyleSheet::value)
+                .isEqualTo("customer-grid.css");
     }
 
     private static List<Customer> rows(GridTester<?, Customer> grid) {

@@ -11,23 +11,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Translates a {@link CustomerCriteria} into a JPA {@link Specification}: one predicate per non-null
- * field, all AND-combined. {@code null} criteria (e.g. when the LLM never called the search tool)
- * matches every customer.
- * <p>
- * Because {@link CustomerCriteria} carries no operator, every field's comparison is hard-wired here:
- * <ul>
- *   <li>text fields — case-insensitive substring match,</li>
- *   <li>{@code customerSince} / {@code lastOrderDate} — the whole calendar year the given date falls
- *       in (Jan 1 – Dec 31), so a day-level or open-ended date bound is inexpressible,</li>
- *   <li>{@code annualRevenue} — a <em>minimum</em> ({@code >=}), the most common phrasing ("revenue
- *       over X"); an upper bound or a closed range is inexpressible,</li>
- *   <li>{@code creditRating} — the credit-score band of that rating.</li>
- * </ul>
- * These baked-in semantics are exactly what variant 02(b) replaces with an explicit
- * {@code Operator} per field.
- */
+/** Translates a {@link CustomerCriteria} into a JPA {@link Specification}, one predicate per set field. */
 public final class CustomerSpecifications {
 
     private CustomerSpecifications() {

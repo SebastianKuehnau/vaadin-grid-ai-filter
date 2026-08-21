@@ -6,15 +6,7 @@ import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 
-/**
- * Variant <b>02(a)</b>'s view (routes {@code /} and {@code /flat}): natural-language filtering
- * through a tool call with one scalar value per field. Sibling of {@link OperatorCustomerListView},
- * which serves variant 02(b) from the same running application.
- * <p>
- * The agent is injected by bean name rather than by type, because this module has two
- * {@link CustomerSearchAgent} implementations — one per variant — and each view wants exactly one of
- * them. The view itself still knows nothing beyond the {@link CustomerSearchAgent} interface.
- */
+/** Variant 02(a)'s view (routes {@code /} and {@code /flat}): one scalar value per field. */
 @Route("")
 @RouteAlias("flat")
 public class FlatCustomerListView extends AbstractCustomerListView {

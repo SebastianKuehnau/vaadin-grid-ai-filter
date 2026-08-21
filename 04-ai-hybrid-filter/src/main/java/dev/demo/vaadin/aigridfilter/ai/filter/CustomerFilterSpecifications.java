@@ -17,15 +17,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Translates a {@link CustomerFilter} (as produced by the LLM) into a JPA {@link Specification}, so
- * filtering and paging happen in the database.
- * <p>
- * The translation is a flat walk of {@link CustomerFilter#conditions()}: every {@link Condition} in
- * the list must match (AND), and within one {@link Condition}, matching any of its {@code values} is
- * enough (OR), then {@code negate} optionally flips the result. An empty (or {@code null})
- * conditions list matches everything.
- */
+/** Translates a {@link CustomerFilter} into a JPA {@link Specification}, so the database does the work. */
 public final class CustomerFilterSpecifications {
 
     private static final Logger logger = LoggerFactory.getLogger(CustomerFilterSpecifications.class);
@@ -125,11 +117,7 @@ public final class CustomerFilterSpecifications {
         };
     }
 
-    /**
-     * Translates a credit rating into a creditScore condition. The bound is open-ended where it makes
-     * sense (GOOD -> {@code >= 70}, POOR -> {@code <= 39}). Always positive — negation is applied once,
-     * at the {@link Condition} level, by {@link #conditionPredicate}.
-     */
+    /** Translates a credit rating into a creditScore condition. Always positive; negation is applied per condition. */
     private static Predicate creditRatingPredicate(Root<Customer> root, CriteriaBuilder cb, String value) {
         CreditRating rating = parseRating(value);
         if (rating == null) {

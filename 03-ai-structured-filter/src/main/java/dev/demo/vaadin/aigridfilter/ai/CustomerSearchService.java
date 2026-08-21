@@ -15,15 +15,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * The AI layer: turns a natural-language query into a JPA {@link Specification}.
- * <p>
- * Instead of letting the model call a tool, it asks the model to return a single
- * {@link CustomerFilter} as <em>structured output</em> ({@code .entity(...)}). One JSON object
- * matching a fixed schema is far more reliable for smaller/local models than multi-step tool
- * calling. The class owns the {@link ChatClient} and the prompt and knows nothing about Vaadin,
- * so it can be tested in isolation.
- */
+/** The AI layer: turns a natural-language query into a JPA {@link Specification}. */
 @Service
 public class CustomerSearchService implements CustomerSearchAgent {
 
@@ -37,32 +29,21 @@ public class CustomerSearchService implements CustomerSearchAgent {
         this.tokenUsageAdvisor = tokenUsageAdvisor;
     }
 
-    /**
-     * Turns the query into a JPA {@link Specification}: ask the LLM for a {@link CustomerFilter}
-     * ({@link #requestFilter}) and translate it. An empty conditions list (e.g. on a bad response)
-     * matches all.
-     */
+    /** Asks the LLM for a {@link CustomerFilter} and translates it into a {@link Specification}. */
     @Override
     public Specification<Customer> resolveFilter(String naturalLanguageQuery) {
         return CustomerFilterSpecifications.from(requestFilter(naturalLanguageQuery));
     }
 
-    /**
-     * Asks the LLM to express the query as a {@link CustomerFilter}. Package-private so the AI layer
-     * can be tested directly on the produced filter. Returns a filter with an empty conditions list
-     * (match all) if the model produces nothing usable, so the UI never breaks on a bad response.
-     */
+    /** Asks the LLM to express the query as a {@link CustomerFilter}; an empty one (match all) on a bad response. */
     CustomerFilter requestFilter(String naturalLanguageQuery) {
         try {
-            // .entity(...) asks Spring AI for the filter and nothing else: the model returns one JSON
-            // object matching CustomerFilter's schema, which is the whole mechanism of this variant.
-            // Token usage and duration are recorded by tokenUsageAdvisor.
+            // .entity(...) is the whole mechanism: one JSON object matching CustomerFilter's schema.
             CustomerFilter filter = chatClient.prompt()
                     .advisors(SimpleLoggerAdvisor.builder().build(), tokenUsageAdvisor)
                     .system(systemPrompt(LocalDate.now()))
                     .user(naturalLanguageQuery)
-                    // Temperature (0 for deterministic structure) is set per active profile in
-                    // application-<provider>.properties, not here.
+                    // Temperature is set per profile in application-<provider>.properties.
                     .call()
                     .entity(CustomerFilter.class, ChatClient.EntityParamSpec::useProviderStructuredOutput);
             logger.info("requestFilter('{}') -> {}", naturalLanguageQuery, filter);
@@ -74,10 +55,7 @@ public class CustomerSearchService implements CustomerSearchAgent {
         }
     }
 
-    /**
-     * Builds the system prompt for the given "today". Package-private and date-parameterized so it
-     * can be unit-tested deterministically without calling the model.
-     */
+    /** Builds the system prompt for the given "today", so it can be unit-tested without calling the model. */
     static String systemPrompt(LocalDate today) {
         LocalDate yesterday = today.minusDays(1);
         LocalDate thisWeekMonday = today.minusDays(today.getDayOfWeek().getValue() - 1L);

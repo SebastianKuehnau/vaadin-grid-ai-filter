@@ -21,10 +21,7 @@ public class AiHybridFilterApplication implements AppShellConfigurator {
 		SpringApplication.run(AiHybridFilterApplication.class, args);
 	}
 
-	/**
-	 * On startup, set "Berlin Data Works"'s last order date to yesterday — so relative-date demos
-	 * ("yesterday", "last week") always have a fresh hit (the H2 data is re-seeded on each start).
-	 */
+	/** Moves one customer's last order date to yesterday, so relative-date demos always have a fresh hit. */
 	@Bean
 	ApplicationRunner setBerlinDataWorksLastOrderToYesterday(JdbcTemplate jdbcTemplate) {
 		return args -> jdbcTemplate.update(

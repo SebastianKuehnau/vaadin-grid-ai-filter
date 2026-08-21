@@ -19,25 +19,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/**
- * Variant <b>02(a)</b> of the tool-calling AI layer — the simplest rung of the escalation ladder:
- * the model calls one {@code searchCustomers} tool with <em>one scalar value per field</em>. No
- * {@code List} parameter (so no OR within a field) and no operator/negation. It does have a
- * {@code currentLocalDateTime} tool (mirroring variant 02(b)'s), so that a relative date ("this
- * year", "last week") is resolved from an actual clock reading instead of guessed — the whole-year
- * date semantics are unaffected, only the year/day *value* the model fills in changes.
- * Everything the filter can mean is baked into {@link CustomerSpecifications}.
- * <p>
- * Variant 02(b) ({@code ai/operator}) is the same delivery mechanism with an operator and a negate
- * flag added per field; see {@code CustomerSearchService}.
- * <p>
- * {@code @Scope("prototype")}: the injecting view is not a Spring singleton either — Vaadin creates a
- * fresh view instance per navigation. Prototype scope gives each view its own instance, so
- * {@link #criteria} can live directly on the bean: different browser tabs/sessions never share an
- * instance, and within one instance the view only ever has one search in flight at a time (it
- * disables the filter field for the duration of a search). {@link #criteria} is reset explicitly at
- * the top of {@link #requestCriteria}, since it now outlives a single call.
- */
+/** Variant 02(a): the model calls one {@code searchCustomers} tool with one scalar value per field. */
 @Service("flatSearchAgent")
 @Scope("prototype")
 class CustomerSearchService implements CustomerSearchAgent {
@@ -72,27 +54,17 @@ class CustomerSearchService implements CustomerSearchAgent {
         this.tokenUsageAdvisor = tokenUsageAdvisor;
     }
 
-    /**
-     * Turns the query into a JPA {@link Specification}: ask the LLM to call the search tool
-     * ({@link #requestCriteria}) and translate the extracted criteria. {@code null} criteria (e.g.
-     * on a bad response, or the model never called the tool) matches all.
-     */
+    /** Asks the LLM to call the search tool and turns the criteria it extracted into a {@link Specification}. */
     @Override
     public Specification<Customer> resolveFilter(String naturalLanguageQuery) {
         return CustomerSpecifications.from(requestCriteria(naturalLanguageQuery));
     }
 
-    /**
-     * Asks the LLM to call {@code searchCustomers} and returns the criteria it extracted.
-     * Package-private so the AI layer can be tested directly on the produced criteria. Returns
-     * {@code null} if the model produces nothing usable, so the UI never breaks on a bad response.
-     */
+    /** Asks the LLM to call {@code searchCustomers}; {@code null} if it produced nothing usable. */
     CustomerCriteria requestCriteria(String naturalLanguageQuery) {
         criteria = null;
         try {
-            // The tool call is the point: by the time this returns, searchCustomers(...) has already
-            // written into `criteria`, so the model's answer text is irrelevant. Token usage and
-            // duration are recorded by tokenUsageAdvisor, not here.
+            // By the time this returns, searchCustomers(...) has run; the answer text is irrelevant.
             chatClient.prompt()
                     .system(SYSTEM_PROMPT)
                     .user(naturalLanguageQuery)
@@ -161,10 +133,7 @@ class CustomerSearchService implements CustomerSearchAgent {
         CustomerCriteria incoming = new CustomerCriteria(companyName, contactName, email, phone, customerSince,
                 lastOrderDate, country, city, postalCode, street, houseNumber, creditRating, annualRevenue);
 
-        // A tool call is a message the model can repeat: since the tool is void, Spring AI answers it
-        // with a bare "Done", and a model that reads that as "nothing happened" sometimes calls the tool
-        // again with no arguments, wiping the criteria it just extracted. Criteria that were already
-        // extracted are therefore never overwritten by a later empty call.
+        // The model sometimes calls the tool again with no arguments, so never overwrite what it found.
         if (criteria != null && !criteria.isEmpty() && incoming.isEmpty()) {
             logger.warn("Ignoring a repeated searchCustomers call with no arguments; keeping {}", criteria);
             return;

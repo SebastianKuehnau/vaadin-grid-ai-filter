@@ -13,10 +13,7 @@
 
 	<dependencies>
 		<dependency>
-			<!-- The domain layer, CustomerGrid and data.sql, shared by all four apps. This module's
-			     Spring AI and Micrometer dependencies are <optional> there, so the starters below stay
-			     this module's own explicit choice. See demo-commons/README.md for what may never move
-			     into it: the AI service, the filter type, the system prompt, the tool signature. -->
+			<!-- The domain layer, CustomerGrid and data.sql. Never the AI service, filter type or prompt. -->
 			<groupId>dev.demo.vaadin</groupId>
 			<artifactId>00-commons</artifactId>
 			<version>${project.version}</version>
@@ -39,9 +36,7 @@
 			<artifactId>spring-ai-starter-model-openai</artifactId>
 		</dependency>
 		<dependency>
-			<!-- ollama profile only: native Ollama binding, so "think"/"num_ctx" are actually honored
-			     (Ollama's OpenAI-compatible endpoint silently ignores both). The openai profile keeps
-			     using the OpenAI-compatible starter above; see spring.ai.model.chat in application*.properties. -->
+			<!-- ollama profile only: the native binding, which actually honors "think" and "num_ctx". -->
 			<groupId>org.springframework.ai</groupId>
 			<artifactId>spring-ai-starter-model-ollama</artifactId>
 		</dependency>
@@ -74,8 +69,7 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<!-- The shared test foundation: the canonical query set, the robustness set and the abstract
-			     ITs this module's tests extend. Published by demo-commons as a test-jar; see its pom. -->
+			<!-- The shared test mechanism (UI search helper, logging/token extensions), as a test-jar. -->
 			<groupId>dev.demo.vaadin</groupId>
 			<artifactId>00-commons</artifactId>
 			<version>${project.version}</version>
@@ -113,39 +107,13 @@
 					</execution>
 				</executions>
 				<configuration>
-					<!-- No profile active: no includes match, so no Ollama IT runs by default. -->
+					<!-- The ITs need a running Ollama; skip them with -DskipITs. -->
 					<includes>
-						<include>none</include>
+						<include>**/*IT.java</include>
 					</includes>
 				</configuration>
 			</plugin>
 		</plugins>
 	</build>
-
-	<profiles>
-		<profile>
-			<!-- Enables StructuredCustomerSearchIT + CustomerListViewBrowserlessIT.
-			     The default test Spring profile is ollama (src/test/resources/application.properties),
-			     targeting a native Ollama instance at OLLAMA_BASE_URL; pass -DAI_TEST_PROFILE=openai
-			     (or set it as an env var) to target the real OpenAI API instead. Includes are listed one by one
-			     rather than as **/*IT.java, so adding an IT class is a deliberate decision about what
-			     the Ollama suite costs. -->
-			<id>it-local-ollama</id>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-failsafe-plugin</artifactId>
-						<configuration>
-							<includes>
-								<include>**/StructuredCustomerSearchIT.java</include>
-								<include>**/CustomerListViewBrowserlessIT.java</include>
-							</includes>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-	</profiles>
 
 </project>

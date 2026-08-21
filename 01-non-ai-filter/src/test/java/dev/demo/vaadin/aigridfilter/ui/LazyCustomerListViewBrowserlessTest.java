@@ -94,9 +94,7 @@ class LazyCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
                 .map(Customer::getCompanyName)
                 .sorted()
                 .toList();
-        // Sanity check: "Berlin Data Works" has last_order_date pinned to yesterday by the
-        // ApplicationRunner, but its credit score (55, MEDIUM) means it must NOT be a match here
-        // — this combined filter is expected to exercise real AND semantics, not just echo it back.
+        // "Berlin Data Works" matches the date but not the rating, so real AND semantics are exercised.
         assertThat(expectedCompanyNames).doesNotContain("Berlin Data Works");
 
         LazyCustomerListView view = navigate(LazyCustomerListView.class);
@@ -114,8 +112,7 @@ class LazyCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
 
     private static Component headerFilter(LazyCustomerListView view, String columnKey) {
         Grid<Customer> grid = view.grid;
-        // The default header row (column titles) is prepended; the filter fields live in the
-        // row appended afterwards by FilterableCustomerGrid, so it's the last one, not the first.
+        // The filter fields live in the header row appended last, not in the column-title row.
         return grid.getHeaderRows().getLast().getCell(grid.getColumnByKey(columnKey)).getComponent();
     }
 
