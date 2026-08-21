@@ -67,7 +67,9 @@ class CustomerSearchService implements CustomerSearchAgent {
                 "Hamburg", "Berlin", "Munich" etc. into city, not into country. When in doubt, prefer
                 city over country - city is the field actually shown in the grid.
               - dates: an exact day ("on 2024-03-15", "yesterday", "today") -> EQUALS;
-                "since" / "after" / "from" -> GREATER_OR_EQUAL; "before" / "until" -> LESS_OR_EQUAL.
+                "since" / "after" / "from" -> GREATER_OR_EQUAL; "before" / "until" -> LESS_OR_EQUAL;
+                an open-ended past range ("in the last 12 months", "last week", "this year") ->
+                GREATER_OR_EQUAL with the FIRST day of that period, never LESS_OR_EQUAL.
               - annualRevenue: "at least" / "over" / "more than" -> GREATER_OR_EQUAL;
                 "at most" / "under" / "less than" -> LESS_OR_EQUAL; "exactly" -> EQUALS.
 
@@ -79,7 +81,8 @@ class CustomerSearchService implements CustomerSearchAgent {
             Call searchCustomers exactly ONCE and then stop; it has already been applied.
 
             For a relative date ("yesterday", "last week", "in the last 12 months") call the
-            currentLocalDateTime tool first and compute the date from its result.
+            currentLocalDateTime tool first, then subtract the WHOLE period from its result: "in the
+            last 12 months" means GREATER_OR_EQUAL (today minus 12 months), not minus one month.
             """;
 
     // Identical for every field, so kept as constants instead of being repeated 13 times.
