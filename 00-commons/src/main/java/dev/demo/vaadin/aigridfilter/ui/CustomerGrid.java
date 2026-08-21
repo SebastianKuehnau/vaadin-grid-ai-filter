@@ -12,6 +12,7 @@ import java.text.NumberFormat;
 import java.util.Locale;
 
 /** The {@code Grid<Customer>} every module shows - not what the talk compares, so it is shared. */
+@StyleSheet("customer-grid.css")
 public class CustomerGrid extends Grid<Customer> {
 
     private static final NumberFormat REVENUE_FORMAT = NumberFormat.getNumberInstance(Locale.GERMANY);
@@ -27,7 +28,9 @@ public class CustomerGrid extends Grid<Customer> {
         addColumn(customer -> customer.getAnnualRevenue() == null ?
                 "" : REVENUE_FORMAT.format(customer.getAnnualRevenue()) + " €")
                 .setHeader("Annual Revenue").setKey("annualRevenue").setSortable(true)
-                .setTextAlign(ColumnTextAlign.END);
+                .setTextAlign(ColumnTextAlign.END)
+                // Values right-aligned for scanning, header left - see customer-grid.css.
+                .setHeaderPartName("annual-revenue-header");
         addColumn(Customer::getAddress).setKey("address").setHeader("Address").setSortable(true)
                 .setSortProperty("address.country", "address.city", "address.postalCode");
         addComponentColumn(CreditScoreIndicator::new).setKey("creditRating").setHeader("Credit Rating")

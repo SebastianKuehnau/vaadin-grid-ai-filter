@@ -4,6 +4,7 @@ import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.browserless.ViewPackages;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.dependency.StyleSheet;
+import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.GridTester;
 import com.vaadin.flow.data.provider.SortDirection;
 import dev.demo.vaadin.aigridfilter.data.Customer;
@@ -95,6 +96,21 @@ class InMemoryCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
                     .extracting(StyleSheet::value)
                     .isEqualTo("credit-score-indicator.css");
         }
+    }
+
+    /** The left-aligned Annual Revenue header needs the part name and the stylesheet using it. */
+    @Test
+    void annualRevenueHeaderIsStyleableSeparatelyFromItsValues() {
+        var grid = navigate(InMemoryCustomerListView.class).grid;
+        var column = grid.getColumnByKey("annualRevenue");
+
+        assertThat(column.getTextAlign()).isEqualTo(ColumnTextAlign.END);
+        assertThat(column.getHeaderPartName()).isEqualTo("annual-revenue-header");
+        assertThat(CustomerGrid.class.getAnnotation(StyleSheet.class))
+                .as("the part name is only styleable while the grid declares the stylesheet")
+                .isNotNull()
+                .extracting(StyleSheet::value)
+                .isEqualTo("customer-grid.css");
     }
 
     private static List<Customer> rows(GridTester<?, Customer> grid) {

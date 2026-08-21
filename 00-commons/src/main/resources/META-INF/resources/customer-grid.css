@@ -1,0 +1,7 @@
+/* Annual Revenue: values stay right-aligned for scanning, the header reads left.
+   Both properties are needed: the header of a sortable column wraps its label in a
+   flex <vaadin-grid-sorter>, so text-align alone does not always move it. */
+vaadin-grid::part(annual-revenue-header) {
+    text-align: start;
+    justify-content: flex-start;
+}
