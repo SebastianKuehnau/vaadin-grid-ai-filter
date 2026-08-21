@@ -5,5 +5,5 @@
 target/
 **/src/main/frontend/generated/
 
-.devcontainer/m2-cache/
-.devcontainer/devcontainer.env
+# IDE
+.idea/
