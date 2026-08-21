@@ -1,21 +1,10 @@
 # Use AI to filter a Vaadin Grid with natural language
 
-A tutorial repository that shows how to filter a Vaadin `Grid` of `Customer` records, building up from
-a plain text filter to natural-language filtering driven by an LLM.
-
-It is a **Maven multi-module reactor**: a root parent POM aggregates four Spring Boot + Vaadin
-applications, meant to be read and run in order. Each runs on its own port, so several can run at the
-same time. Two further modules carry no step number because they are not steps: `00-commons` holds
-what all four apps genuinely share at runtime (the `Customer`/`Address` domain model, `data.sql`, the
-`Grid` itself). Everything that *is* the comparison — each approach's AI service, filter type, prompt and
-its table of canonical queries — stays inside its own module, so a step can still be read on its own. A
-further, non-Maven directory, `ollama-benchmark`, holds a standalone script for benchmarking local Ollama
-models.
+Filter a Vaadin `Grid` of `Customer` records, building up from a plain text filter to
+natural-language filtering driven by an LLM. Four Spring Boot + Vaadin apps, meant to be read and run
+in order; each on its own port, so several can run at the same time.
 
 ## The escalation ladder
-
-The point of the repository is not one AI implementation but a **ladder of five steps**, each one more
-expressive than the last, ending in a comparison that answers a question the middle steps raise:
 
 | Step | Where | Filter type | Delivery | What it adds |
 | --- | --- | --- | --- | --- |
@@ -25,85 +14,55 @@ expressive than the last, ending in a comparison that answers a question the mid
 | 4 | `03-ai-structured-filter` | `CustomerFilter` = `List<Condition>` | structured output | multi-value OR, ranges |
 | 5 | `04-ai-hybrid-filter` | **the same** `List<Condition>` | tool call, **1** parameter | nothing — and that is the finding |
 
-Steps 2 and 3 show what per-field tool parameters can and cannot do: 02(b) triples the parameter count
-and still cannot express "Berlin **or** Hamburg" or "revenue **between** X and Y", because both need two
-values or two bounds for one field. Step 4 changes the filter *type* and gets both. Step 5 keeps step 4's
-type but goes back to step 3's *delivery mechanism* — and loses nothing. So:
+02(b) triples the parameter count and still cannot express "Berlin **or** Hamburg" or "revenue
+**between** X and Y", because both need two values for one field. Step 4 changes the filter *type* and
+gets both. Step 5 keeps that type but goes back to step 3's *delivery mechanism* — and loses nothing:
 
 > **Expressiveness lives in the filter type, not in the delivery mechanism.**
 
-[`docs/capability-matrix.md`](docs/capability-matrix.md) walks that argument through with measurements
-attached, query type by query type.
+## What each approach can express
+
+| # | Capability | 02(a) | 02(b) | 03 | 04 |
+|---|---|---|---|---|---|
+| C1 | single value | ✅ | ✅ | ✅ | ✅ |
+| C2 | multiple values for one field (OR) | ❌ | ❌ | ✅ | ✅ |
+| C3 | negation | ❌ | ✅ | ✅ | ✅ |
+| C4 | non-CONTAINS operator (starts-with) | ❌ | ✅ | ✅ | ✅ |
+| C5 | combined AND across fields | ✅ | ✅ | ✅ | ✅ |
+| C6 | numeric range | ❌ | ❌ | ✅ | ✅ |
+| C7 | relative date | ❌ | ✅ | ✅ | ✅ |
+| C8 | date range | ❌ | ❌ | ✅ | ✅ |
+| | **Capabilities reached** | **2 / 8** | **5 / 8** | **8 / 8** | **8 / 8** |
+
+❌ means *architecturally impossible*, not *unreliable*: no prompt and no model can make a filter type
+carry a value it has no slot for. The queries behind these eight rows are in
+[`docs/canonical-query-set.md`](docs/canonical-query-set.md).
 
 ## Stack
 
 - **Java 25**, **Spring Boot 4.1.0**
-- **Vaadin 25.2.0** (Flow — server-side Java UI, Aura theme)
+- **Vaadin 25.2.4** (Flow — server-side Java UI, Aura theme)
 - **Spring AI 2.0.0** — used by modules 2, 3 and 4; on every classpath via `00-commons`
 - **Spring Data JPA** + **H2** in-memory database, seeded from `data.sql` on startup
-- **Vaadin Browserless Testing** (`browserless-test-spring`, all four modules) — drives real Vaadin
-  views and Grid interactions without a browser or servlet container
+- **Vaadin Browserless Testing** — drives real Vaadin views and Grid interactions without a browser
 
 ## Modules
 
 | Module | Port | What it shows |
 | --- | --- | --- |
-| `01-non-ai-filter` | 8081 | Two non-AI baseline views: an **in-memory data provider** filtered with plain Java (a `Stream` over all rows), and a **lazy-loading grid** with a per-column filter form whose state is turned into a JPA `Specification`, so filtering and paging happen as SQL queries in the database. |
-| `02-ai-agent-filter` | 8082 | **Natural-language filtering via AI tool calling**, in two variants behind two routes of one running app: 02(a) with one scalar value per field, 02(b) with a value, an operator and a negate flag per field. |
-| `03-ai-structured-filter` | 8083 | Filtering with a **local LLM**, where the AI returns the filter as **structured output** — one `CustomerFilter` holding a flat list of conditions. A side challenge here is finding a suitable local model — see `ollama-benchmark`. |
-| `04-ai-hybrid-filter` | 8084 | **Tool calling with 03's filter type**: the model calls `@Tool searchCustomers(List<Condition>)`, i.e. the same payload 03 returns. The step that separates capability from delivery. |
-
-- **`01-non-ai-filter`** — The non-AI baseline, as two views. `InMemoryCustomerListView` (route `/`,
-  alias `/in-memory`) loads all customers into memory and filters with a single `TextField` via a Java
-  `Stream`; the simplest possible approach, not lazy. `LazyCustomerListView` (route `/lazy`) has
-  per-column filter fields in the grid header row, and a lazy data view builds a JPA `Specification`
-  from them, so the work is pushed to the database instead of memory. No AI in either view.
-- **`02-ai-agent-filter`** — A single natural-language `TextField`, and two AI layers behind it. The LLM
-  parses the request and calls a `@Tool`-annotated `searchCustomers(...)` method; the tool's arguments
-  build the `Specification`. Variant 02(a) (route `/`) passes one scalar value per field; variant 02(b)
-  (route `/operator`) passes a value, an `Operator` and a `negate` flag per field — 39 parameters, and
-  still no way to say "Berlin or Hamburg". Both variants live in the same running app, so a talk can
-  switch between them with one click. See `02-ai-agent-filter/README.md`.
-- **`03-ai-structured-filter`** — The same natural-language idea, but the model returns a single
-  `CustomerFilter` object as **structured output** (instead of calling a tool), which Java translates
-  into a `Specification`. This is more reliable for smaller, local models. The `CustomerFilter` is a
-  flat list of conditions — each with a field, operator, values, and a `negate` flag — deliberately
-  not a recursive AND/OR/NOT tree; that trade-off keeps the shape easy for a small model to produce
-  while still expressing negation, per-field operators, multi-value OR and ranges. See
-  `03-ai-structured-filter/README.md` for the flat filter schema and the Ollama integration test
-  architecture.
-- **`04-ai-hybrid-filter`** — 03's filter type, copied 1:1, delivered as a tool call:
-  `@Tool searchCustomers(List<Condition> conditions)`. Spring AI derives that tool's parameter schema
-  from the very same Jackson annotations that drive 03's response format, so the model sees the same
-  vocabulary either way. Since 04 can express everything 03 can, while 02(a)/02(b) cannot, the ladder
-  ends with a conclusion rather than a preference. See `04-ai-hybrid-filter/README.md`.
-- **`00-commons`** — Shared *runtime* infrastructure: the domain layer and `data.sql`, the
-  `CustomerGrid` and the search view all four apps show, the one-method `CustomerSearchAgent` seam and
-  the token measurement. Deliberately never an AI service, a filter type or a system prompt — those are
-  what the repository compares. See `00-commons/README.md`.
-- **`ollama-benchmark`** — Not a Maven module: a standalone, dependency-free script that compares
-  local Ollama models on the natural-language-to-filter task, for all four AI approaches, using the
-  same queries the modules' integration tests use. See `ollama-benchmark/README.md`.
+| `01-non-ai-filter` | 8081 | Two non-AI baselines: an in-memory data provider filtered with a Java `Stream`, and a lazy-loading grid whose per-column filter form becomes a JPA `Specification`. |
+| `02-ai-agent-filter` | 8082 | Natural-language filtering via **tool calling**, two variants behind two routes of one app: 02(a) one scalar value per field (`/`), 02(b) value + operator + negate per field (`/operator`). |
+| `03-ai-structured-filter` | 8083 | The model returns the filter as **structured output** — one `CustomerFilter` holding a flat list of conditions. |
+| `04-ai-hybrid-filter` | 8084 | **Tool calling with 03's filter type**: `@Tool searchCustomers(List<Condition>)`. The step that separates capability from delivery. |
+| `00-commons` | — | What all four apps share at runtime: the domain layer, `data.sql`, the `CustomerGrid` and search view, the `CustomerSearchAgent` seam and the token measurement. Never an AI service, filter type or prompt — those are what the repository compares. |
 
 In every AI module the LLM only produces filter *intent*; it never sees the customer data and never
 writes the final query — Java turns the intent into a `Specification` and the database executes it.
 
-## Documentation
-
-- [`docs/canonical-query-set.md`](docs/canonical-query-set.md) — the eight natural-language queries all
-  four AI modules and the benchmark are measured with, and the customer set each must produce. The single
-  source of truth; a per-module test fails the build if any copy drifts from it.
-- [`docs/capability-matrix.md`](docs/capability-matrix.md) — which query types each approach can express
-  and how reliably, evidence-linked to test methods.
-- [`docs/tool-calling-vs-structured-output.md`](docs/tool-calling-vs-structured-output.md) — the
-  pros/cons comparison with measured token cost, latency and reliability.
-
 ## Running
 
-Use the root Maven wrapper (`./mvnw`) from the repository root. Every app depends on `00-commons`
-so a single-module build needs `-am`:
-`./mvnw verify -pl 03-ai-structured-filter -am`. `spring-boot:run` cannot use `-am` and resolves from
-`~/.m2`, so run `./mvnw install -DskipTests` once first.
+Every app depends on `00-commons`, so a single-module build needs `-am`. `spring-boot:run` cannot use
+`-am` and resolves from `~/.m2`, so run `./mvnw install -DskipTests` once first.
 
 ```bash
 ./mvnw -pl 01-non-ai-filter        spring-boot:run   # http://localhost:8081 (/ or /in-memory, and /lazy)
@@ -112,56 +71,23 @@ so a single-module build needs `-am`:
 ./mvnw -pl 04-ai-hybrid-filter     spring-boot:run   # http://localhost:8084
 ```
 
-Each application opens a browser automatically and serves its UI at the root URL of its port. To build
-the whole reactor at once:
-
-```bash
-./mvnw clean package
-```
-
 ## Configuration
 
-- **`01-non-ai-filter`** needs no configuration — it does not call a model.
-- **`02-ai-agent-filter`**, **`03-ai-structured-filter`** and **`04-ai-hybrid-filter`** each talk to a
-  single Spring AI `ChatModel` bean and pick a backend purely via Spring profile (`openai` / `ollama`,
-  each an `application-<profile>.properties` file) — never a code change. Default (no profile) is the
-  real **OpenAI API** (needs `OPENAI_API_KEY`); `ollama` targets a local Ollama instance via Spring AI's
-  native Ollama binding:
-  ```bash
-  ollama pull qwen3:8b
-  ```
-  See any AI module's README for the full switching commands and trade-offs.
+`01-non-ai-filter` needs no configuration. The three AI modules each talk to a single Spring AI
+`ChatModel` bean and pick a backend purely via Spring profile — never a code change:
+
+- **`ollama`** (default) — a local Ollama instance at `OLLAMA_BASE_URL`: `ollama pull qwen3:8b`
+- **`openai`** — the OpenAI cloud API, needs `OPENAI_API_KEY`
 
 ## Tests
 
-Every module builds and tests without an LLM; the Ollama-backed integration tests are behind the
-`it-local-ollama` profile.
-
-### 01-non-ai-filter
-
-Both views are covered by BrowserlessTests — no browser or servlet container needed, see
-[Stack](#stack) above:
-
 ```bash
-./mvnw -pl 01-non-ai-filter test   # InMemoryCustomerListViewBrowserlessTest + LazyCustomerListViewBrowserlessTest
+./mvnw verify              # everything, including the Ollama-backed ITs
+./mvnw verify -DskipITs    # everything that needs no model
 ```
 
-### AI modules
-
-```bash
-./mvnw -pl 02-ai-agent-filter      test                       # unit + browserless view tests, no LLM
-./mvnw -pl 02-ai-agent-filter      verify -Pit-local-ollama    # both variants vs native Ollama (fails if unreachable — no probe)
-./mvnw -pl 03-ai-structured-filter verify -Pit-local-ollama
-./mvnw -pl 04-ai-hybrid-filter     verify -Pit-local-ollama
-```
-
-Each AI module has a **canonical-query IT** that runs the eight queries of
-[`docs/canonical-query-set.md`](docs/canonical-query-set.md) and scores each one on the resulting
-customer set — including the queries a variant cannot express, which are asserted as documented,
-non-erroring failures. See each module's README for its remaining test classes, and
-`02-ai-agent-filter/README.md` for a known model-capability limitation around relative-date queries.
-
-### ollama-benchmark
-
-Not part of the Maven reactor — see `ollama-benchmark/README.md` for how to run
-`BenchmarkLocalModels.java` across all four AI approaches and the recorded comparison of local models.
+Each AI module has two IT classes per variant, and both spell out what they do: one `@Test` per
+natural-language query, the prompt as a string literal and the expected customer set right next to it.
+The `*CustomerSearchIT` asks the AI service directly (prompt → `Specification` → database); the
+`*BrowserlessIT` types the same queries into the filter field and reads the grid. Queries a variant's
+filter type cannot express are `@Disabled` with the reason.

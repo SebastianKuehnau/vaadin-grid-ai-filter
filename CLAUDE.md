@@ -11,12 +11,12 @@ Top priority for all code: **easy to understand, presentable, extensible** — c
 | `02-ai-agent-filter` | 8082 | AI filtering via tool calling, in two variants behind two routes of one app: 02(a) one scalar value per field (`/`), 02(b) value + operator + negate per field (`/operator`) |
 | `03-ai-structured-filter` | 8083 | AI filtering via structured output (`CustomerFilter` → JPA Specifications), against local Ollama models |
 | `04-ai-hybrid-filter` | 8084 | AI filtering via tool calling with 03's `List<Condition>` filter type, copied 1:1 — same capability, different delivery |
-| `00-commons` | — | Shared **runtime** infrastructure: the domain layer (`Customer`, `Address`, `CreditRating`, `CustomerRepository`, `data.sql`), the shared Vaadin components (`CustomerGrid`, `AbstractCustomerSearchView`) and the AI layer's seam plus token measurement (`CustomerSearchAgent`, `TokenUsageAdvisor`). No numeric prefix — not a step of the talk. See `00-commons/README.md` for the rule on what must never move there |
+| `00-commons` | — | Shared **runtime** infrastructure: the domain layer (`Customer`, `Address`, `CreditRating`, `CustomerRepository`, `data.sql`), the shared Vaadin components (`CustomerGrid`, `AbstractCustomerSearchView`) and the AI layer's seam plus token measurement (`CustomerSearchAgent`, `TokenUsageAdvisor`). No numeric prefix — not a step of the talk |
 
 Each of the four numbered modules above is a standalone Spring Boot app (`<ModuleName>Application`).
 The single `data.sql` lives in `00-commons` and is picked up from the jar (Boot's default
 `optional:classpath*:data.sql`) — there must never be a second copy, or the data is seeded twice.
-For a module's architecture details, see `<module>/README.md` — do **not** duplicate them here.
+Each module's architecture is meant to be read from its own source; there are no per-module READMEs.
 
 `ollama-benchmark` is **not** a Maven module (no `pom.xml`, not in the root `<modules>` list):
 it's a standalone, dependency-free script benchmarking local Ollama models against all four AI
@@ -90,7 +90,7 @@ or file changes on your own initiative.
   measurement. **Never** the AI services, the `Criteria`/`Condition`/`Specifications` types, the
   `SYSTEM_PROMPT`s, the tool signatures or any `@Route` view. The rule when in doubt: if a reader of
   the talk would need to see it on a slide to understand the difference between two approaches, it
-  stays in its module. See `00-commons/README.md`.
+  stays in its module.
 - The test layer is the second exception, and it is shared through `00-commons`' **test-jar**
   (`<type>test-jar</type><scope>test</scope>`), never through `src/main` — otherwise JUnit and
   browserless would land in all four apps' runtime classpath. It owns **only mechanism**:
