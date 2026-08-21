@@ -11,16 +11,7 @@ import dev.demo.vaadin.aigridfilter.data.Customer;
 import java.text.NumberFormat;
 import java.util.Locale;
 
-/**
- * The {@code Grid<Customer>} every module shows. Shared because it is <em>not</em> what the talk compares:
- * however a filter comes into being, it ends as the same {@code Specification} against this grid.
- * <p>
- * <b>Sorting is configured here, per-column filter fields are not.</b> The sort setup is what all four
- * modules agree on; a view may override it, and {@code 01}'s in-memory view does, with
- * {@code Comparator}s — {@code Column.setComparator(...)} wins over a sort property once the data
- * provider is a list rather than a query. Filter fields stay out because only {@code 01} has them, in its
- * own {@code FilterableCustomerGrid}.
- */
+/** The {@code Grid<Customer>} every module shows - not what the talk compares, so it is shared. */
 public class CustomerGrid extends Grid<Customer> {
 
     private static final NumberFormat REVENUE_FORMAT = NumberFormat.getNumberInstance(Locale.GERMANY);
@@ -53,14 +44,7 @@ public class CustomerGrid extends Grid<Customer> {
         page.addBrowserWindowResizeListener(event -> applyResponsiveColumns(event.getWidth()));
     }
 
-    /**
-     * Shows or hides columns by priority based on the viewport width:
-     * <ul>
-     *     <li>always: Company Name, Contact Name, Credit Rating</li>
-     *     <li>medium (≥ {@value #MEDIUM_BREAKPOINT}px): + Address, Phone, Email</li>
-     *     <li>large (≥ {@value #LARGE_BREAKPOINT}px): + Customer Since, Last Order Date, Annual Revenue</li>
-     * </ul>
-     */
+    /** Shows or hides columns by priority based on the viewport width. */
     private void applyResponsiveColumns(int width) {
         boolean medium = width >= MEDIUM_BREAKPOINT;
         boolean large = width >= LARGE_BREAKPOINT;
@@ -74,11 +58,7 @@ public class CustomerGrid extends Grid<Customer> {
         getColumnByKey("annualRevenue").setVisible(large);
     }
 
-    /**
-     * The credit-rating cell: a coloured dot plus the label. The colour comes from
-     * {@code credit-score-indicator.css} in this module's {@code META-INF/resources/}, which Spring Boot
-     * serves straight out of the jar.
-     */
+    /** The credit-rating cell: a coloured dot plus the label, styled by {@code credit-score-indicator.css}. */
     @StyleSheet("credit-score-indicator.css")
     static class CreditScoreIndicator extends Span {
 

@@ -17,22 +17,7 @@ import org.springframework.data.jpa.domain.Specification;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
-/**
- * The view every AI module shows: one natural-language {@link TextField} above the shared
- * {@link CustomerGrid}, plus the plumbing between them — {@link CustomerSearchAgent#resolveFilter} blocks
- * on the model, so it runs off the UI thread and applies its result through {@code ui.access(...)}, the
- * field is disabled while a search is in flight, and a failure becomes a notification rather than a broken
- * view. All three AI modules differ only in which agent Spring injects, and that is invisible from here —
- * itself one of the repository's findings.
- * <p>
- * Subclasses add their {@code @Route} and heading, and may insert content above the filter field with
- * {@link #addComponentAtIndex} — {@code 02-ai-agent-filter} does, for its variant switcher.
- * <p>
- * {@link #grid} and {@link #filterField} are {@code public} on purpose: the browserless tests reach for
- * them, and the declaration now sits in another jar. Under {@code spring-boot-devtools} that jar and the
- * subclasses land in different classloaders — hence different runtime packages — and package-private
- * access across them fails with an {@code IllegalAccessError} at runtime, which no compiler would catch.
- */
+/** The view every AI module shows: a natural-language filter field above the shared {@link CustomerGrid}. */
 public abstract class AbstractCustomerSearchView extends VerticalLayout {
 
     private static final Logger logger = LoggerFactory.getLogger(AbstractCustomerSearchView.class);

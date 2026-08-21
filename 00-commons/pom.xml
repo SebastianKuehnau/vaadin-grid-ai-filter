@@ -15,9 +15,7 @@
 		layer's seam towards the view and the token measurement. No numeric prefix — this is not a demo
 		step. Never holds an AI service, a filter type, a system prompt or a @Route; see its README.</description>
 
-	<!-- A plain jar on purpose: no spring-boot-maven-plugin (nothing to repackage, no main class) and
-	     no vaadin-maven-plugin (this module contributes no @Route and no frontend resources, so
-	     build-frontend has nothing extra to do). -->
+	<!-- A plain jar: no @Route, no frontend resources, no main class to repackage. -->
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -28,24 +26,13 @@
 			<artifactId>vaadin-spring-boot-starter</artifactId>
 		</dependency>
 
-		<!-- A regular dependency, not <optional>, so that TokenUsageAdvisor can simply be a @Component:
-		     it lives in dev.demo.vaadin.aigridfilter.ai, every app scans that package, and one annotation
-		     replaces the three identical @Configuration classes 02/03/04 used to need.
-
-		     The price is deliberate and measured: 01-non-ai-filter resolves 17 further artefacts through
-		     this line (the four Spring AI jars plus jtokkit, the victools JSON-Schema modules, ANTLR/ST4,
-		     micrometer-core, spring-messaging). It writes no Spring AI code and autoconfigures no
-		     ChatModel — no spring-ai-starter-model-* is on its classpath — so nothing there is reachable
-		     except an idle TokenUsageAdvisor bean. Making it <optional> again would bring the three
-		     configuration classes back; that trade was weighed and settled, see demo-commons/README.md. -->
+		<!-- Not <optional>, so TokenUsageAdvisor can just be a @Component that every app's scan picks up. -->
 		<dependency>
 			<groupId>org.springframework.ai</groupId>
 			<artifactId>spring-ai-client-chat</artifactId>
 		</dependency>
 
-		<!-- Test scope, but they compile the shared test foundation this module publishes as a test-jar
-		     (see the build section below), so 02/03/04's ITs can inherit it. Nothing here reaches the
-		     runtime jar or any app's runtime classpath. -->
+		<!-- Compile the shared test mechanism this module publishes as a test-jar; never on any app's runtime classpath. -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
@@ -67,17 +54,7 @@
 	<build>
 		<plugins>
 			<plugin>
-				<!-- Publishes src/test as demo-commons-<version>-tests.jar. That is where the shared test
-				     foundation lives: the canonical query set, the robustness set and the three abstract
-				     ITs every AI module extends. It has to be a test-jar rather than ordinary main code,
-				     because otherwise JUnit, AssertJ and browserless-test-spring would become compile
-				     dependencies of this module and land in all four apps' runtime classpath.
-
-				     Consumers declare it as:
-				         <artifactId>demo-commons</artifactId>
-				         <type>test-jar</type><scope>test</scope>
-				     A test-jar does not carry its own test-scope dependencies to consumers, which is fine:
-				     02/03/04 already declare browserless-test-spring and awaitility themselves. -->
+				<!-- Publishes src/test as a test-jar, so JUnit and browserless stay out of the apps' runtime classpath. -->
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jar-plugin</artifactId>
 				<executions>

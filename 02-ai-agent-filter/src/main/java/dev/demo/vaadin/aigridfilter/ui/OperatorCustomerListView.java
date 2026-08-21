@@ -5,14 +5,7 @@ import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 
-/**
- * Variant <b>02(b)</b>'s view (route {@code /operator}): natural-language filtering through a tool
- * call that carries a value, an operator and a negate flag per field. Sibling of
- * {@link FlatCustomerListView}, which serves variant 02(a) from the same running application, so a
- * talk can switch between the two variants live.
- * <p>
- * The agent is injected by bean name — see {@link FlatCustomerListView}.
- */
+/** Variant 02(b)'s view (route {@code /operator}): a value, an operator and a negate flag per field. */
 @Route("operator")
 public class OperatorCustomerListView extends AbstractCustomerListView {
 

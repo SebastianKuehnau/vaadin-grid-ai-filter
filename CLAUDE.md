@@ -35,8 +35,8 @@ Maven has to build first. Without it a `-pl` build fails to resolve that depende
 
 `spring-boot:run` cannot use `-am` (it would try to run `00-commons` too) and resolves dependencies
 from `~/.m2`, so `00-commons` has to be installed once — `./mvnw install -DskipTests` — and again after
-every change to it. With a running app, `./mvnw install -pl demo-commons -DskipTests` is enough: each app
-watches `../demo-commons/target/classes` (`spring.devtools.restart.additional-paths`), so devtools
+every change to it. With a running app, `./mvnw install -pl 00-commons -DskipTests` is enough: each app
+watches `../00-commons/target/classes` (`spring.devtools.restart.additional-paths`), so devtools
 restarts it and picks up the new jar. Use `install`, not `compile` — `compile` fires the trigger but
 leaves the jar the app loads untouched.
 
@@ -93,6 +93,9 @@ or file changes on your own initiative.
   `AbstractCustomerSearchViewIT.search(query)` (navigate, type, await, read the grid),
   `TokenUsageExtension` and `TestNameLoggingExtension`. Every query, every expectation and every
   `@Disabled` reason stays in the module's own IT class, spelled out — that is what a reader looks at.
+- Comments are one-liners: a single-line Javadoc per class, and per method or field only where the
+  name is not enough. No multi-paragraph rationale in code — this repository is read by beginners at a
+  conference, and a wall of prose above a five-line method is what they stop reading at.
 - CSS belongs in theme files, not inline in Java components.
 - Commit after every completed, verified step (Conventional Commits, no push).
 - Never commit logs or other generated artifacts unless the task explicitly says

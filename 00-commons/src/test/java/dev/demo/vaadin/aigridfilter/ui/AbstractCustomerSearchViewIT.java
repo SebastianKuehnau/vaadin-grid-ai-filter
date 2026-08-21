@@ -21,10 +21,7 @@ import java.util.stream.IntStream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-/**
- * The plumbing every AI module's UI test needs: type a query into the filter field, wait for the
- * async search, read the grid. What is being asked and what is expected stays in the subclass.
- */
+/** Types a query into the filter field, waits for the async search and returns the rows the grid shows. */
 @SpringBootTest
 @Timeout(value = 180, unit = TimeUnit.SECONDS)
 @ExtendWith({TokenUsageExtension.class, TestNameLoggingExtension.class})

@@ -30,9 +30,7 @@ public class InMemoryCustomerListView extends VerticalLayout {
         add(filterField);
 
         grid = new CustomerGrid();
-        // The shared grid configures backend sorting (sort properties for a query). This view sorts a
-        // list in memory instead, so it replaces those columns' sorting with Comparators —
-        // setComparator(...) is what an in-memory data provider actually uses.
+        // In-memory sorting needs Comparators; the shared grid only sets backend sort properties.
         grid.getColumnByKey("annualRevenue")
                 .setComparator(Comparator.comparing(Customer::getAnnualRevenue, Comparator.nullsFirst(Comparator.naturalOrder())));
         grid.getColumnByKey("address").setComparator(InMemoryCustomerListView::compareAddress).setFlexGrow(2);

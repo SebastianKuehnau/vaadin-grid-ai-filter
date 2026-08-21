@@ -20,23 +20,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/**
- * Variant <b>02(b)</b> of the tool-calling AI layer — the same delivery mechanism as variant 02(a),
- * with three tool parameters per field instead of one: a value, an {@link Operator}, and a
- * {@code negate} flag. 13 fields therefore mean <b>39 flat parameters</b> on a single
- * {@code searchCustomers} tool; that parameter explosion is the visible cost of the two capabilities
- * it buys — negation and operator precision (including day-level date bounds).
- * <p>
- * What it deliberately still cannot do: a second value or a second operator for the same field, so
- * neither multi-value OR ("Berlin or Hamburg") nor any range ("between 100000 and 500000", "in 2024")
- * is expressible. The system prompt below therefore never teaches range phrasing — the model has no
- * parameter to put it in. Lifting that ceiling means leaving the per-field parameter shape behind
- * entirely, which is what {@code 03-ai-structured-filter} (structured output) and
- * {@code 04-ai-hybrid-filter} (the same condition list, delivered as a tool call) do.
- * <p>
- * {@code @Scope("prototype")}: see {@code CustomerSearchService} — one instance per Vaadin view, so
- * {@link #criteria} can live on the bean.
- */
+/** Variant 02(b): a value, an operator and a negate flag per field - 39 flat tool parameters. */
 @Service("operatorSearchAgent")
 @Scope("prototype")
 class CustomerSearchService implements CustomerSearchAgent {
@@ -98,9 +82,7 @@ class CustomerSearchService implements CustomerSearchAgent {
             currentLocalDateTime tool first and compute the date from its result.
             """;
 
-    // The operator and negate descriptions are identical for every field of the same type, so they
-    // live in constants instead of being repeated 13 times. (They are compile-time constants, so the
-    // model still receives the literal text in the generated tool schema.)
+    // Identical for every field, so kept as constants instead of being repeated 13 times.
     private static final String TEXT_OPERATOR = """
             how to compare this field with its value: CONTAINS (case-insensitive substring, the
             default), EQUALS (the whole field equals the value), STARTS_WITH, or ENDS_WITH.""";
@@ -127,27 +109,17 @@ class CustomerSearchService implements CustomerSearchAgent {
         this.tokenUsageAdvisor = tokenUsageAdvisor;
     }
 
-    /**
-     * Turns the query into a JPA {@link Specification}: ask the LLM to call the search tool
-     * ({@link #requestCriteria}) and translate the extracted criteria. {@code null} criteria (e.g.
-     * on a bad response, or the model never called the tool) matches all.
-     */
+    /** Asks the LLM to call the search tool and turns the criteria it extracted into a {@link Specification}. */
     @Override
     public Specification<Customer> resolveFilter(String naturalLanguageQuery) {
         return CustomerSpecifications.from(requestCriteria(naturalLanguageQuery));
     }
 
-    /**
-     * Asks the LLM to call {@code searchCustomers} and returns the criteria it extracted.
-     * Package-private so the AI layer can be tested directly on the produced criteria. Returns
-     * {@code null} if the model produces nothing usable, so the UI never breaks on a bad response.
-     */
+    /** Asks the LLM to call {@code searchCustomers}; {@code null} if it produced nothing usable. */
     CustomerCriteria requestCriteria(String naturalLanguageQuery) {
         criteria = null;
         try {
-            // The tool call is the point: by the time this returns, searchCustomers(...) has already
-            // written into `criteria`, so the model's answer text is irrelevant. Token usage and
-            // duration are recorded by tokenUsageAdvisor, not here.
+            // By the time this returns, searchCustomers(...) has run; the answer text is irrelevant.
             chatClient.prompt()
                     .system(SYSTEM_PROMPT)
                     .user(naturalLanguageQuery)
