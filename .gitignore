@@ -7,3 +7,6 @@ target/
 
 # IDE
 .idea/
+
+# Sandbox kit: shared on purpose, against a global ignore rule for .sbx
+!.sbx/
