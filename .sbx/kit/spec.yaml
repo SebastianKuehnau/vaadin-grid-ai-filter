@@ -3,8 +3,8 @@ kind: mixin
 name: vaadin-grid-ai-filte
 displayName: vaadin-grid-ai-filter Vaadin dev environment
 description: >-
-  Vaadin skills and MCP, Maven/Vaadin/GitHub network access, Playwright browsers,
-  and an in-sandbox Ollama for the integration and browserless tests.
+  Vaadin skills and MCP, Maven/Vaadin/GitHub network access, and Playwright browsers.
+  The AI tests bring their own Ollama as a Testcontainer, built from Dockerfile in this folder.
 
 # vaadin-grid-ai-filte is set by `task-agent --init vaadin`. Cosmetic: only shows in `sbx kit inspect`.
 
@@ -19,65 +19,8 @@ setup:
     - command: "sudo npx --yes playwright install --with-deps chromium"
       user: "1000"
 
-    # Ollama itself. Version pinned on purpose: the point of this mixin is that every
-    # developer measures the AI modules against the same binary and the same model.
-    # Literal block (|), not folded (>-): folding would splice the shell lines together.
-    - command: |
-        set -eu
-        OLLAMA_VERSION=v0.32.15
-        case "$(uname -m)" in
-          aarch64|arm64) ARCH=arm64 ;;
-          x86_64|amd64)  ARCH=amd64 ;;
-          *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
-        esac
-        # Release tarballs are .tar.zst and the image has no zstd.
-        sudo apt-get install -y zstd
-        curl -fsSL -o /tmp/ollama.tar.zst \
-          "https://github.com/ollama/ollama/releases/download/${OLLAMA_VERSION}/ollama-linux-${ARCH}.tar.zst"
-        sudo tar -I zstd -xf /tmp/ollama.tar.zst -C /usr/local
-        rm -f /tmp/ollama.tar.zst
-        # 2.1 GB of the 2.1 GB extracted are CUDA runtimes; the sandbox has no GPU.
-        sudo rm -rf /usr/local/lib/ollama/cuda_v12 /usr/local/lib/ollama/cuda_v13
-        /usr/local/bin/ollama --version
-      user: "1000"
-
-    # The model, baked in so a test run never waits on a 3.4 GB download.
-    # `ollama pull` is served by the daemon, so one has to be up for the duration.
-    - command: |
-        set -eu
-        nohup /usr/local/bin/ollama serve >/tmp/ollama-setup.log 2>&1 &
-        for _ in $(seq 1 30); do
-          sleep 1
-          curl -sf http://127.0.0.1:11434/api/version >/dev/null && break
-        done
-        /usr/local/bin/ollama pull qwen3.5:4b
-        /usr/local/bin/ollama list
-        pkill -x ollama || true
-      user: "1000"
-
-    # No service hook in this schema, so the daemon starts lazily from the persistent
-    # env file. The pgrep guard makes it a no-op for every command after the first.
-    # Marker keeps the append idempotent if install ever re-runs.
-    - command: |
-        set -eu
-        if ! grep -q SBX_OLLAMA_AUTOSTART /etc/sandbox-persistent.sh; then
-          sudo tee -a /etc/sandbox-persistent.sh >/dev/null <<'EOF'
-        # SBX_OLLAMA_AUTOSTART — start the in-sandbox Ollama once (tests use 127.0.0.1:11434).
-        if ! pgrep -x ollama >/dev/null 2>&1; then
-          (nohup /usr/local/bin/ollama serve >/tmp/ollama.log 2>&1 &) >/dev/null 2>&1
-        fi
-        EOF
-        fi
-      user: "1000"
-
 environment:
   variables:
-    # The Ollama now runs *inside* the sandbox, so this is loopback, not the host.
-    # Override both to http://host.docker.internal:11434 to use the host's
-    # GPU-accelerated Ollama instead — that path is still allowed below.
-    OLLAMA_HOST: "127.0.0.1:11434"
-    OLLAMA_BASE_URL: "http://127.0.0.1:11434"
-
     # Base image ships a JDK but leaves JAVA_HOME unset. Symlink, not the
     # versioned dir, which names both JDK version and CPU architecture.
     JAVA_HOME: "/usr/lib/jvm/default-java"
@@ -95,10 +38,6 @@ permissions:
       - codeload.github.com
       - raw.githubusercontent.com
 
-      # GitHub release assets: `github.com/.../releases/download/...` 302s to here,
-      # which is where the Ollama tarball actually comes from.
-      - release-assets.githubusercontent.com
-
       # Vaadin docs, MCP, Javadoc.
       - vaadin.com
       - mcp.vaadin.com
@@ -107,15 +46,3 @@ permissions:
       # Playwright browsers: primary host plus the installer's fallback.
       - cdn.playwright.dev
       - playwright.download.prss.microsoft.com
-
-      # `ollama pull`: the manifest comes from the registry, the model blob from a
-      # 307 redirect to an R2 bucket whose hostname is a hash — hence the wildcard.
-      # Without the second entry the pull fails as "max retries exceeded: EOF",
-      # because Ollama writes the 403 body into its download chunks.
-      - registry.ollama.ai
-      - "*.r2.cloudflarestorage.com"
-
-      # Kept as a fallback: lets a developer point OLLAMA_BASE_URL back at the
-      # host's Ollama (host.docker.internal:11434) for a GPU-speed live demo.
-      # Loopback name on purpose: the proxy normalises it.
-      - localhost:11434
