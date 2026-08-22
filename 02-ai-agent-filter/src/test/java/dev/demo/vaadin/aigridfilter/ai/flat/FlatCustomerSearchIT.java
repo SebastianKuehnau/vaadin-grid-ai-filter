@@ -20,9 +20,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
-import org.springframework.context.annotation.Import;
-import dev.demo.vaadin.aigridfilter.ai.OllamaContainerConfig;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** Variant 02(a) through its service: one scalar value per field, delivered as a tool call. */
@@ -30,7 +27,6 @@ import static org.assertj.core.api.Assertions.assertThat;
         properties = "spring.autoconfigure.exclude=com.vaadin.flow.spring.SpringBootAutoConfiguration")
 @Timeout(value = 300, unit = TimeUnit.SECONDS)
 @ExtendWith({TokenUsageExtension.class, TestNameLoggingExtension.class})
-@Import(OllamaContainerConfig.class)
 class FlatCustomerSearchIT {
 
     @Autowired

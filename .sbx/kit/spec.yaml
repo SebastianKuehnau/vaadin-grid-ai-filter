@@ -3,8 +3,8 @@ kind: mixin
 name: vaadin-grid-ai-filte
 displayName: vaadin-grid-ai-filter Vaadin dev environment
 description: >-
-  Vaadin skills and MCP, Maven/Vaadin/GitHub network access, and Playwright browsers.
-  The AI tests bring their own Ollama as a Testcontainer, built from Dockerfile in this folder.
+  Vaadin skills and MCP, Maven/Vaadin/GitHub network access, Playwright browsers,
+  and an Ollama container built from the Dockerfile next to this file.
 
 # vaadin-grid-ai-filte is set by `task-agent --init vaadin`. Cosmetic: only shows in `sbx kit inspect`.
 
@@ -19,8 +19,22 @@ setup:
     - command: "sudo npx --yes playwright install --with-deps chromium"
       user: "1000"
 
+    # Ollama with qwen3:8b baked in, so no test run waits on a 5 GB model download.
+    # Path is relative to the workspace root, where .sbx/kit sits.
+    - command: "docker build -t ai-grid-filter/ollama:qwen3-8b .sbx/kit"
+      user: "1000"
+
+    # One long-lived container on the sandbox's own loopback. `docker rm -f` first, so
+    # re-running install does not fail on the name; `--restart` brings it back after a
+    # daemon restart, which is what replaces the service hook this schema does not have.
+    - command: "docker rm -f ollama 2>/dev/null; docker run -d --name ollama --restart unless-stopped -p 127.0.0.1:11434:11434 ai-grid-filter/ollama:qwen3-8b"
+      user: "1000"
+
 environment:
   variables:
+    # The Ollama container publishes on the sandbox's loopback, not the host's.
+    OLLAMA_BASE_URL: "http://127.0.0.1:11434"
+
     # Base image ships a JDK but leaves JAVA_HOME unset. Symlink, not the
     # versioned dir, which names both JDK version and CPU architecture.
     JAVA_HOME: "/usr/lib/jvm/default-java"
@@ -46,3 +60,10 @@ permissions:
       # Playwright browsers: primary host plus the installer's fallback.
       - cdn.playwright.dev
       - playwright.download.prss.microsoft.com
+
+      # `ollama pull` inside the docker build: the manifest comes from the registry, the
+      # model blob from a 307 redirect to an R2 bucket whose hostname is a hash. Without
+      # the second entry the pull fails as "max retries exceeded: EOF", because Ollama
+      # writes the 403 body into its download chunks.
+      - registry.ollama.ai
+      - "*.r2.cloudflarestorage.com"

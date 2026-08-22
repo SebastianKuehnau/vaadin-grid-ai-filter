@@ -18,9 +18,6 @@ import java.util.function.Predicate;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
-import org.springframework.context.annotation.Import;
-import dev.demo.vaadin.aigridfilter.ai.OllamaContainerConfig;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
@@ -28,7 +25,6 @@ import static org.awaitility.Awaitility.await;
 @SpringBootTest
 @Timeout(value = 180, unit = TimeUnit.SECONDS)
 @ExtendWith({TokenUsageExtension.class, TestNameLoggingExtension.class})
-@Import(OllamaContainerConfig.class)
 public abstract class AbstractCustomerSearchViewIT extends SpringBrowserlessTest {
 
     @Autowired

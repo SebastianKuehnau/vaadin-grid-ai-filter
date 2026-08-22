@@ -76,23 +76,6 @@
 			<type>test-jar</type>
 			<scope>test</scope>
 		</dependency>
-		<dependency>
-			<!-- Starts the Ollama image with the model baked in; see OllamaContainerConfig. -->
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-testcontainers</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.testcontainers</groupId>
-			<artifactId>testcontainers-ollama</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<!-- Maps the container onto spring.ai.ollama.base-url via @ServiceConnection. -->
-			<groupId>org.springframework.ai</groupId>
-			<artifactId>spring-ai-spring-boot-testcontainers</artifactId>
-			<scope>test</scope>
-		</dependency>
 	</dependencies>
 
 	<build>

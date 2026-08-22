@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -23,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
         properties = "spring.autoconfigure.exclude=com.vaadin.flow.spring.SpringBootAutoConfiguration")
 @Timeout(value = 300, unit = TimeUnit.SECONDS)
 @ExtendWith({TokenUsageExtension.class, TestNameLoggingExtension.class})
-@Import(OllamaContainerConfig.class)
 class StructuredCustomerSearchIT {
 
     @Autowired

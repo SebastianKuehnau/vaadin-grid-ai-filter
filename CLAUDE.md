@@ -41,11 +41,11 @@ restarts it and picks up the new jar. Use `install`, not `compile` — `compile`
 leaves the jar the app loads untouched.
 
 AI provider is selected via Spring profiles: `ollama` (default; expects Ollama at `OLLAMA_BASE_URL`)
-or `openai` (needs `OPENAI_API_KEY`). Running an app needs an Ollama of your own; the tests do not.
+or `openai` (needs `OPENAI_API_KEY`).
 
-`./mvnw verify` runs the Ollama-backed ITs — they are the default, not behind a profile. They start
-their own Ollama as a Testcontainer from `.sbx/kit/Dockerfile`, which bakes in the model, so all they
-need is a working Docker. Add `-DskipITs` for a build without one.
+`./mvnw verify` runs the Ollama-backed ITs — they are the default, not behind a profile. The sandbox
+provides that Ollama: `.sbx/kit/spec.yaml` builds `.sbx/kit/Dockerfile` (which bakes in `qwen3:8b`)
+and runs it as a container on `127.0.0.1:11434`. Add `-DskipITs` for a build without a model.
 
 ## Verification — Definition of Done
 
@@ -54,8 +54,8 @@ A task is only finished when:
 1. `./mvnw verify -pl <affected modules> -am` passes.
 2. For UI changes: the app has been started and the change verified via a Playwright screenshot
    (save screenshots to `~/screenshots/`).
-3. For changes to filter/AI logic: the affected module's IT classes pass against the Ollama
-   Testcontainer (they run in plain `verify`). Every AI module has two kinds: the `*CustomerSearchIT`
+3. For changes to filter/AI logic: the affected module's IT classes pass against the Ollama the
+   sandbox provides (they run in plain `verify`). Every AI module has two kinds: the `*CustomerSearchIT`
    (through the service — the eight canonical queries and the five robustness cases) and the
    browserless IT (the same eight through the UI). 02 has one of each per variant, so four.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into

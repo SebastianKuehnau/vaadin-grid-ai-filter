@@ -76,7 +76,7 @@ Every app depends on `00-commons`, so a single-module build needs `-am`. `spring
 `01-non-ai-filter` needs no configuration. The three AI modules each talk to a single Spring AI
 `ChatModel` bean and pick a backend purely via Spring profile — never a code change:
 
-- **`ollama`** (default) — a local Ollama instance at `OLLAMA_BASE_URL`: `ollama pull qwen3.5:4b`
+- **`ollama`** (default) — a local Ollama instance at `OLLAMA_BASE_URL`: `ollama pull qwen3:8b`
 - **`openai`** — the OpenAI cloud API, needs `OPENAI_API_KEY`
 
 ## Tests

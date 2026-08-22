@@ -15,8 +15,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
-import org.springframework.context.annotation.Import;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** Variant 04 through its service: 03's filter type, delivered as a tool call. */
@@ -24,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
         properties = "spring.autoconfigure.exclude=com.vaadin.flow.spring.SpringBootAutoConfiguration")
 @Timeout(value = 300, unit = TimeUnit.SECONDS)
 @ExtendWith({TokenUsageExtension.class, TestNameLoggingExtension.class})
-@Import(OllamaContainerConfig.class)
 class HybridCustomerSearchIT {
 
     @Autowired
