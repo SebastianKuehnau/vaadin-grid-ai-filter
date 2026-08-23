@@ -5,6 +5,9 @@
 target/
 **/src/main/frontend/generated/
 
+# Benchmark logs: a single run is not a stable state of the project
+/benchmark/results/
+
 # IDE
 .idea/
 

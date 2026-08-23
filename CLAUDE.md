@@ -62,6 +62,23 @@ removes it. See `docs/adr/0002-ollama-as-a-testcontainer.md`.
 **The app is never run inside the sandbox** — only its tests are. `spring-boot:run` and the
 Playwright screenshots below belong on the development machine.
 
+## Benchmark
+
+`benchmark/benchmark.sh` compares the four variants by speed, tokens and correctness: it runs each
+variant's IT class against every named model and writes one log per model/variant/repetition to
+`benchmark/results/<timestamp>/` (git-ignored). Not a Maven module — the reactor ignores it.
+
+```bash
+OLLAMA_MODELS=qwen3:8b,llama3.2:3b ./benchmark/benchmark.sh   # BENCHMARK_RUNS defaults to 3
+```
+
+It needs a **local Ollama** with those models installed, not the Testcontainer — it sets
+`OLLAMA_TESTCONTAINER=false` and `OLLAMA_MODEL` per run, which the three
+`application-ollama.properties` pick up via `${OLLAMA_MODEL:qwen3:8b}`. It deliberately does not
+parse the logs: `TestNameLoggingExtension` already writes `OK`/`FAIL`/`SKIP` per test and
+`TokenUsageAdvisor` the tokens and milliseconds, so summarizing them is a separate step. A failing
+test never aborts the run — for a weaker model that failure *is* the measurement.
+
 ## Verification — Definition of Done
 
 A task is only finished when:
