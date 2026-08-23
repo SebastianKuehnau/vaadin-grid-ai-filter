@@ -40,22 +40,38 @@ watches `../00-commons/target/classes` (`spring.devtools.restart.additional-path
 restarts it and picks up the new jar. Use `install`, not `compile` — `compile` fires the trigger but
 leaves the jar the app loads untouched.
 
-AI provider is selected via Spring profiles: `ollama` (default; expects Ollama at `OLLAMA_BASE_URL`)
-or `openai` (needs `OPENAI_API_KEY`).
+The Spring profile says **which** backend answers: `ollama` (default) or `openai` (needs
+`OPENAI_API_KEY`). Two environment variables say **where** that Ollama runs — see below.
 
-`./mvnw verify` runs the Ollama-backed ITs — they are the default, not behind a profile. The sandbox
-provides that Ollama: `.sbx/kit/spec.yaml` builds `.sbx/kit/Dockerfile` (which bakes in `qwen3:8b`)
-and runs it as a container on `127.0.0.1:11434`. Add `-DskipITs` for a build without a model.
+`./mvnw verify` runs the Ollama-backed ITs — they are the default, not behind a profile, and they
+bring their own Ollama: `OllamaContainerConfig` (in `00-commons`' test-jar) starts
+`00-commons/src/test/resources/ollama/Dockerfile`, which bakes in `qwen3:8b`, and Spring AI's
+`@ServiceConnection` wires `spring.ai.ollama.base-url` to it. **Docker is therefore required**;
+`-DskipITs` builds without one. Two escape hatches:
+
+- `OLLAMA_TESTCONTAINER=false` skips the container, so the ITs use `spring.ai.ollama.base-url`
+  (`${OLLAMA_BASE_URL:http://localhost:11434}`) — an Ollama of your own, which needs `qwen3:8b`.
+- `AI_TEST_PROFILE=openai` runs them against the OpenAI API instead.
+
+The container is marked reusable and the three AI modules set `TESTCONTAINERS_REUSE_ENABLE=true` in
+their failsafe configuration, so **one** container serves every Spring context — without that, each
+context starts its own Ollama and their resident models exhaust the machine's RAM. It outlives the
+build on purpose; `docker rm -f $(docker ps -q --filter ancestor=ai-grid-filter/ollama:qwen3-8b)`
+removes it. See `docs/adr/0002-ollama-as-a-testcontainer.md`.
+
+**The app is never run inside the sandbox** — only its tests are. `spring-boot:run` and the
+Playwright screenshots below belong on the development machine.
 
 ## Verification — Definition of Done
 
 A task is only finished when:
 
 1. `./mvnw verify -pl <affected modules> -am` passes.
-2. For UI changes: the app has been started and the change verified via a Playwright screenshot
-   (save screenshots to `~/screenshots/`).
-3. For changes to filter/AI logic: the affected module's IT classes pass against the Ollama the
-   sandbox provides (they run in plain `verify`). Every AI module has two kinds: the `*CustomerSearchIT`
+2. For UI changes: on the development machine, the app has been started and the change verified
+   via a Playwright screenshot (save screenshots to `~/screenshots/`). In the sandbox, where the app
+   is not run, the browserless IT takes its place.
+3. For changes to filter/AI logic: the affected module's IT classes pass against the Ollama
+   Testcontainer (they run in plain `verify`). Every AI module has two kinds: the `*CustomerSearchIT`
    (through the service — the eight canonical queries and the five robustness cases) and the
    browserless IT (the same eight through the UI). 02 has one of each per variant, so four.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
