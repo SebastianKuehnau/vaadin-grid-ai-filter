@@ -1,6 +1,6 @@
 schemaVersion: "2"
 kind: mixin
-name: vaadin-grid-ai-filte
+name: vaadin-grid-ai-filter
 displayName: vaadin-grid-ai-filter Vaadin dev environment
 description: >-
   Vaadin skills and MCP, and Maven/Vaadin/GitHub network access. The ITs bring their
