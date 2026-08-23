@@ -3,6 +3,7 @@ package dev.demo.vaadin.aigridfilter.ui;
 import com.vaadin.browserless.SpringBrowserlessTest;
 import com.vaadin.browserless.internal.MockVaadin;
 import com.vaadin.flow.component.grid.GridTester;
+import dev.demo.vaadin.aigridfilter.ai.OllamaContainerConfig;
 import dev.demo.vaadin.aigridfilter.ai.TestNameLoggingExtension;
 import dev.demo.vaadin.aigridfilter.ai.TokenUsageExtension;
 import dev.demo.vaadin.aigridfilter.data.Customer;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 
 import java.time.Duration;
 import java.util.List;
@@ -25,6 +27,7 @@ import static org.awaitility.Awaitility.await;
 @SpringBootTest
 @Timeout(value = 180, unit = TimeUnit.SECONDS)
 @ExtendWith({TokenUsageExtension.class, TestNameLoggingExtension.class})
+@Import(OllamaContainerConfig.class)
 public abstract class AbstractCustomerSearchViewIT extends SpringBrowserlessTest {
 
     @Autowired

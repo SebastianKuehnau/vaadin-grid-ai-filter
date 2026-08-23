@@ -79,12 +79,26 @@ Every app depends on `00-commons`, so a single-module build needs `-am`. `spring
 - **`ollama`** (default) — a local Ollama instance at `OLLAMA_BASE_URL`: `ollama pull qwen3:8b`
 - **`openai`** — the OpenAI cloud API, needs `OPENAI_API_KEY`
 
+That is what the *app* needs. The tests bring their own Ollama; see below.
+
 ## Tests
 
+The ITs need no Ollama installation — only Docker. They start one as a Testcontainer from
+`00-commons/src/test/resources/ollama/Dockerfile`, which bakes `qwen3:8b` into the image, and Spring
+AI's `@ServiceConnection` points `spring.ai.ollama.base-url` at it. The first run downloads roughly
+5 GB; later runs reuse the image layer.
+
 ```bash
-./mvnw verify              # everything, including the Ollama-backed ITs
-./mvnw verify -DskipITs    # everything that needs no model
+./mvnw verify                                 # everything, including the Ollama-backed ITs
+./mvnw verify -DskipITs                       # everything that needs no model
+OLLAMA_TESTCONTAINER=false ./mvnw verify      # against your own Ollama at OLLAMA_BASE_URL
+AI_TEST_PROFILE=openai ./mvnw verify          # against the OpenAI API
 ```
+
+The container is reusable and deliberately outlives the build, so a second run pays no model reload —
+one container serves every Spring context, which is also what keeps the ITs inside a laptop's RAM.
+Remove it with `docker rm -f $(docker ps -q --filter ancestor=ai-grid-filter/ollama:qwen3-8b)`.
+Why a Testcontainer and not a provisioned server: `docs/adr/0002-ollama-as-a-testcontainer.md`.
 
 Each AI module has two IT classes per variant, and both spell out what they do: one `@Test` per
 natural-language query, the prompt as a string literal and the expected customer set right next to it.
