@@ -67,6 +67,7 @@ Playwright screenshots below belong on the development machine.
 `benchmark/benchmark.sh` compares the four variants by speed, tokens and correctness: it runs each
 variant's IT class against every named model and writes one log per model/variant/repetition to
 `benchmark/results/<timestamp>/` (git-ignored). Not a Maven module — the reactor ignores it.
+`benchmark/README.md` documents it, including the prompt that turns the logs into a report.
 
 ```bash
 OLLAMA_MODELS=qwen3:8b,llama3.2:3b ./benchmark/benchmark.sh   # BENCHMARK_RUNS defaults to 3
