@@ -1,5 +1,5 @@
 Read every *.log and run-info.txt in <RESULT_DIR>/ and write me a
-comparison report as Markdown to <RESULT_DIR>/report.md.
+comparison report as Markdown to <RESULT_DIR>/report.md and as HTML to <RESULT_DIR>/report.html.
 
 Context you need:
 - Each file is named <model>__<variant>__run<N>.log. The variants 02a, 02b, 03 and 04 are four
