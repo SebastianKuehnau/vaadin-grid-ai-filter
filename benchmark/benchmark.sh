@@ -4,10 +4,12 @@
 # bakes in one model, while a benchmark has to pick the model, so this drives a local Ollama daemon.
 #
 # The logs carry everything the comparison needs: TestNameLoggingExtension writes OK/FAIL/SKIP per test,
-# TokenUsageAdvisor writes tokens and milliseconds per query plus a summary per test class. Bash never
-# parses any of it - at the end Claude Code reads the logs and writes report.md, with the prompt of
-# benchmark/report-prompt.md. The logs stay the artifact: BENCHMARK_REPORT=false skips the summary,
-# and a failed or skipped report never invalidates a run that took hours.
+# TokenUsageAdvisor writes tokens and milliseconds per query plus a summary per test class. No line of
+# this script parses any of it - at the end Claude Code reads the logs and writes report.md, with the
+# prompt of benchmark/report-prompt.md. That report step is allowed Bash so it can compute the medians
+# with a throwaway script of its own instead of in its head; see docs/adr/0003. The logs stay the
+# artifact: BENCHMARK_REPORT=false skips the summary, and a failed or skipped report never invalidates
+# a run that took hours.
 #
 # Beware when reading the results: all four IT classes carry @Timeout(300s). A weak model on CPU can
 # blow that in a tool-calling variant, which then looks like a wrong answer. The FAIL line tells them apart.
@@ -92,6 +94,8 @@ unload_all_models() {
 
 # Has Claude Code read the logs and write report.md next to them, using benchmark/report-prompt.md.
 # Runs after the last model is freed, so the report never competes with a model for RAM.
+# Bash is allowed on purpose: the prompt asks for a throwaway parser, because medians over two dozen
+# logs computed in the model's head are where silent errors come from (docs/adr/0003).
 write_report() {
     local prompt_file="${REPO_ROOT}/benchmark/report-prompt.md"
     if [[ ! -f "${prompt_file}" ]]; then
@@ -110,7 +114,7 @@ write_report() {
     echo "benchmark: writing report.md - this reads every log and takes a few minutes"
     # From the repository root, so the relative paths in the prompt resolve, and without stdin.
     ( cd "${REPO_ROOT}" && claude -p "${prompt}" \
-        --allowedTools Read Write Glob Grep < /dev/null ) \
+        --allowedTools Read Write Glob Grep Bash < /dev/null ) \
         || echo "benchmark: the report failed - the logs in ${RESULT_DIR} are still complete" >&2
 }
 

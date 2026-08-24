@@ -4,8 +4,10 @@ Compares the four AI variants by **speed, token consumption and correctness**, m
 integration tests that already exist, against **several local Ollama models**.
 
 `benchmark.sh` orchestrates the runs, collects the raw logs, and then has Claude Code turn them into
-`report.md` — see [The report](#the-report). No line of bash parses a log: the prompt does the
-reading, so the summary can be argued with and changed without touching the script.
+`report.md` — see [The report](#the-report). No line of *this script* parses a log: the prompt does
+the reading, so the summary can be argued with and changed without touching the script. The report
+step does get `Bash`, so it can compute its medians with a throwaway parser of its own rather than in
+its head — that script is never committed, and the prompt stays the only thing you edit.
 
 ## Prerequisites
 
@@ -67,6 +69,12 @@ One `mvn verify` per model, variant and repetition, with `OLLAMA_TESTCONTAINER=f
 | 02b | `02-ai-agent-filter` | `OperatorCustomerSearchIT` | 10 | 3 |
 | 03 | `03-ai-structured-filter` | `StructuredCustomerSearchIT` | 13 | 0 |
 | 04 | `04-ai-hybrid-filter` | `HybridCustomerSearchIT` | 13 | 0 |
+
+The two count columns are a snapshot for orientation — the source of truth is the capability table in
+[`docs/canonical-query-set.md`](../docs/canonical-query-set.md). The report never reads them from
+here: it derives `Test Reach` from the `OK`/`FAIL`/`SKIP` lines of the logs and says so when the
+derived number and that document disagree, which is how a test added without updating the table
+surfaces.
 
 All four classes hold the same 13 test methods with the same names — the eight canonical queries plus
 the five robustness cases of [`docs/canonical-query-set.md`](../docs/canonical-query-set.md). The
@@ -160,7 +168,19 @@ Three traps when interpreting the numbers:
 ## The report
 
 When the last model has been freed, the script runs Claude Code over the result directory and writes
-`report.md` next to the logs — it reads the logs from disk, so nothing has to be pasted into a chat.
+three files next to the logs — it reads the logs from disk, so nothing has to be pasted into a chat:
+
+| File | Content |
+|---|---|
+| `report.md` | the report — verdict, two comparison tables, failures, then an appendix |
+| `report.html` | the same content, for reading in a browser |
+| `report-data.json` | one object per model call, so every table can be recomputed without the logs |
+
+It answers one question in this order: **which invocation method performs best, and which
+model/method combination performs best.** It opens with a five-line verdict, and its prose is capped
+while its tables are not — tables are data and grow with the number of models, prose is what made
+earlier reports unreadable. See [ADR 0003](../docs/adr/0003-benchmark-report-shape.md) for why it is
+shaped that way.
 
 The prompt it uses is [`report-prompt.md`](report-prompt.md), with `<RESULT_DIR>` replaced by the
 run's directory. That one file is the only copy — edit it to change what the report contains, and
@@ -172,7 +192,7 @@ normally. To summarize a run afterwards, or to redo one with a changed prompt:
 
 ```bash
 claude -p "$(sed 's|<RESULT_DIR>|benchmark/results/<timestamp>|g' benchmark/report-prompt.md)" \
-  --allowedTools Read Write Glob Grep
+  --allowedTools Read Write Glob Grep Bash
 ```
 
 Then ask follow-up questions in that session — the context is loaded, so "which queries did every
