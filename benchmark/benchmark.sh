@@ -4,8 +4,10 @@
 # bakes in one model, while a benchmark has to pick the model, so this drives a local Ollama daemon.
 #
 # The logs carry everything the comparison needs: TestNameLoggingExtension writes OK/FAIL/SKIP per test,
-# TokenUsageAdvisor writes tokens and milliseconds per query plus a summary per test class. This script
-# only orchestrates and collects - parsing and summarizing the logs is a separate, later step.
+# TokenUsageAdvisor writes tokens and milliseconds per query plus a summary per test class. Bash never
+# parses any of it - at the end Claude Code reads the logs and writes report.md, with the prompt of
+# benchmark/report-prompt.md. The logs stay the artifact: BENCHMARK_REPORT=false skips the summary,
+# and a failed or skipped report never invalidates a run that took hours.
 #
 # Beware when reading the results: all four IT classes carry @Timeout(300s). A weak model on CPU can
 # blow that in a tool-calling variant, which then looks like a wrong answer. The FAIL line tells them apart.
@@ -21,12 +23,14 @@
 #   OLLAMA_MODELS    comma-separated model names, exactly as "ollama list" prints them (required)
 #   OLLAMA_BASE_URL  the Ollama daemon to measure against (default http://localhost:11434)
 #   BENCHMARK_RUNS   repetitions per model and variant (default 3)
+#   BENCHMARK_REPORT "false" leaves the logs unsummarized (default true, needs "claude" on PATH)
 
 # No "-e": a failing test run is a measurement, not an error, and must not end the benchmark.
 set -uo pipefail
 
 BASE_URL="${OLLAMA_BASE_URL:-http://localhost:11434}"
 RUNS="${BENCHMARK_RUNS:-3}"
+REPORT="${BENCHMARK_REPORT:-true}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # One line per variant: label, Maven module, IT class. The four variants of docs/canonical-query-set.md.
@@ -84,6 +88,30 @@ unload_all_models() {
         unload_model "${model}"
     done
     await_daemon_idle
+}
+
+# Has Claude Code read the logs and write report.md next to them, using benchmark/report-prompt.md.
+# Runs after the last model is freed, so the report never competes with a model for RAM.
+write_report() {
+    local prompt_file="${REPO_ROOT}/benchmark/report-prompt.md"
+    if [[ ! -f "${prompt_file}" ]]; then
+        echo "benchmark: ${prompt_file} is missing - skipping the report" >&2
+        return
+    fi
+    if ! command -v claude >/dev/null; then
+        echo "benchmark: 'claude' is not on PATH - skipping the report, the logs are complete" >&2
+        return
+    fi
+
+    # The prompt names the directory it is about; everything else is the same for every run.
+    local prompt
+    prompt="$(sed "s|<RESULT_DIR>|${RESULT_DIR#"${REPO_ROOT}/"}|g" "${prompt_file}")"
+
+    echo "benchmark: writing report.md - this reads every log and takes a few minutes"
+    # From the repository root, so the relative paths in the prompt resolve, and without stdin.
+    ( cd "${REPO_ROOT}" && claude -p "${prompt}" \
+        --allowedTools Read Write Glob Grep < /dev/null ) \
+        || echo "benchmark: the report failed - the logs in ${RESULT_DIR} are still complete" >&2
 }
 
 # ":" and "/" in model names are legal but make for awkward file names.
@@ -177,5 +205,9 @@ for model in "${MODELS[@]}"; do
     # Waits until the daemon is actually idle, so the next model is not fitted around this one's RAM.
     unload_all_models
 done
+
+if [[ "${REPORT}" == "true" ]]; then
+    write_report
+fi
 
 echo "benchmark: done - ${RESULT_DIR}"
