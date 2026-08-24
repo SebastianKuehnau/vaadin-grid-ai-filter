@@ -75,7 +75,29 @@ errors. The browserless UI ITs are excluded — they exercise the same logic beh
 So one repetition is 43 test executions across four Maven invocations, and the default of three
 repetitions makes 129 per model. On CPU that is **hours per model**, not minutes. Model loading is
 kept out of the measurement: the script pins the weights via `/api/generate` with `keep_alive: 30m`
-before every repetition and unloads them before switching models, so two models never compete for RAM.
+before every repetition, using the same `num_ctx` as the apps so it warms the runner the tests use.
+
+## Only one model at a time
+
+Two 8B models are ~12 GB, and Ollama does not evict the old one to make room — it **fits the new
+model around the memory the old one still holds**, which is then measured as the new model being
+slow for its whole run. So the script frees every resident model — not only the ones it pinned —
+at three points, each time waiting for `/api/ps` to confirm rather than assuming:
+
+- **at the start**, against leftovers from an earlier run,
+- **at every model switch**, before the next model is pinned,
+- **in an `EXIT` trap**, so Ctrl-C out of an hours-long run leaves nothing behind.
+
+That last one matters because the apps ask for `keep-alive=1h`: a model **outlives the process that
+loaded it** by up to an hour. Stopping the demo app or aborting a benchmark does not free it, and
+the next run would otherwise measure next to it. To check by hand:
+
+```bash
+ollama ps          # should be empty before a benchmark, one model during it
+```
+
+`run-info.txt` records what was resident before each Maven invocation, so a measurement taken next
+to a second model stays recognizable afterwards instead of just looking slow.
 
 ## What it writes
 
@@ -87,12 +109,16 @@ benchmark/results/<timestamp>/
     …
 ```
 
-Git-ignored — a single run is not a stable state of the project. `run-info.txt` also collects one
-overview line per combination, with the exit code and the wall-clock seconds:
+Git-ignored — a single run is not a stable state of the project. `run-info.txt` also collects two
+lines per combination: what was resident going in, and the exit code with the wall-clock seconds:
 
 ```
+resident  qwen3:8b                 02a  run1   qwen3:8b
 qwen3:8b                 02a  run1   exit=1   612s
 ```
+
+One model on the `resident` line is the healthy case. Two means that measurement shared its RAM and
+its numbers are not comparable.
 
 A failing test never aborts the run. For a weaker model a failure *is* the measurement.
 
@@ -170,6 +196,9 @@ Rules, they matter:
   is a likely cause of the wrong result and not a normal wrong answer.
 - Flag repetitions of the same query that differ by more than a factor of two in time, and say so
   plainly rather than averaging the difference away.
+- Check the "resident" lines in run-info.txt. One model is healthy; a line naming two means that
+  repetition shared its RAM with another model, so its speed numbers are not comparable - flag it
+  and leave it out of the medians instead of averaging it in.
 - Quote the model digests and the git commit from run-info.txt at the top of the report, so it is
   clear which models and which code state were measured.
 - If something in the logs is missing or ambiguous, say so instead of guessing.
