@@ -62,34 +62,6 @@ removes it. See `docs/adr/0002-ollama-as-a-testcontainer.md`.
 **The app is never run inside the sandbox** — only its tests are. `spring-boot:run` and the
 Playwright screenshots below belong on the development machine.
 
-## Benchmark
-
-`benchmark/benchmark.sh` compares the four variants by speed, tokens and correctness: it runs each
-variant's IT class against every named model and writes one log per model/variant/repetition to
-`benchmark/results/<timestamp>/` (git-ignored). Not a Maven module — the reactor ignores it.
-`benchmark/README.md` documents it; `benchmark/report-prompt.md` is the prompt that turns the logs
-into `report.md`.
-
-```bash
-OLLAMA_MODELS=qwen3:8b,llama3.2:3b ./benchmark/benchmark.sh   # BENCHMARK_RUNS defaults to 3
-```
-
-It needs a **local Ollama** with those models installed, not the Testcontainer — it sets
-`OLLAMA_TESTCONTAINER=false` and `OLLAMA_MODEL` per run, which the three
-`application-ollama.properties` pick up via `${OLLAMA_MODEL:qwen3:8b}`. A failing test never aborts
-the run — for a weaker model that failure *is* the measurement.
-
-No bash parses a log. `TestNameLoggingExtension` writes `OK`/`FAIL`/`SKIP` per test and
-`TokenUsageAdvisor` the tokens and milliseconds; at the end the script calls `claude -p` with
-`benchmark/report-prompt.md` (the only copy of that prompt) to write `report.md` beside the logs.
-`BENCHMARK_REPORT=false` skips it, and a failed report never invalidates a run that took hours.
-
-Only one model may ever be resident: two 8B models are ~12 GB, and Ollama fits a new model around
-memory the old one still holds instead of evicting it, which then reads as the *new* model being
-slow. Since the apps ask for `keep-alive=1h`, a model outlives the process that loaded it, so the
-script frees every resident model — at the start, at each model switch, and in an `EXIT` trap for
-Ctrl-C — each time waiting for `/api/ps` to confirm.
-
 ## Verification — Definition of Done
 
 A task is only finished when:
