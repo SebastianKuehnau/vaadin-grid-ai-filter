@@ -22,21 +22,56 @@ gets both. Step 5 keeps that type but goes back to step 3's *delivery mechanism*
 
 ## What each approach can express
 
-| # | Capability | 02(a) | 02(b) | 03 | 04 |
-|---|---|---|---|---|---|
-| C1 | single value | ✅ | ✅ | ✅ | ✅ |
-| C2 | multiple values for one field (OR) | ❌ | ❌ | ✅ | ✅ |
-| C3 | negation | ❌ | ✅ | ✅ | ✅ |
-| C4 | non-CONTAINS operator (starts-with) | ❌ | ✅ | ✅ | ✅ |
-| C5 | combined AND across fields | ✅ | ✅ | ✅ | ✅ |
-| C6 | numeric range | ❌ | ❌ | ✅ | ✅ |
-| C7 | relative date | ❌ | ✅ | ✅ | ✅ |
-| C8 | date range | ❌ | ❌ | ✅ | ✅ |
-| | **Capabilities reached** | **2 / 8** | **5 / 8** | **8 / 8** | **8 / 8** |
+Every row below is one IT test case: a natural-language query written as a string literal in each AI
+module's IT class, with the expected customer set computed from the seeded data right next to it.
+✅ means the test runs, ❌ means it carries `@Disabled` with the reason the variant's filter type
+cannot express that query. The queries themselves are in
+[`docs/canonical-query-set.md`](docs/canonical-query-set.md).
+
+| # | Capability | IT test method | 02(a) | 02(b) | 03 | 04 |
+|---|---|---|---|---|---|---|
+| C1 | single value | `findsCustomersInOneCity` | ✅ | ✅ | ✅ | ✅ |
+| C2 | multiple values for one field (OR) | `findsCustomersInEitherOfTwoCities` | ❌ | ❌ | ✅ | ✅ |
+| C3 | negation | `findsCustomersOutsideOneCity` | ❌ | ✅ | ✅ | ✅ |
+| C4 | non-CONTAINS operator (starts-with) | `findsCustomersWhoseContactNameStartsWithALetter` | ❌ | ✅ | ✅ | ✅ |
+| C5 | combined AND across fields | `findsCreditworthyCustomersInOneCity` | ✅ | ✅ | ✅ | ✅ |
+| C6 | numeric range | `findsCustomersWithinARevenueRange` | ❌ | ❌ | ✅ | ✅ |
+| C7 | relative date | `findsCustomersWithAnOrderInTheLastTwelveMonths` | ❌ | ✅ | ✅ | ✅ |
+| C8 | date range | `findsCustomersWhoLastOrderedWithinADateRange` | ❌ | ❌ | ✅ | ✅ |
+| C9 | single value on a second address field | `findsCustomersInOneCountry` | ✅ | ✅ | ✅ | ✅ |
+| C10 | numeric upper bound | `findsCustomersUpToARevenueLimit` | ❌ | ✅ | ✅ | ✅ |
+| C11 | exact day, German date format | `findsCustomersWhoLastOrderedOnAGermanFormattedDate` | ✅ | ✅ | ✅ | ✅ |
+| C12 | rating stated as a negation | `findsCustomersWhoAreNotCreditworthy` | ✅ | ✅ | ✅ | ✅ |
+| | **Capabilities reached** | | **5 / 12** | **9 / 12** | **12 / 12** | **12 / 12** |
+
+C1–C8 run twice per variant — once through the AI service (`*CustomerSearchIT`) and once through the
+UI (`*BrowserlessIT`). C9–C12 run through the service only.
 
 ❌ means *architecturally impossible*, not *unreliable*: no prompt and no model can make a filter type
-carry a value it has no slot for. The queries behind these eight rows are in
-[`docs/canonical-query-set.md`](docs/canonical-query-set.md).
+carry a value it has no slot for.
+
+### The robustness set
+
+The same IT classes also run input that exercises no new capability — phrasing, spelling, language,
+and one hostile query. None of it depends on the filter type, so all four variants are expected to
+pass all of it; these run in the service-level `*CustomerSearchIT` only.
+
+| # | Input | IT test method | 02(a) | 02(b) | 03 | 04 |
+|---|---|---|---|---|---|---|
+| R1 | small talk | `ignoresSmallTalk` | ✅ | ✅ | ✅ | ✅ |
+| R2 | an unrelated question | `ignoresAnUnrelatedQuestion` | ✅ | ✅ | ✅ | ✅ |
+| R3 | "show me all customers" | `showsEveryCustomerWhenAskedForAll` | ✅ | ✅ | ✅ | ✅ |
+| R4 | asking for the filter to be reset | `showsEveryCustomerWhenTheFilterIsReset` | ✅ | ✅ | ✅ | ✅ |
+| R5 | C1 asked in German | `understandsAGermanQuery` | ✅ | ✅ | ✅ | ✅ |
+| R6 | C1 in all caps | `understandsAnAllUppercaseQuery` | ✅ | ✅ | ✅ | ✅ |
+| R7 | C1 with polite filler words | `understandsAPoliteQueryWithFillerWords` | ✅ | ✅ | ✅ | ✅ |
+| R8 | a prompt injection that tells the model to clear the filter | `keepsTheFilterWhenTheQueryContainsAnInjection` | ⏸ | ⏸ | ⏸ | ⏸ |
+| R9 | the empty string | `showsEveryCustomerForAnEmptyQuery` | ✅ | ✅ | ✅ | ✅ |
+| R10 | a single blank | `showsEveryCustomerForABlankQuery` | ✅ | ✅ | ✅ | ✅ |
+
+⏸ is `@Disabled("not supported yet")`: **R8 fails in all four variants** — the model follows the
+injected instruction and clears the filter. That is a reliability finding and an open task, not a
+limit of any filter type.
 
 ## Stack
 
