@@ -66,7 +66,8 @@ public class CustomerSearchService implements CustomerSearchAgent {
     }
 
     /** The one tool of this module: a single parameter carrying the whole condition list - 03's payload. */
-    @Tool(description = """
+    // returnDirect: the answer text is irrelevant, so the call ends here instead of going back to the model.
+    @Tool(returnDirect = true, description = """
             Search and filter the customer grid. Returns nothing; it updates the grid in place to show
             only the matching customers, replacing any previous filter (filters are not additive).
             Pass the complete list of conditions in one call. ALL conditions must match (AND). Several
