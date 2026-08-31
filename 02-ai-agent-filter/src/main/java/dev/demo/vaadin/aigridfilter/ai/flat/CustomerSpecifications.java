@@ -26,18 +26,18 @@ public final class CustomerSpecifications {
             List<Predicate> predicates = new ArrayList<>();
             var address = root.get("address");
 
-            addLike(predicates, cb, root.get("companyName"), criteria.companyName());
-            addLike(predicates, cb, root.get("contactName"), criteria.contactName());
-            addLike(predicates, cb, root.get("email"), criteria.email());
-            addLike(predicates, cb, root.get("phone"), criteria.phone());
-            addLike(predicates, cb, address.get("country"), criteria.country());
-            addLike(predicates, cb, address.get("city"), criteria.city());
-            addLike(predicates, cb, address.get("postalCode"), criteria.postalCode());
-            addLike(predicates, cb, address.get("street"), criteria.street());
-            addLike(predicates, cb, address.get("houseNumber"), criteria.houseNumber());
+            addEquals(predicates, cb, root.get("companyName"), criteria.companyName());
+            addEquals(predicates, cb, root.get("contactName"), criteria.contactName());
+            addEquals(predicates, cb, root.get("email"), criteria.email());
+            addEquals(predicates, cb, root.get("phone"), criteria.phone());
+            addEquals(predicates, cb, address.get("country"), criteria.country());
+            addEquals(predicates, cb, address.get("city"), criteria.city());
+            addEquals(predicates, cb, address.get("postalCode"), criteria.postalCode());
+            addEquals(predicates, cb, address.get("street"), criteria.street());
+            addEquals(predicates, cb, address.get("houseNumber"), criteria.houseNumber());
 
-            addYear(predicates, cb, root.get("customerSince"), criteria.customerSince());
-            addYear(predicates, cb, root.get("lastOrderDate"), criteria.lastOrderDate());
+            addDate(predicates, cb, root.get("customerSince"), criteria.customerSince());
+            addDate(predicates, cb, root.get("lastOrderDate"), criteria.lastOrderDate());
 
             if (criteria.creditRating() != null) {
                 var creditScore = root.<Integer>get("creditScore");
@@ -54,19 +54,19 @@ public final class CustomerSpecifications {
         };
     }
 
-    /** Adds a case-insensitive substring match, if a value is given. */
-    private static void addLike(List<Predicate> predicates, CriteriaBuilder cb, Path<String> path, String value) {
+    /** Adds a case-insensitive match on the whole field, if a value is given. */
+    private static void addEquals(List<Predicate> predicates, CriteriaBuilder cb, Path<String> path, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
-        predicates.add(cb.like(cb.lower(path), "%" + value.toLowerCase() + "%"));
+        predicates.add(cb.equal(cb.lower(path), value.toLowerCase()));
     }
 
-    /** Adds a match on the whole calendar year the given date falls in, if a date is given. */
-    private static void addYear(List<Predicate> predicates, CriteriaBuilder cb, Path<LocalDate> path, LocalDate date) {
+    /** Adds a match on that exact day, if a date is given. */
+    private static void addDate(List<Predicate> predicates, CriteriaBuilder cb, Path<LocalDate> path, LocalDate date) {
         if (date == null) {
             return;
         }
-        predicates.add(cb.between(path, LocalDate.of(date.getYear(), 1, 1), LocalDate.of(date.getYear(), 12, 31)));
+        predicates.add(cb.equal(path, date));
     }
 }

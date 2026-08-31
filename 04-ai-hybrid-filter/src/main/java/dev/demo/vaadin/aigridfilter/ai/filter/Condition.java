@@ -2,6 +2,8 @@ package dev.demo.vaadin.aigridfilter.ai.filter;
 
 import com.fasterxml.jackson.annotation.JsonClassDescription;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
 
 import java.util.List;
 
@@ -15,6 +17,8 @@ public record Condition(
         @JsonPropertyDescription("one or more values; matches if the field matches ANY of them, e.g. [Berlin, Köln]")
         List<String> values,
         @JsonPropertyDescription("true to exclude/negate this condition, e.g. 'not in Berlin'")
+        // The model sometimes sends negate=null, which a primitive cannot take - read it as false.
+        @JsonSetter(nulls = Nulls.AS_EMPTY)
         boolean negate) {
 
     /** How a condition compares a field with a value. Negation is not an operator - that is {@link #negate()}. */
