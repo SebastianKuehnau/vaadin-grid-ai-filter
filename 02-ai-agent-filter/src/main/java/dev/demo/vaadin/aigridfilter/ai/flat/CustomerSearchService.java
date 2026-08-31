@@ -38,9 +38,6 @@ class CustomerSearchService implements CustomerSearchAgent {
             one field (e.g. two cities), pass the first one and accept that the rest cannot be
             expressed - do not call the tool again for them.
 
-            The user may misspell words. Fix obvious typos before you fill in the parameters and pass
-            the correctly spelled real-world name - a city typed as "Brelin" is Berlin.
-
             For a relative date ("yesterday", "this year", "last week", "in the last 12 months"), you
             MUST call the currentLocalDateTime tool first and compute the date from its result - NEVER
             guess or assume today's date from memory or context. Only after that call, call
