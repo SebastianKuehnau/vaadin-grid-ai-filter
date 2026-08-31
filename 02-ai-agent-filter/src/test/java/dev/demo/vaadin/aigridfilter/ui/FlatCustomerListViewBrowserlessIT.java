@@ -47,7 +47,7 @@ class FlatCustomerListViewBrowserlessIT extends AbstractCustomerSearchViewIT {
     }
 
     @Test
-    @Disabled("02(a) has no operator - every field is matched with CONTAINS")
+    @Disabled("02(a) has no operator - every field is matched exactly")
     void findsCustomersWhoseContactNameStartsWithALetter() {
         assertThat(search("show me all customers with an \"m\" as the first character in the contact name"))
                 .extracting(Customer::getId)

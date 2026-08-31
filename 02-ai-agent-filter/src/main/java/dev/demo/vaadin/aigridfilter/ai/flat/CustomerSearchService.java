@@ -38,6 +38,9 @@ class CustomerSearchService implements CustomerSearchAgent {
             one field (e.g. two cities), pass the first one and accept that the rest cannot be
             expressed - do not call the tool again for them.
 
+            The user may misspell words. Fix obvious typos before you fill in the parameters and pass
+            the correctly spelled real-world name - a city typed as "Brelin" is Berlin.
+
             For a relative date ("yesterday", "this year", "last week", "in the last 12 months"), you
             MUST call the currentLocalDateTime tool first and compute the date from its result - NEVER
             guess or assume today's date from memory or context. Only after that call, call
@@ -88,9 +91,9 @@ class CustomerSearchService implements CustomerSearchAgent {
             customer. Every parameter takes a single scalar value, never a list: one city is "Berlin",
             and there is no way to search for two cities at once. Different parameters are combined
             with AND.
-            Text parameters match case-insensitively on any substring.
-            Date parameters (customerSince, lastOrderDate) each match customers anywhere in the year
-            the given date falls in (e.g. "2020-01-01" matches all of 2020), in ISO format yyyy-MM-dd.
+            Text parameters match the whole field, case-insensitively - not a substring.
+            Date parameters (customerSince, lastOrderDate) match that one exact day, in ISO format
+            yyyy-MM-dd; there is no way to express a range or a whole year.
             annualRevenue is a MINIMUM: it matches customers with at least that revenue. There is no
             way to express an upper bound or a range.
             """)
@@ -103,16 +106,16 @@ class CustomerSearchService implements CustomerSearchAgent {
                     normalize the user input to E.164 before passing it, e.g. '016057123456' or
                     '0160 57 123456' -> '+4916057123456' (assume Germany / +49 for national numbers).""") String phone,
             @ToolParam(description = """
-                    'customer since' year to match, or null. Matches customers who became a customer
-                    anywhere in that year. An ISO yyyy-MM-dd date; interpret ambiguous user input as
-                    day-first (German format), e.g. '03.05.05' -> "2005-05-03", and "since 2020" ->
-                    "2020-01-01". For a relative date ("this year"), call currentLocalDateTime
+                    the exact 'customer since' day to match, or null. An ISO yyyy-MM-dd date;
+                    interpret ambiguous user input as day-first (German format), e.g. '03.05.05' ->
+                    "2005-05-03". Only one exact day can be matched - "since 2020" cannot be
+                    expressed. For a relative date ("yesterday"), call currentLocalDateTime
                     first.""") LocalDate customerSince,
             @ToolParam(description = """
-                    last-order year to match, or null. Matches customers whose last order falls
-                    anywhere in that year. An ISO yyyy-MM-dd date; interpret ambiguous user input as
-                    day-first (German format), e.g. '03.05.05' -> "2005-05-03". For a relative date
-                    ("yesterday", "last week"), call currentLocalDateTime first.""") LocalDate lastOrderDate,
+                    the exact last-order day to match, or null. An ISO yyyy-MM-dd date; interpret
+                    ambiguous user input as day-first (German format), e.g. '03.05.05' ->
+                    "2005-05-03". Only one exact day can be matched, never a range. For a relative
+                    date ("yesterday"), call currentLocalDateTime first.""") LocalDate lastOrderDate,
             @ToolParam(description = """
                     country, e.g. "Germany" or "France". A bare city name (Hamburg, Berlin, Munich,
                     ...) is NOT a country - put it in the city parameter instead.""") String country,
