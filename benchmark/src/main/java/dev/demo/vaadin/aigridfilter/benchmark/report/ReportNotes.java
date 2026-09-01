@@ -49,9 +49,10 @@ public final class ReportNotes {
         notes.add("Time-to-valid-result is the whole resolveFilter call plus the database query - what "
                 + "a user waits for. LLM latency is a single model call; a tool approach makes one call "
                 + "per tool round trip, so a query can hold several.");
-        notes.add("Time-to-first-tool is the first model call's duration: with returnDirect tools that "
-                + "call is the one that ends in the tool invocation. 03 returns structured output and "
-                + "calls no tool, so it has no value.");
+        notes.add("Time-to-first-tool is the first model call's duration - the point at which the model "
+                + "has emitted its tool call. 03 returns structured output and calls no tool, so it has "
+                + "no value. Where a model answered without calling a tool at all (small talk, say), "
+                + "the value is simply that one call's duration.");
         notes.add("Tokens/s comes from Ollama's own eval-count over eval-duration - generation only, "
                 + "without prompt evaluation or transport.");
         notes.add("Skipped cases are architecturally inexpressible for that approach, not failures. "

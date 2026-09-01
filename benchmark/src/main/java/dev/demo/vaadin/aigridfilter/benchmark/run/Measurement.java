@@ -8,7 +8,7 @@ import java.util.List;
  * @param timeToValidResultMs the whole {@code resolveFilter(...)} call plus the database query — what
  *                            a user waits for
  * @param llmLatenciesMs      one entry per model call; a tool approach adds a call per tool round trip
- * @param timeToFirstToolMs   the first model call's duration, which is when the tool was invoked;
+ * @param timeToFirstToolMs   the first model call's duration — when the model emitted its tool call;
  *                            {@code null} for 03, which calls no tool
  * @param tokensPerSecond     generation rate from Ollama's own {@code eval-count} / {@code eval-duration}
  */

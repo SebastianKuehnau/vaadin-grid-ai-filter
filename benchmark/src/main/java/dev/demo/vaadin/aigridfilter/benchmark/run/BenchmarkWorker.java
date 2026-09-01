@@ -45,7 +45,21 @@ public final class BenchmarkWorker {
     private static final Logger logger = LoggerFactory.getLogger(BenchmarkWorker.class);
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    private BenchmarkWorker() {
+    private final Approach approach;
+    private final ConfigurableApplicationContext context;
+    private final CustomerRepository repository;
+    private final TokenUsageAdvisor advisor;
+    private final List<Customer> allCustomers;
+    private final int queryTimeoutSeconds;
+
+    private BenchmarkWorker(Approach approach, ConfigurableApplicationContext context,
+                            int queryTimeoutSeconds) {
+        this.approach = approach;
+        this.context = context;
+        this.repository = context.getBean(CustomerRepository.class);
+        this.advisor = context.getBean(TokenUsageAdvisor.class);
+        this.allCustomers = repository.findAll();
+        this.queryTimeoutSeconds = queryTimeoutSeconds;
     }
 
     public static void main(String[] args) throws Exception {
@@ -73,47 +87,43 @@ public final class BenchmarkWorker {
         System.setProperty("spring.config.name", "benchmark-worker");
 
         try (ConfigurableApplicationContext context = start(request)) {
-            CustomerRepository repository = context.getBean(CustomerRepository.class);
-            TokenUsageAdvisor advisor = context.getBean(TokenUsageAdvisor.class);
-            List<Customer> allCustomers = repository.findAll();
-
-            if (request.warmup()) {
-                warmUp(context, approach, repository);
-            }
-            OllamaAdmin.LoadedModel loaded = new OllamaAdmin(request.ollamaBaseUrl())
-                    .loaded(request.model()).orElse(null);
-
-            List<Measurement> measurements = new ArrayList<>();
-            for (int run = 1; run <= request.runs(); run++) {
-                // A full pass over every case per run, like an IT class run - the model's answers
-                // depend on Ollama's cached prefix, so the order the cases arrive in matters.
-                for (String caseId : request.caseIds()) {
-                    measurements.add(measureOnce(context, approach, CaseCatalog.byId(caseId), run,
-                            repository, allCustomers, advisor, request.queryTimeoutSeconds()));
-                }
-            }
-            return new WorkerResult(approach.id(), request.model(), measurements,
-                    loaded == null ? null : loaded.sizeBytes(),
-                    loaded == null ? null : loaded.vramBytes(),
-                    peakHeapBytes(), null);
+            return new BenchmarkWorker(approach, context, request.queryTimeoutSeconds())
+                    .measureAll(request);
         }
     }
 
+    private WorkerResult measureAll(WorkerRequest request) {
+        if (request.warmup()) {
+            warmUp();
+        }
+        OllamaAdmin.LoadedModel loaded = new OllamaAdmin(request.ollamaBaseUrl())
+                .loaded(request.model()).orElse(null);
+
+        List<Measurement> measurements = new ArrayList<>();
+        for (int run = 1; run <= request.runs(); run++) {
+            // A full pass over every case per run, like an IT class run - the model's answers depend
+            // on Ollama's cached prefix, so the order the cases arrive in matters.
+            for (String caseId : request.caseIds()) {
+                measurements.add(measureOnce(CaseCatalog.byId(caseId), run));
+            }
+        }
+        return new WorkerResult(approach.id(), request.model(), measurements,
+                loaded == null ? null : loaded.sizeBytes(),
+                loaded == null ? null : loaded.vramBytes(),
+                peakHeapBytes(), null);
+    }
+
     /** One model call that is not measured, so the first case does not pay the model's load time. */
-    private static void warmUp(ConfigurableApplicationContext context, Approach approach,
-                               CustomerRepository repository) {
+    private void warmUp() {
         logger.info("Warming up {}", approach.id());
         try {
-            repository.findAll(agent(context, approach).resolveFilter("show me all customers in Berlin"));
+            repository.findAll(agent().resolveFilter("show me all customers in Berlin"));
         } catch (Exception e) {
             logger.warn("Warm-up query failed; measuring anyway", e);
         }
     }
 
-    private static Measurement measureOnce(ConfigurableApplicationContext context, Approach approach,
-                                           BenchmarkCase benchmarkCase, int run,
-                                           CustomerRepository repository, List<Customer> allCustomers,
-                                           TokenUsageAdvisor advisor, int timeoutSeconds) {
+    private Measurement measureOnce(BenchmarkCase benchmarkCase, int run) {
         logger.info("--> run {} {} '{}'", run, benchmarkCase.id(), benchmarkCase.displayQuery());
         advisor.reset();
 
@@ -126,12 +136,12 @@ public final class BenchmarkWorker {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         long start = System.nanoTime();
         try {
-            Future<List<Customer>> answer = executor.submit(() -> repository.findAll(
-                    agent(context, approach).resolveFilter(benchmarkCase.query())));
-            returned = answer.get(timeoutSeconds, TimeUnit.SECONDS);
+            Future<List<Customer>> answer = executor.submit(
+                    () -> repository.findAll(agent().resolveFilter(benchmarkCase.query())));
+            returned = answer.get(queryTimeoutSeconds, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             status = Measurement.Status.TIMEOUT;
-            error = "no result within " + timeoutSeconds + " s";
+            error = "no result within " + queryTimeoutSeconds + " s";
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             status = Measurement.Status.ERROR;
@@ -144,7 +154,7 @@ public final class BenchmarkWorker {
         }
         long timeToValidResultMs = (System.nanoTime() - start) / 1_000_000;
 
-        Set<Long> expected = expectedIds(allCustomers, benchmarkCase);
+        Set<Long> expected = expectedIds(benchmarkCase);
         long correctlyReturned = returned.stream()
                 .filter(customer -> expected.contains(customer.getId())).count();
         long acceptablyReturned = returned.stream().filter(benchmarkCase.mayMatch()).count();
@@ -171,23 +181,24 @@ public final class BenchmarkWorker {
         return new Measurement(benchmarkCase.id(), run, status, precision, recall,
                 returned.size(), expected.size(), timeToValidResultMs,
                 calls.stream().map(TokenUsageAdvisor.Call::durationMillis).toList(),
-                timeToFirstToolMs(approach, calls),
+                timeToFirstToolMs(calls),
                 calls.stream().mapToLong(TokenUsageAdvisor.Call::promptTokens).sum(),
                 calls.stream().mapToLong(TokenUsageAdvisor.Call::completionTokens).sum(),
                 OllamaCallMetrics.tokensPerSecond(calls), error);
     }
 
     /**
-     * The first model call's duration. With {@code returnDirect} tools that call is exactly the one
-     * that ends with the tool invocation, so this is the time to the first tool call; 03 calls no
-     * tool and gets no value.
+     * The first model call's duration — the point at which the model has emitted its first tool call.
+     * 03 calls no tool and gets no value. Where the model answered without calling a tool at all
+     * (small talk, say), this is simply that one call's duration; whether a tool ran is not
+     * observable from outside the module's service.
      */
-    private static Long timeToFirstToolMs(Approach approach, List<TokenUsageAdvisor.Call> calls) {
+    private Long timeToFirstToolMs(List<TokenUsageAdvisor.Call> calls) {
         return approach.toolBased() && !calls.isEmpty() ? calls.getFirst().durationMillis() : null;
     }
 
     /** The ids a correct answer must contain, computed from the seeded data - never a hard-coded list. */
-    private static Set<Long> expectedIds(List<Customer> allCustomers, BenchmarkCase benchmarkCase) {
+    private Set<Long> expectedIds(BenchmarkCase benchmarkCase) {
         Set<Long> ids = new LinkedHashSet<>();
         allCustomers.stream().filter(benchmarkCase.mustMatch())
                 .forEach(customer -> ids.add(customer.getId()));
@@ -195,7 +206,7 @@ public final class BenchmarkWorker {
     }
 
     /** A fresh agent per query: three of the four services are prototypes and hold per-query state. */
-    private static CustomerSearchAgent agent(ConfigurableApplicationContext context, Approach approach) {
+    private CustomerSearchAgent agent() {
         return approach.beanName() == null
                 ? context.getBean(CustomerSearchAgent.class)
                 : context.getBean(approach.beanName(), CustomerSearchAgent.class);

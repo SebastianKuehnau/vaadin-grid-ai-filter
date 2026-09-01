@@ -99,6 +99,11 @@ public class BenchmarkApplication implements ApplicationRunner {
         System.out.println(ReportWriter.plainText(report));
         logger.info("Report written to {}", outputDirectory);
         written.forEach(path -> logger.info("  {}", path.getFileName()));
+
+        // Said again after the report, because a combination that never measured is easy to miss.
+        results.stream().filter(result -> result.fatalError() != null).forEach(result ->
+                logger.error("{} / {} produced no measurements: {}",
+                        result.model(), result.approachId(), result.fatalError()));
     }
 
     /** Runs one approach against one model; {@code null} when nothing is left to measure for it. */

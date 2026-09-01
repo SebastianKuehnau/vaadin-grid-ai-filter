@@ -29,11 +29,12 @@ public class WorkerLauncher {
     private final String ownClasspath;
     private final Path workDirectory;
 
-    public WorkerLauncher(Path projectRoot, String configuredClasspath, Path workDirectory) {
+    /** {@code reportDirectory} is where the report lands; the workers get a subdirectory of their own. */
+    public WorkerLauncher(Path projectRoot, String configuredClasspath, Path reportDirectory) {
         this.projectRoot = projectRoot;
         this.ownClasspath = configuredClasspath == null || configuredClasspath.isBlank()
                 ? verifiedOwnClasspath() : configuredClasspath;
-        this.workDirectory = workDirectory;
+        this.workDirectory = reportDirectory.resolve("workers");
     }
 
     /** Runs one approach against one model; a worker that dies returns a result with a fatal error. */

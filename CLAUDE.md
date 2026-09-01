@@ -79,7 +79,8 @@ It is only ever started by hand:
 Every setting is documented in `benchmark/benchmark-example.yaml`; copy it to `config/application.yaml`
 to keep a configuration instead of passing arguments. Reports land in
 `benchmark/results/<timestamp>/report.{html,md,json,txt}` (gitignored) — the three compact formats hold
-the aggregation, the JSON every single execution.
+the aggregation, the JSON every single execution. Each worker's request, result and full log stay in
+`workers/` next to them; that log is where a failed combination explains itself.
 
 Two things about its architecture are worth knowing before changing it:
 
