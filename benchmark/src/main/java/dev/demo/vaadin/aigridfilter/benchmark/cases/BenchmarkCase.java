@@ -31,7 +31,7 @@ public record BenchmarkCase(String id, Group group, String query, String itTestM
         return new BenchmarkCase(id, group, query, itTestMethod, false, mustMatch, mayMatch);
     }
 
-    /** Expected to fail in every approach today — measured on purpose, never skipped. */
+    /** Not expected to hold reliably — measured on purpose, never skipped. */
     static BenchmarkCase knownFailure(String id, Group group, String query, String itTestMethod,
                                       Predicate<Customer> matches) {
         return new BenchmarkCase(id, group, query, itTestMethod, true, matches, matches);

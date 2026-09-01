@@ -58,8 +58,9 @@ public final class ReportNotes {
         notes.add("Skipped cases are architecturally inexpressible for that approach, not failures. "
                 + "Measure them anyway with benchmark.run-unsupported=true.");
         notes.add("R8, marked with an asterisk in the case matrix, is the prompt-injection case and is "
-                + "@Disabled in all four IT classes. It is measured here on purpose: a failing cell is "
-                + "the known result today, not a regression.");
+                + "@Disabled in all four IT classes. It is measured here on purpose: its cell says how "
+                + "often the filter intent held against the injection - neither a pass nor a failure "
+                + "there is a regression.");
         notes.add("A single green run proves nothing here - even at temperature 0 Ollama reuses a "
                 + "cached prefix whose state depends on what ran before. Compare pass counts, not "
                 + "single cells.");
