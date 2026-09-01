@@ -1,0 +1,33 @@
+# Defaults for a benchmark run. Override any of them on the command line
+# (--benchmark.runs=1) or in a config/application.yaml next to the working directory;
+# benchmark-example.yaml in this module shows every setting with its meaning.
+benchmark:
+  ollama:
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    auto-pull: true
+  models:
+    - "qwen3:8b"
+    - "llama3.1:8b"
+  # Quoted on purpose: unquoted, yaml reads 03 and 04 as numbers and the ids stop matching.
+  approaches: [ "02a", "02b", "03", "04" ]
+  cases: [ ]          # empty: all 22
+  runs: 3
+  warmup: true
+  run-unsupported: false
+  query-timeout-seconds: 300
+  chat:
+    temperature: 0.0
+    num-ctx: 4096
+    num-predict: 512
+    think: false
+    keep-alive: 1h
+  report:
+    directory: benchmark/results
+    formats: [ html, md, json, txt ]
+
+logging:
+  level:
+    root: WARN
+    dev.demo.vaadin.aigridfilter.benchmark: INFO
+  pattern:
+    console: "%d{HH:mm:ss} %-5level %msg%n"

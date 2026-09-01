@@ -1,0 +1,69 @@
+# Every setting the benchmark understands, with the defaults it uses.
+#
+# Copy this file to config/application.yaml in the directory you start the benchmark from, or pass
+# single settings on the command line:
+#
+#   ./mvnw spring-boot:run -pl benchmark \
+#     -Dspring-boot.run.arguments="--benchmark.models=qwen3:8b --benchmark.runs=1"
+#
+benchmark:
+
+  ollama:
+    # Where Ollama listens. The benchmark never starts one - it measures the models of a running
+    # instance, so the machine's own GPU and RAM are what the numbers describe.
+    base-url: http://localhost:11434
+    # Download a configured model that Ollama does not have yet. Turn this off to fail fast instead.
+    auto-pull: true
+
+  # The models to measure, exactly as Ollama names them. Every model is measured against every
+  # approach, and each combination gets its own JVM.
+  models:
+    - qwen3:8b
+    - llama3.1:8b
+
+  # Which of the four filtering approaches to measure:
+  #   02a  tool calling, one scalar value per field        (5 of 12 capabilities)
+  #   02b  tool calling, value + operator + negate         (9 of 12)
+  #   03   structured output, a CustomerFilter             (12 of 12)
+  #   04   tool calling with 03's condition list           (12 of 12)
+  approaches: [ 02a, 02b, 03, 04 ]
+
+  # The case ids to measure; empty means all 22. C1-C12 are the canonical capability queries,
+  # R1-R10 the robustness ones - see docs/canonical-query-set.md.
+  cases: [ ]
+
+  # How often every case is measured. One run proves nothing: the same prompt can produce different
+  # answers even at temperature 0, because Ollama reuses a cached prefix.
+  runs: 3
+
+  # One unmeasured query per approach, so the first case does not pay the model's load time.
+  warmup: true
+
+  # Also measure the cases an approach architecturally cannot express (02a and 02b). They are
+  # expected to fail; the report normally lists them as skipped, with the reason.
+  run-unsupported: false
+
+  # A single query that takes longer than this counts as TIMEOUT and the run continues.
+  query-timeout-seconds: 300
+
+  # The chat options, mirroring every module's application-ollama.properties, so the benchmark
+  # measures the models under the settings the apps actually use.
+  chat:
+    temperature: 0.0
+    num-ctx: 4096
+    num-predict: 512
+    # Without this a reasoning model burns hundreds of tokens on a <think> block per call.
+    think: false
+    keep-alive: 1h
+
+  report:
+    # Relative paths are resolved against the project root; every run adds a timestamped directory.
+    directory: benchmark/results
+    formats: [ html, md, json, txt ]
+
+  # Where the module directories live. Auto-detected from the working directory when left out.
+  # project-root: /path/to/vaadin-grid-ai-filter
+
+  # The classpath handed to the worker JVMs. Auto-detected from this process; only needed for
+  # unusual launch modes.
+  # worker-classpath: ...
