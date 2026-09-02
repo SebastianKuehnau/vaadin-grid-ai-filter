@@ -9,10 +9,11 @@ import java.util.List;
  * Everything the benchmark run is steered by — from {@code application.yaml}, a {@code config/} file
  * next to the working directory, or {@code --benchmark.*} on the command line.
  *
- * @param cases           the case ids to measure; empty means all 22
- * @param runUnsupported  also measure the cases an approach architecturally cannot express
- * @param projectRoot     where the module directories live; auto-detected when not set
- * @param workerClasspath overrides the classpath handed to the worker JVMs; for unusual launches only
+ * @param cases                  the case ids to measure; empty means all 22
+ * @param runUnsupported         also measure the cases an approach architecturally cannot express
+ * @param maxModelCallsPerQuery  how many model calls one query may make before it is given up on
+ * @param projectRoot            where the module directories live; auto-detected when not set
+ * @param workerClasspath        overrides the classpath handed to the worker JVMs; unusual launches only
  */
 @ConfigurationProperties("benchmark")
 public record BenchmarkProperties(
@@ -24,6 +25,7 @@ public record BenchmarkProperties(
         @DefaultValue("true") boolean warmup,
         @DefaultValue("false") boolean runUnsupported,
         @DefaultValue("300") int queryTimeoutSeconds,
+        @DefaultValue("12") int maxModelCallsPerQuery,
         @DefaultValue Chat chat,
         @DefaultValue Report report,
         String projectRoot,

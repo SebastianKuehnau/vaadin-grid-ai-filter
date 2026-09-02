@@ -19,7 +19,8 @@ public record BenchmarkReport(String startedAt, String finishedAt, long duration
     /** What the run was configured with — so a report explains itself without its yaml. */
     public record Configuration(String ollamaBaseUrl, String ollamaVersion, List<String> models,
                                 List<String> approaches, List<String> cases, int runs, boolean warmup,
-                                boolean runUnsupported, int queryTimeoutSeconds, double temperature,
+                                boolean runUnsupported, int queryTimeoutSeconds,
+                                int maxModelCallsPerQuery, double temperature,
                                 int numCtx, int numPredict, boolean think, String keepAlive) {
     }
 

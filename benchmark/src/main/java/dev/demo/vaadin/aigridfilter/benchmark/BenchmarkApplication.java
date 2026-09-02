@@ -121,7 +121,7 @@ public class BenchmarkApplication implements ApplicationRunner {
         Instant start = Instant.now();
         WorkerResult result = launcher.launch(new WorkerRequest(approach.id(), model, selected,
                 properties.runs(), properties.warmup(), properties.ollama().baseUrl(),
-                properties.queryTimeoutSeconds(),
+                properties.queryTimeoutSeconds(), properties.maxModelCallsPerQuery(),
                 new WorkerRequest.ChatSettings(properties.chat().temperature(),
                         properties.chat().numCtx(), properties.chat().numPredict(),
                         properties.chat().think(), properties.chat().keepAlive())));
@@ -176,6 +176,7 @@ public class BenchmarkApplication implements ApplicationRunner {
         return new BenchmarkReport.Configuration(properties.ollama().baseUrl(), ollamaVersion,
                 properties.models(), properties.approaches(), caseIds, properties.runs(),
                 properties.warmup(), properties.runUnsupported(), properties.queryTimeoutSeconds(),
+                properties.maxModelCallsPerQuery(),
                 properties.chat().temperature(), properties.chat().numCtx(),
                 properties.chat().numPredict(), properties.chat().think(),
                 properties.chat().keepAlive());

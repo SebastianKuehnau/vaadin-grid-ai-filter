@@ -46,6 +46,13 @@ benchmark:
   # A single query that takes longer than this counts as TIMEOUT and the run continues.
   query-timeout-seconds: 300
 
+  # How many model calls one query may make. A tool approach needs a few round trips, but Spring AI's
+  # tool loop has no end of its own: it stops when the model stops asking for a tool, and a tool error
+  # is handed back to the model instead of being thrown. A model that repeats a malformed call would
+  # otherwise run until the query timeout, every time. Exceeding this counts as a failure, not a
+  # timeout - the worker log says which query it was.
+  max-model-calls-per-query: 12
+
   # The chat options, mirroring every module's application-ollama.properties, so the benchmark
   # measures the models under the settings the apps actually use.
   chat:

@@ -15,6 +15,7 @@ benchmark:
   warmup: true
   run-unsupported: false
   query-timeout-seconds: 300
+  max-model-calls-per-query: 12
   chat:
     temperature: 0.0
     num-ctx: 4096

@@ -24,6 +24,8 @@ public final class ReportNotes {
                 List.of("Warm-up call", configuration.warmup() ? "yes" : "no"),
                 List.of("Unsupported cases", configuration.runUnsupported() ? "measured" : "skipped"),
                 List.of("Query timeout", configuration.queryTimeoutSeconds() + " s"),
+                List.of("Model calls per query", "at most "
+                        + configuration.maxModelCallsPerQuery()),
                 List.of("Chat options", ("temperature=%s, num-ctx=%d, num-predict=%d, think=%s, "
                         + "keep-alive=%s").formatted(configuration.temperature(),
                         configuration.numCtx(), configuration.numPredict(),
@@ -57,6 +59,9 @@ public final class ReportNotes {
                 + "without prompt evaluation or transport.");
         notes.add("Skipped cases are architecturally inexpressible for that approach, not failures. "
                 + "Measure them anyway with benchmark.run-unsupported=true.");
+        notes.add("A query that exceeds the model-call budget is given up on and counts as a failure, "
+                + "not a timeout: the model kept asking for a tool without ever settling on an answer. "
+                + "The worker log names the query, and its call count is far above the others.");
         notes.add("R8, marked with an asterisk in the case matrix, is the prompt-injection case and is "
                 + "@Disabled in all four IT classes. It is measured here on purpose: its cell says how "
                 + "often the filter intent held against the injection - neither a pass nor a failure "

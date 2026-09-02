@@ -49,6 +49,7 @@ public final class BenchmarkWorker {
     private final ConfigurableApplicationContext context;
     private final CustomerRepository repository;
     private final TokenUsageAdvisor advisor;
+    private final CallBudgetChatModel budget;
     private final List<Customer> allCustomers;
     private final int queryTimeoutSeconds;
 
@@ -58,6 +59,7 @@ public final class BenchmarkWorker {
         this.context = context;
         this.repository = context.getBean(CustomerRepository.class);
         this.advisor = context.getBean(TokenUsageAdvisor.class);
+        this.budget = context.getBean(CallBudgetChatModel.class);
         this.allCustomers = repository.findAll();
         this.queryTimeoutSeconds = queryTimeoutSeconds;
     }
@@ -116,29 +118,48 @@ public final class BenchmarkWorker {
     /** One model call that is not measured, so the first case does not pay the model's load time. */
     private void warmUp() {
         logger.info("Warming up {}", approach.id());
+        budget.reset();
         try {
-            repository.findAll(agent().resolveFilter("show me all customers in Berlin"));
+            // Under the query timeout like every measured case: a warm-up that hangs used to hang the
+            // whole run, because nothing above it is bounded either.
+            resolveWithTimeout("show me all customers in Berlin");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn("Warm-up query interrupted; measuring anyway");
         } catch (Exception e) {
             logger.warn("Warm-up query failed; measuring anyway", e);
+        }
+    }
+
+    /**
+     * Runs one query, bounded by the query timeout.
+     *
+     * <p>A fresh executor per query: a timed-out query leaves its thread blocked in the model call,
+     * and that thread must never be reused for the next one.
+     */
+    private List<Customer> resolveWithTimeout(String query) throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<List<Customer>> answer = executor.submit(
+                    () -> repository.findAll(agent().resolveFilter(query)));
+            return answer.get(queryTimeoutSeconds, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
         }
     }
 
     private Measurement measureOnce(BenchmarkCase benchmarkCase, int run) {
         logger.info("--> run {} {} '{}'", run, benchmarkCase.id(), benchmarkCase.displayQuery());
         advisor.reset();
+        budget.reset();
 
         List<Customer> returned = List.of();
         Measurement.Status status = null;
         String error = null;
 
-        // A fresh executor per query: a timed-out query leaves its thread blocked in the model call,
-        // and that thread must never be reused for the next one.
-        ExecutorService executor = Executors.newSingleThreadExecutor();
         long start = System.nanoTime();
         try {
-            Future<List<Customer>> answer = executor.submit(
-                    () -> repository.findAll(agent().resolveFilter(benchmarkCase.query())));
-            returned = answer.get(queryTimeoutSeconds, TimeUnit.SECONDS);
+            returned = resolveWithTimeout(benchmarkCase.query());
         } catch (TimeoutException e) {
             status = Measurement.Status.TIMEOUT;
             error = "no result within " + queryTimeoutSeconds + " s";
@@ -149,8 +170,6 @@ public final class BenchmarkWorker {
         } catch (Exception e) {
             status = Measurement.Status.ERROR;
             error = describe(e);
-        } finally {
-            executor.shutdownNow();
         }
         long timeToValidResultMs = (System.nanoTime() - start) / 1_000_000;
 
@@ -239,6 +258,8 @@ public final class BenchmarkWorker {
         properties.put("spring.ai.ollama.chat.num-predict", chat.numPredict());
         properties.put("spring.ai.ollama.chat.think", chat.think());
         properties.put("spring.ai.ollama.chat.keep-alive", chat.keepAlive());
+        // Read by the CallBudgetChatModel bean, which every service gets instead of the raw one.
+        properties.put("benchmark.worker.max-model-calls-per-query", request.maxModelCallsPerQuery());
         properties.put("logging.level.root", "WARN");
         properties.put("logging.level.dev.demo.vaadin.aigridfilter", "INFO");
         return properties;

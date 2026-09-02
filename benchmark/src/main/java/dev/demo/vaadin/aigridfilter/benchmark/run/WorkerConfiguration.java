@@ -1,9 +1,13 @@
 package dev.demo.vaadin.aigridfilter.benchmark.run;
 
+import org.springframework.ai.ollama.OllamaChatModel;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
@@ -18,4 +22,12 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @EntityScan("dev.demo.vaadin.aigridfilter.data")
 @EnableJpaRepositories("dev.demo.vaadin.aigridfilter.data")
 class WorkerConfiguration {
+
+    /** Primary, so every service's {@code ChatModel} parameter gets the budgeted one, unchanged. */
+    @Bean
+    @Primary
+    CallBudgetChatModel callBudgetChatModel(OllamaChatModel delegate,
+            @Value("${benchmark.worker.max-model-calls-per-query}") int maxCallsPerQuery) {
+        return new CallBudgetChatModel(delegate, maxCallsPerQuery);
+    }
 }

@@ -11,8 +11,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Starts one worker JVM per approach and model, and reads back what it measured.
@@ -24,6 +26,9 @@ public class WorkerLauncher {
 
     private static final Logger logger = LoggerFactory.getLogger(WorkerLauncher.class);
     private static final ObjectMapper JSON = new ObjectMapper();
+
+    /** On top of the queries' own budget: JVM start, Spring context, and Ollama loading the model. */
+    private static final Duration STARTUP_ALLOWANCE = Duration.ofMinutes(5);
 
     private final Path projectRoot;
     private final String ownClasspath;
@@ -44,15 +49,16 @@ public class WorkerLauncher {
         Path requestFile = workDirectory.resolve("request-" + tag + ".json");
         Path resultFile = workDirectory.resolve("result-" + tag + ".json");
         Path logFile = workDirectory.resolve("worker-" + tag + ".log");
+        Duration timeout = timeoutFor(request);
 
         try {
             Files.createDirectories(workDirectory);
             JSON.writerWithDefaultPrettyPrinter().writeValue(requestFile.toFile(), request);
 
-            int exitCode = run(command(approach, requestFile, resultFile), logFile);
+            Exit exit = run(command(approach, requestFile, resultFile), logFile, timeout);
             if (!Files.exists(resultFile)) {
                 return WorkerResult.failed(approach.id(), request.model(),
-                        "worker exited with " + exitCode + " and wrote no result; see " + logFile);
+                        exit.describe(timeout, logFile));
             }
             return JSON.readValue(resultFile.toFile(), WorkerResult.class);
         } catch (IOException e) {
@@ -61,6 +67,18 @@ public class WorkerLauncher {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while running " + tag, e);
         }
+    }
+
+    /**
+     * The longest a worker may plausibly take: every query using its full timeout, plus room to start.
+     *
+     * <p>The last backstop of the run. Each query is bounded inside the worker, but a worker can also
+     * wedge where no query timeout reaches — and {@code waitFor()} without a bound would then hang
+     * every remaining model and approach behind it.
+     */
+    private Duration timeoutFor(WorkerRequest request) {
+        long queries = (request.warmup() ? 1 : 0) + (long) request.caseIds().size() * request.runs();
+        return Duration.ofSeconds(queries * request.queryTimeoutSeconds()).plus(STARTUP_ALLOWANCE);
     }
 
     private List<String> command(Approach approach, Path requestFile, Path resultFile) {
@@ -76,13 +94,31 @@ public class WorkerLauncher {
         return command;
     }
 
-    private int run(List<String> command, Path logFile) throws IOException, InterruptedException {
+    private Exit run(List<String> command, Path logFile, Duration timeout)
+            throws IOException, InterruptedException {
         Process process = new ProcessBuilder(command)
                 .directory(projectRoot.toFile())
                 .redirectErrorStream(true)
                 .redirectOutput(logFile.toFile())
                 .start();
-        return process.waitFor();
+        if (process.waitFor(timeout.toSeconds(), TimeUnit.SECONDS)) {
+            return new Exit(process.exitValue(), false);
+        }
+        logger.error("Worker exceeded {} min - killing it so the run can go on; see {}",
+                timeout.toMinutes(), logFile);
+        process.destroyForcibly().waitFor();
+        return new Exit(process.exitValue(), true);
+    }
+
+    /** How a worker ended: normally with an exit code, or killed because it ran out of time. */
+    private record Exit(int code, boolean killed) {
+
+        String describe(Duration timeout, Path logFile) {
+            return killed
+                    ? "worker did not finish within " + timeout.toMinutes() + " min and was killed; see "
+                            + logFile
+                    : "worker exited with " + code + " and wrote no result; see " + logFile;
+        }
     }
 
     /** A fat jar has no listable classpath to hand on, so that launch mode is rejected up front. */
