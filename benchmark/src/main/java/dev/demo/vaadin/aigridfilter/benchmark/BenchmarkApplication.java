@@ -41,6 +41,9 @@ public class BenchmarkApplication implements ApplicationRunner {
     private static final DateTimeFormatter RUN_DIRECTORY =
             DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
 
+    /** Long enough for a large model to leave memory, short enough not to stall a run over it. */
+    private static final Duration UNLOAD_TIMEOUT = Duration.ofSeconds(60);
+
     private final BenchmarkProperties properties;
 
     public BenchmarkApplication(BenchmarkProperties properties) {
@@ -78,6 +81,11 @@ public class BenchmarkApplication implements ApplicationRunner {
                 new WorkerLauncher(projectRoot, properties.workerClasspath(), outputDirectory);
         List<WorkerResult> results = new ArrayList<>();
         for (String model : properties.models()) {
+            // Before the pull, not after: a download can take minutes, and the old model would sit in
+            // memory for all of them.
+            if (properties.ollama().unloadBetweenModels()) {
+                freeTheHost(ollama);
+            }
             ensureAvailable(ollama, model);
             for (Approach approach : approaches) {
                 WorkerResult result = measure(launcher, model, approach, caseIds);
@@ -136,6 +144,28 @@ public class BenchmarkApplication implements ApplicationRunner {
         return result;
     }
 
+    /**
+     * Drops every resident model, so the one about to be measured has the machine to itself.
+     *
+     * <p>The four approach workers of one model deliberately share its resident copy — only a model
+     * change frees it. A model that will not go is a warning, not a stop: the run continues, and the
+     * report says the numbers were taken on a shared host.
+     */
+    private void freeTheHost(OllamaAdmin ollama) {
+        List<String> resident = ollama.resident().stream().map(OllamaAdmin.LoadedModel::name).toList();
+        if (resident.isEmpty()) {
+            return;
+        }
+        resident.forEach(ollama::unload);
+        if (ollama.awaitNoneResident(UNLOAD_TIMEOUT)) {
+            logger.info("Unloaded {} - the next model gets the host to itself",
+                    String.join(", ", resident));
+        } else {
+            logger.warn("Ollama still holds {} after {} s; the next model shares the host with it",
+                    ollama.resident(), UNLOAD_TIMEOUT.toSeconds());
+        }
+    }
+
     /** Unsupported means the filter type has no slot for it — not measured unless asked for. */
     private boolean runnable(Approach approach, String caseId) {
         return properties.runUnsupported() || !approach.unsupportedCases().containsKey(caseId);
@@ -176,7 +206,7 @@ public class BenchmarkApplication implements ApplicationRunner {
         return new BenchmarkReport.Configuration(properties.ollama().baseUrl(), ollamaVersion,
                 properties.models(), properties.approaches(), caseIds, properties.runs(),
                 properties.warmup(), properties.runUnsupported(), properties.queryTimeoutSeconds(),
-                properties.maxModelCallsPerQuery(),
+                properties.maxModelCallsPerQuery(), properties.ollama().unloadBetweenModels(),
                 properties.chat().temperature(), properties.chat().numCtx(),
                 properties.chat().numPredict(), properties.chat().think(),
                 properties.chat().keepAlive());

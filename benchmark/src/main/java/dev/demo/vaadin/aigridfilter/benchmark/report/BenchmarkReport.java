@@ -20,7 +20,8 @@ public record BenchmarkReport(String startedAt, String finishedAt, long duration
     public record Configuration(String ollamaBaseUrl, String ollamaVersion, List<String> models,
                                 List<String> approaches, List<String> cases, int runs, boolean warmup,
                                 boolean runUnsupported, int queryTimeoutSeconds,
-                                int maxModelCallsPerQuery, double temperature,
+                                int maxModelCallsPerQuery, boolean unloadBetweenModels,
+                                double temperature,
                                 int numCtx, int numPredict, boolean think, String keepAlive) {
     }
 

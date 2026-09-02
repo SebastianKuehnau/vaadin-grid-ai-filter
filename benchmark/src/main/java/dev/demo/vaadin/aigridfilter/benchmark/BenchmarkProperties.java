@@ -31,9 +31,10 @@ public record BenchmarkProperties(
         String projectRoot,
         String workerClasspath) {
 
-    /** Which Ollama answers, and whether a missing model may be downloaded. */
+    /** Which Ollama answers, whether a missing model may be downloaded, and who owns its memory. */
     public record Ollama(@DefaultValue("http://localhost:11434") String baseUrl,
-                         @DefaultValue("true") boolean autoPull) {
+                         @DefaultValue("true") boolean autoPull,
+                         @DefaultValue("true") boolean unloadBetweenModels) {
     }
 
     /** The chat options, mirroring every module's {@code application-ollama.properties}. */

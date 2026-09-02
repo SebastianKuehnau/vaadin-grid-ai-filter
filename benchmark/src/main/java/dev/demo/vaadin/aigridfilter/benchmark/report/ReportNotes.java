@@ -26,6 +26,9 @@ public final class ReportNotes {
                 List.of("Query timeout", configuration.queryTimeoutSeconds() + " s"),
                 List.of("Model calls per query", "at most "
                         + configuration.maxModelCallsPerQuery()),
+                List.of("Host per model", configuration.unloadBetweenModels()
+                        ? "exclusive - the previous model is unloaded first"
+                        : "shared - models are left resident"),
                 List.of("Chat options", ("temperature=%s, num-ctx=%d, num-predict=%d, think=%s, "
                         + "keep-alive=%s").formatted(configuration.temperature(),
                         configuration.numCtx(), configuration.numPredict(),

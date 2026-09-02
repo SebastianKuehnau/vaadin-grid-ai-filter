@@ -5,6 +5,7 @@ benchmark:
   ollama:
     base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
     auto-pull: true
+    unload-between-models: true
   models:
     - "qwen3:8b"
     - "llama3.1:8b"

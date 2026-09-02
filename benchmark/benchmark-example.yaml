@@ -14,6 +14,11 @@ benchmark:
     base-url: http://localhost:11434
     # Download a configured model that Ollama does not have yet. Turn this off to fail fast instead.
     auto-pull: true
+    # Drop every resident model before the next one is measured, and wait until Ollama reports the
+    # memory free. Without this the previous model stays loaded for as long as its keep-alive says,
+    # and the model under test is measured on a host it does not have to itself. The four approach
+    # workers of one model still share its resident copy - only a model change unloads.
+    unload-between-models: true
 
   # The models to measure, exactly as Ollama names them. Every model is measured against every
   # approach, and each combination gets its own JVM.

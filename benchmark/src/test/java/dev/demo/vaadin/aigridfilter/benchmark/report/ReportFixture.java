@@ -46,7 +46,7 @@ final class ReportFixture {
     static BenchmarkReport.Configuration configuration() {
         return new BenchmarkReport.Configuration("http://localhost:11434", "0.33.2",
                 List.of("qwen3:8b"), List.of("02a", "03"), List.of("C1", "C3"), 3, true, false,
-                300, 12, 0.0, 4096, 512, false, "1h");
+                300, 12, true, 0.0, 4096, 512, false, "1h");
     }
 
     static BenchmarkReport report() {

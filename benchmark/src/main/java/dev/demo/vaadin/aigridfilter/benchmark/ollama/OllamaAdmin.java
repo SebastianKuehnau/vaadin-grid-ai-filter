@@ -59,33 +59,77 @@ public class OllamaAdmin {
 
     /** Downloads a model; blocks until Ollama closes the progress stream, which can take minutes. */
     public void pull(String model) {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/api/pull"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString("{\"model\":\"" + model + "\"}"))
-                .build();
-        try {
-            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200 || response.body().contains("\"error\"")) {
-                throw new IllegalStateException("Could not pull '" + model + "': " + response.body());
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted while pulling '" + model + "'", e);
+        String body = post("/api/pull", "{\"model\":\"" + model + "\"}", Duration.ofHours(1));
+        if (body.contains("\"error\"")) {
+            throw new IllegalStateException("Could not pull '" + model + "': " + body);
         }
+    }
+
+    /** Every model {@code /api/ps} reports as resident right now. */
+    public List<LoadedModel> resident() {
+        List<LoadedModel> models = new ArrayList<>();
+        for (JsonNode node : get("/api/ps").path("models")) {
+            models.add(new LoadedModel(node.path("name").asText(),
+                    node.path("size").asLong(), node.path("size_vram").asLong()));
+        }
+        return models;
     }
 
     /** What {@code /api/ps} reports for {@code model}, or empty when it is not resident. */
     public Optional<LoadedModel> loaded(String model) {
-        for (JsonNode node : get("/api/ps").path("models")) {
-            String name = node.path("name").asText();
-            if (name.equals(model) || name.equals(model + ":latest")) {
-                return Optional.of(new LoadedModel(name,
-                        node.path("size").asLong(), node.path("size_vram").asLong()));
+        return resident().stream()
+                .filter(entry -> entry.name().equals(model)
+                        || entry.name().equals(model + ":latest"))
+                .findFirst();
+    }
+
+    /** Drops a model from memory now — {@code keep_alive: 0} is Ollama's own unload signal. */
+    public void unload(String model) {
+        post("/api/generate", "{\"model\":\"" + model + "\",\"keep_alive\":0}",
+                Duration.ofMinutes(2));
+    }
+
+    /**
+     * Waits until nothing is resident any more; {@code false} when something still is.
+     *
+     * <p>Ollama frees the memory after answering the unload, not while answering it. Without waiting,
+     * the next model starts loading beside the old one — exactly what unloading was meant to prevent.
+     */
+    public boolean awaitNoneResident(Duration timeout) {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        while (!resident().isEmpty()) {
+            if (System.nanoTime() >= deadline) {
+                return false;
+            }
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
             }
         }
-        return Optional.empty();
+        return true;
+    }
+
+    private String post(String path, String body, Duration timeout) {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + path))
+                .header("Content-Type", "application/json")
+                .timeout(timeout)
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        try {
+            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                throw new IllegalStateException("Ollama answered " + response.statusCode()
+                        + " for " + path + ": " + response.body());
+            }
+            return response.body();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Cannot reach Ollama at " + baseUrl + path, e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while calling " + path, e);
+        }
     }
 
     private JsonNode get(String path) {
