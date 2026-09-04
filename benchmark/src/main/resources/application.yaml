@@ -8,11 +8,14 @@ benchmark:
     unload-between-models: true
   models:
     - "qwen3:8b"
+    - "qwen3.5:4b-mlx"
+    - "qwen3.5:9b-mlx"
     - "llama3.1:8b"
+    - "gemma4:26b-mlx"
   # Quoted on purpose: unquoted, yaml reads 03 and 04 as numbers and the ids stop matching.
   approaches: [ "02a", "02b", "03", "04" ]
   cases: [ ]          # empty: all 22
-  runs: 3
+  runs: 5
   warmup: true
   run-unsupported: false
   query-timeout-seconds: 300
