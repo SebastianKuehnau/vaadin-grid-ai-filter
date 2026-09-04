@@ -5,6 +5,9 @@
 target/
 **/src/main/frontend/generated/
 
+# Benchmark runs: measurement output, never source
+/benchmark/results/
+
 # IDE
 .idea/
 

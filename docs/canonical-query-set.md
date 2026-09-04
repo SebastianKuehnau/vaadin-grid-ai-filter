@@ -74,6 +74,15 @@ it bought. In 02(b) the same line made C3 ("all customers except from Berlin") c
 arguments at all; C3 and the typo case were never green together over three full runs. In 03 the
 model corrected the typo but set `negate=true` on it, turning "in Brelin" into "not in Berlin".
 
+## Measuring models against this set
+
+The tables above say what a *filter type* can express. What a *model* actually gets right is measured
+by the `benchmark` module, which replays all 22 queries against every configured Ollama model and
+every approach, several runs each, and reports correctness together with latency, tokens and the
+model's resident size. Its `CaseCatalog` and `Approach` hold copies of the queries and of the ❌ cells
+above — kept in sync by hand, like the IT classes, and pinned by unit tests. ⏸ R8 is measured rather
+than skipped there: it is a reliability finding, so its failure rate is worth a number.
+
 One lesson from that measurement is worth keeping in mind when reading any row above: **a single
 green run proves nothing here.** The same prompt, byte for byte, produced opposite results in an
 isolated run and in a full class run — the model is not deterministic in practice even at

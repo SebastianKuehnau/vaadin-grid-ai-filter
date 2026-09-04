@@ -29,6 +29,8 @@
 		<module>04-ai-hybrid-filter</module>
 		<!-- No numeric prefix: not a step of the talk, but the runtime scaffolding all four apps share. -->
 		<module>00-commons</module>
+		<!-- Also not a step: measures the four approaches above. Built here, never started by a build. -->
+		<module>benchmark</module>
 	</modules>
 
 	<dependencyManagement>

@@ -12,6 +12,7 @@ Top priority for all code: **easy to understand, presentable, extensible** — c
 | `03-ai-structured-filter` | 8083 | AI filtering via structured output (`CustomerFilter` → JPA Specifications), against local Ollama models |
 | `04-ai-hybrid-filter` | 8084 | AI filtering via tool calling with 03's `List<Condition>` filter type, copied 1:1 — same capability, different delivery |
 | `00-commons` | — | Shared **runtime** infrastructure: the domain layer (`Customer`, `Address`, `CreditRating`, `CustomerRepository`, `data.sql`), the shared Vaadin components (`CustomerGrid`, `AbstractCustomerSearchView`) and the AI layer's seam plus token measurement (`CustomerSearchAgent`, `TokenUsageAdvisor`). No numeric prefix — not a step of the talk |
+| `benchmark` | — | Measures the local Ollama models against 02(a), 02(b), 03 and 04: correctness, latency, tokens, resident model size. A standalone CLI app, never started by a build. No numeric prefix — not a step of the talk |
 
 Each of the four numbered modules above is a standalone Spring Boot app (`<ModuleName>Application`).
 The single `data.sql` lives in `00-commons` and is picked up from the jar (Boot's default
@@ -62,6 +63,36 @@ removes it. See `docs/adr/0002-ollama-as-a-testcontainer.md`.
 **The app is never run inside the sandbox** — only its tests are. `spring-boot:run` and the
 Playwright screenshots below belong on the development machine.
 
+## The benchmark
+
+`benchmark` measures the models, not the code: the 22 queries of the four `*CustomerSearchIT` classes,
+replayed against a **running** Ollama (it never starts one), for every configured model and approach.
+It is only ever started by hand:
+
+```bash
+./mvnw install -DskipTests                                    # once, so the module jars exist
+./mvnw spring-boot:run -pl benchmark                          # all approaches, all cases, 3 runs
+./mvnw spring-boot:run -pl benchmark \
+  -Dspring-boot.run.arguments="--benchmark.models=qwen3:8b --benchmark.cases=C1,C5 --benchmark.runs=1"
+```
+
+Every setting is documented in `benchmark/benchmark-example.yaml`; copy it to `config/application.yaml`
+to keep a configuration instead of passing arguments. Reports land in
+`benchmark/results/<timestamp>/report.{html,md,json,txt}` (gitignored) — the three compact formats hold
+the aggregation, the JSON every single execution. Each worker's request, result and full log stay in
+`workers/` next to them; that log is where a failed combination explains itself.
+
+Two things about its architecture are worth knowing before changing it:
+
+- **One worker JVM per approach and model.** Modules 03 and 04 ship five classes under identical fully
+  qualified names, so they can never share a classpath; each worker gets its own module's
+  `target/classes`. That is also why the orchestrator needs a listable classpath — run it with
+  `spring-boot:run`, not from a fat jar (there is none, `repackage` is disabled on purpose).
+- **The 22 cases are copied, not imported.** Every query and expectation lives in
+  `CaseCatalog`, next to the name of the IT test method it came from; the capability gaps and their
+  reasons live in `Approach`. Both are kept in sync with `docs/canonical-query-set.md` by hand, exactly
+  like the IT classes themselves.
+
 ## Verification — Definition of Done
 
 A task is only finished when:
@@ -78,7 +109,9 @@ A task is only finished when:
    every AI module's two IT classes as one named `@Test` — the prompt as a string literal, the
    expected customer set computed from the seeded data. Where a variant's filter type cannot express
    it, the test still spells out what it would assert and carries `@Disabled` with the reason. No
-   compile-time gate enforces this; the table in that document is the checklist.
+   compile-time gate enforces this; the table in that document is the checklist. The same query then
+   goes into `benchmark`'s `CaseCatalog`, and a new capability gap into `Approach` with its reason —
+   `CaseCatalogTest` and `ApproachTest` pin both lists, so a forgotten case fails the build.
 
 Points 1–3 apply before **every** commit, not only at the end of the task.
 Iterate on your own until all points are met before reporting the task as done.
