@@ -15,8 +15,8 @@ public class FlatCustomerListView extends AbstractCustomerListView {
                                  @Qualifier("flatSearchAgent") CustomerSearchAgent searchAgent) {
         super(customerRepository, searchAgent,
                 "Customer Grid – AI Filter 02(a)",
-                "Tool calling with one scalar value per field: no operator, no negation, "
-                        + "no second value for a field. Text matches the whole field, case-insensitively; "
-                        + "a date matches that one exact day; revenue is a minimum.");
+                "Tool calling with one scalar value per field (city, last order date, credit rating): "
+                        + "no operator, no negation, no second value for a field. The city matches the "
+                        + "whole field, case-insensitively; the date matches that one exact day.");
     }
 }
