@@ -4,17 +4,23 @@ Filter a Vaadin `Grid` of `Customer` records, building up from a plain text filt
 natural-language filtering driven by an LLM. Four Spring Boot + Vaadin apps, meant to be read and run
 in order; each on its own port, so several can run at the same time.
 
+> **This is the `demo` branch.** Modules 02–04 filter on three fields — city, last order date and
+> credit rating — so that their tool signatures, prompts and specifications fit on a conference
+> slide. `main` carries the full thirteen and owns the `benchmark` module with the model comparison.
+> Module 01 is untouched on purpose: its hand-built form reaches every capability below and stays
+> the most expressive thing in the repository, which is the point the first step makes.
+
 ## The escalation ladder
 
 | Step | Where | Filter type | Delivery | What it adds |
 | --- | --- | --- | --- | --- |
 | 1 | `01-non-ai-filter` | per-column filter fields | — | the non-AI baseline |
-| 2 | `02-ai-agent-filter` · **02(a)** | one scalar value per field | tool call, 13 parameters | natural language at all |
-| 3 | `02-ai-agent-filter` · **02(b)** | one value **+ operator + negate** per field | tool call, **39** parameters | negation, operator precision, day-level dates |
+| 2 | `02-ai-agent-filter` · **02(a)** | one scalar value per field | tool call, 3 parameters | natural language at all |
+| 3 | `02-ai-agent-filter` · **02(b)** | one value **+ operator + negate** per field | tool call, **9** parameters | negation, operator precision, day-level dates |
 | 4 | `03-ai-structured-filter` | `CustomerFilter` = `List<Condition>` | structured output | multi-value OR, ranges |
 | 5 | `04-ai-hybrid-filter` | **the same** `List<Condition>` | tool call, **1** parameter | nothing — and that is the finding |
 
-02(b) triples the parameter count and still cannot express "Berlin **or** Hamburg" or "revenue
+02(b) triples the parameter count and still cannot express "Berlin **or** Hamburg" or "ordered
 **between** X and Y", because both need two values for one field. Step 4 changes the filter *type* and
 gets both. Step 5 keeps that type but goes back to step 3's *delivery mechanism* — and loses nothing:
 
@@ -33,45 +39,42 @@ cannot express that query. The queries themselves are in
 | C1 | single value | `findsCustomersInOneCity` | ✅ | ✅ | ✅ | ✅ |
 | C2 | multiple values for one field (OR) | `findsCustomersInEitherOfTwoCities` | ❌ | ❌ | ✅ | ✅ |
 | C3 | negation | `findsCustomersOutsideOneCity` | ❌ | ✅ | ✅ | ✅ |
-| C4 | non-CONTAINS operator (starts-with) | `findsCustomersWhoseContactNameStartsWithALetter` | ❌ | ✅ | ✅ | ✅ |
 | C5 | combined AND across fields | `findsCreditworthyCustomersInOneCity` | ✅ | ✅ | ✅ | ✅ |
-| C6 | numeric range | `findsCustomersWithinARevenueRange` | ❌ | ❌ | ✅ | ✅ |
 | C7 | relative date | `findsCustomersWithAnOrderInTheLastTwelveMonths` | ❌ | ✅ | ✅ | ✅ |
 | C8 | date range | `findsCustomersWhoLastOrderedWithinADateRange` | ❌ | ❌ | ✅ | ✅ |
-| C9 | single value on a second address field | `findsCustomersInOneCountry` | ✅ | ✅ | ✅ | ✅ |
-| C10 | numeric upper bound | `findsCustomersUpToARevenueLimit` | ❌ | ✅ | ✅ | ✅ |
 | C11 | exact day, German date format | `findsCustomersWhoLastOrderedOnAGermanFormattedDate` | ✅ | ✅ | ✅ | ✅ |
 | C12 | rating stated as a negation | `findsCustomersWhoAreNotCreditworthy` | ✅ | ✅ | ✅ | ✅ |
-| | **Capabilities reached** | | **5 / 12** | **9 / 12** | **12 / 12** | **12 / 12** |
+| | **Capabilities reached** | | **4 / 8** | **6 / 8** | **8 / 8** | **8 / 8** |
 
-C1–C8 run twice per variant — once through the AI service (`*CustomerSearchIT`) and once through the
-UI (`*BrowserlessIT`). C9–C12 run through the service only.
+All eight run through the AI service (`*CustomerSearchIT`). Two of them also run through the UI
+(`*BrowserlessIT`) per variant — those test the view↔agent wiring, not capability. The case ids are
+`main`'s, gaps included: C4, C6, C9 and C10 needed fields this branch does not have and showed no
+capability the remaining cases do not.
 
 ❌ means *architecturally impossible*, not *unreliable*: no prompt and no model can make a filter type
 carry a value it has no slot for.
 
 ### The robustness set
 
-The same IT classes also run input that exercises no new capability — phrasing, spelling, language,
-and one hostile query. None of it depends on the filter type, so all four variants are expected to
-pass all of it; these run in the service-level `*CustomerSearchIT` only.
+The same IT classes also run input that exercises no new capability — phrasing and language. None of
+it depends on the filter type, so all four variants are expected to pass all of it; these run in the
+service-level `*CustomerSearchIT` only. `main` runs ten of these, because comparing models is what
+they are for; this branch keeps the three that earn their place in a talk, plus one new one.
 
 | # | Input | IT test method | 02(a) | 02(b) | 03 | 04 |
 |---|---|---|---|---|---|---|
 | R1 | small talk | `ignoresSmallTalk` | ✅ | ✅ | ✅ | ✅ |
-| R2 | an unrelated question | `ignoresAnUnrelatedQuestion` | ✅ | ✅ | ✅ | ✅ |
 | R3 | "show me all customers" | `showsEveryCustomerWhenAskedForAll` | ✅ | ✅ | ✅ | ✅ |
-| R4 | asking for the filter to be reset | `showsEveryCustomerWhenTheFilterIsReset` | ✅ | ✅ | ✅ | ✅ |
 | R5 | C1 asked in German | `understandsAGermanQuery` | ✅ | ✅ | ✅ | ✅ |
-| R6 | C1 in all caps | `understandsAnAllUppercaseQuery` | ✅ | ✅ | ✅ | ✅ |
-| R7 | C1 with polite filler words | `understandsAPoliteQueryWithFillerWords` | ✅ | ✅ | ✅ | ✅ |
-| R8 | a prompt injection that tells the model to clear the filter | `keepsTheFilterWhenTheQueryContainsAnInjection` | ⏸ | ⏸ | ⏸ | ⏸ |
-| R9 | the empty string | `showsEveryCustomerForAnEmptyQuery` | ✅ | ✅ | ✅ | ✅ |
-| R10 | a single blank | `showsEveryCustomerForABlankQuery` | ✅ | ✅ | ✅ | ✅ |
+| R11 | a German city name that is stored in English | `translatesAGermanCityName` | ✅ | ✅ | ✅ | ✅ |
 
-⏸ is `@Disabled("not supported yet")`: **R8 fails in all four variants** — the model follows the
-injected instruction and clears the filter. That is a reliability finding and an open task, not a
-limit of any filter type.
+R11 is this branch's demonstration case. `data.sql` stores `Munich`, so "zeig mir alle Kunden aus
+München" matches nothing unless the model translates the value before it reaches the filter — three
+lines of prompt do that, and switching them off shows what a prompt actually buys. It is also the
+riskiest rule here: it rewrites a value, and the last rule that did so bled into a neighbouring
+field. See [`docs/canonical-query-set.md`](docs/canonical-query-set.md).
+
+R8, the prompt injection that all four variants fall for, is measured and documented in `main`.
 
 ## Stack
 
