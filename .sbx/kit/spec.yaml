@@ -6,7 +6,7 @@ description: >-
   Vaadin skills and MCP, and Maven/Vaadin/GitHub network access. The ITs bring their
   own Ollama as a Testcontainer, so this kit provisions no model.
 
-# vaadin-grid-ai-filte is set by `task-agent --init vaadin`. Cosmetic: only shows in `sbx kit inspect`.
+# vaadin-grid-ai-filter is set by `task-agent --init vaadin`. Cosmetic: only shows in `sbx kit inspect`.
 
 permissions:
   network:
