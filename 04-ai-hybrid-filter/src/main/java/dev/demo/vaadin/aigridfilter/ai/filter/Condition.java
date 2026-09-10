@@ -10,15 +10,15 @@ import java.util.List;
 /** One condition on one {@code field}: several {@code values} are OR-combined, {@code negate} excludes them. */
 @JsonClassDescription("One condition on a single field. Multiple values are OR-combined; negate=true excludes matches.")
 public record Condition(
-        @JsonPropertyDescription("field: companyName, contactName, email, phone, annualRevenue, creditRating, customerSince, lastOrderDate, country, city, postalCode, street, houseNumber, state, countryCode")
+        @JsonPropertyDescription("field: city, lastOrderDate or creditRating")
         String field,
         @JsonPropertyDescription("how to compare the field with each value")
         Operator operator,
-        @JsonPropertyDescription("one or more values; matches if the field matches ANY of them, e.g. [Berlin, Köln]")
+        @JsonPropertyDescription("one or more values; matches if the field matches ANY of them, e.g. [Berlin, Hamburg]")
         List<String> values,
-        @JsonPropertyDescription("true to exclude/negate this condition, e.g. 'not in Berlin'")
         // The model sometimes sends negate=null, which a primitive cannot take - read it as false.
         @JsonSetter(nulls = Nulls.AS_EMPTY)
+        @JsonPropertyDescription("true to exclude/negate this condition, e.g. 'not in Berlin'")
         boolean negate) {
 
     /** How a condition compares a field with a value. Negation is not an operator - that is {@link #negate()}. */
