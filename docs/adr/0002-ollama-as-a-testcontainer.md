@@ -47,3 +47,31 @@ in one 30-line class, and identical on every machine with a Docker daemon.
 - **The sandbox kit no longer provisions anything for the tests.** What stayed in `spec.yaml` are the
   `registry.ollama.ai` and `*.r2.cloudflarestorage.com` network allows: the `ollama pull` still
   happens, just inside the Testcontainer's image build instead of at sandbox creation.
+- **The base image is pinned by digest.** `FROM ollama/ollama@sha256:…` — with a floating `latest`,
+  an upstream bump invalidates the cached layer and the 5 GB `ollama pull` runs again, unannounced.
+
+## The sandbox takes the first escape hatch
+
+Three things called "Ollama" appear in this repository, and the distinction is the whole point of
+this section:
+
+| Term | What it is |
+|---|---|
+| **Testcontainer-Ollama** | the `ai-grid-filter/ollama:qwen3-8b` image `OllamaContainerConfig` builds |
+| **Host-Ollama** | an `ollama serve` on the development machine, reached via `OLLAMA_BASE_URL` |
+| **Kit-Ollama** | a container started by `.sbx/kit/spec.yaml` at sandbox startup — **rejected, see below** |
+
+In a `sbx` sandbox the Testcontainer does not fit: its Docker disk is **9.8 GB**, while
+`ollama/ollama` needs ~7 GB and `qwen3:8b` another ~5.2 GB — ~12.2 GB. A run there does not fail
+fast either; it downloads for ~25 minutes and then dies of ENOSPC. So `spec.yaml` sets
+`OLLAMA_TESTCONTAINER=false` and `OLLAMA_BASE_URL=http://host.docker.internal:11434`: the sandbox
+uses the **Host-Ollama**, which costs no bytes at sandbox creation. It needs `qwen3:8b` and one
+network allow, `localhost:11434` — the name the sandbox proxy gives the host's loopback.
+
+This is not the pendulum swinging back a third time. The two reverts above were about
+*provisioning a model*, which every reader would have to repeat; the sandbox is one developer's
+workbench, invisible to anyone who clones this repository, and it provisions nothing — it points at
+a model that is already there. A **Kit-Ollama** was tried once more in `ba548d0` and reverted for
+the same reason as before, plus a new one: it cannot even complete on that disk.
+
+`./mvnw verify` on a development machine is unchanged — Testcontainer, one prerequisite, Docker.

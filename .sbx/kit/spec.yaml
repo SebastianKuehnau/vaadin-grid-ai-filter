@@ -3,8 +3,8 @@ kind: mixin
 name: vaadin-grid-ai-filter
 displayName: vaadin-grid-ai-filter Vaadin dev environment
 description: >-
-  Vaadin skills and MCP, and Maven/Vaadin/GitHub network access. The ITs bring their
-  own Ollama as a Testcontainer, so this kit provisions no model.
+  Vaadin skills and MCP, Maven/Vaadin/GitHub network access, and a warm ~/.m2. The AI ITs
+  talk to the host's Ollama; this kit provisions no model — see docs/adr/0002.
 
 # vaadin-grid-ai-filter is set by `task-agent --init vaadin`. Cosmetic: only shows in `sbx kit inspect`.
 
@@ -26,28 +26,27 @@ permissions:
       - mcp.vaadin.com
       - www.javadocs.dev
 
+      # The host's Ollama, reached as host.docker.internal:11434. The proxy calls the target
+      # `localhost:11434`, because the host's loopback is where it forwards to.
+      - localhost:11434
+
       # `ollama pull` inside the Testcontainer's image build: the manifest comes from the registry,
       # the model blob from a 307 redirect to an R2 bucket whose hostname is a hash. Without the
       # second entry the pull fails as "max retries exceeded: EOF", because Ollama writes the 403
-      # body into its download chunks.
+      # body into its download chunks. Kept for a machine whose Docker disk fits the image.
       - registry.ollama.ai
       - "*.r2.cloudflarestorage.com"
-
-      - auth.docker.io
-      - registry-1.docker.io
-      - production.cloudflare.docker.com
-      - production.cloudfront.docker.com
-      - registry.ollama.ai
 
 environment:
   variables:
     # Base image ships a JDK but leaves JAVA_HOME unset. Symlink, not the
     # versioned dir, which names both JDK version and CPU architecture.
     JAVA_HOME: "/usr/lib/jvm/default-java"
-    OLLAMA_HOST: http://127.0.0.1:11434
-    OLLAMA_MODEL: qwen3:8b
-    SPRING_AI_OLLAMA_BASE_URL: http://127.0.0.1:11434
-    SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL: qwen3:8b
+
+    # The AI ITs use the host's Ollama instead of starting their own: the sandbox's 9.8 GB
+    # Docker disk does not fit ollama/ollama (~7 GB) plus qwen3:8b (~5.2 GB).
+    OLLAMA_TESTCONTAINER: "false"
+    OLLAMA_BASE_URL: http://host.docker.internal:11434
 
 setup:
   install:
@@ -56,42 +55,23 @@ setup:
       user: "1000"
 
   startup:
-    - description: Start Ollama and install qwen3:8b
-      user: "0"
+    # Fills ~/.m2 while the agent already works — nothing waits on it — and installs 00-commons,
+    # which every `-pl` build of the four apps needs anyway. Log: /var/log/sbx-kit-startup.log.
+    - description: Warm up the Maven repository
+      user: "1000"
       background: true
       command:
         - sh
         - -lc
-        - |
-          set -eu
-          
-          container_name="sbx-ollama-qwen3"
-          image="ollama/ollama:latest"
-          model="qwen3:8b"
-          
-          if ! docker image inspect "$image" >/dev/null 2>&1; then
-            docker pull "$image"
-          fi
-          
-          if ! docker container inspect "$container_name" >/dev/null 2>&1; then
-            docker run --detach \
-              --name "$container_name" \
-              --restart unless-stopped \
-              --publish 11434:11434 \
-              --volume ollama-models:/root/.ollama \
-              "$image"
-          else
-            docker start "$container_name" >/dev/null 2>&1 || true
-          fi
-          
-          until docker exec "$container_name" ollama list >/dev/null 2>&1; do
-            sleep 1
-          done
-          
-          docker exec "$container_name" ollama show "$model" >/dev/null 2>&1 ||
-            docker exec "$container_name" ollama pull "$model"
+        - cd "${WORKSPACE_DIR:?WORKSPACE_DIR is not set}" && ./mvnw install -DskipTests
 
 agentInstructions:
   content: |
-    Ollama runs locally at http://127.0.0.1:11434.
-    The installed default model is qwen3:8b.
+    The AI ITs use the *host's* Ollama at http://host.docker.internal:11434 (OLLAMA_BASE_URL),
+    with OLLAMA_TESTCONTAINER=false. There is no container fallback here: the sandbox's 9.8 GB
+    Docker disk does not fit ollama/ollama plus qwen3:8b, so a Testcontainer run dies with ENOSPC
+    after ~25 minutes. If the ITs cannot connect, the host's Ollama is not running or lacks
+    qwen3:8b — report that, do not start a container. See docs/adr/0002.
+
+    A background startup step warms ~/.m2 (log: /var/log/sbx-kit-startup.log); an early build
+    may block on it.

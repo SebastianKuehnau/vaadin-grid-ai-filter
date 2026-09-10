@@ -63,6 +63,12 @@ removes it. See `docs/adr/0002-ollama-as-a-testcontainer.md`.
 **The app is never run inside the sandbox** — only its tests are. `spring-boot:run` and the
 Playwright screenshots below belong on the development machine.
 
+**In the sandbox the first escape hatch is the default**: `.sbx/kit/spec.yaml` sets
+`OLLAMA_TESTCONTAINER=false` and `OLLAMA_BASE_URL=http://host.docker.internal:11434`, so the ITs
+use the *host's* Ollama. There is no container fallback there — the sandbox's 9.8 GB Docker disk
+does not fit `ollama/ollama` (~7 GB) plus `qwen3:8b` (~5.2 GB). If the ITs cannot connect, the
+host's Ollama is not running or lacks the model.
+
 ## The benchmark
 
 `benchmark` measures the models, not the code: the 22 queries of the four `*CustomerSearchIT` classes,
@@ -101,10 +107,12 @@ A task is only finished when:
 2. For UI changes: on the development machine, the app has been started and the change verified
    via a Playwright screenshot (save screenshots to `~/screenshots/`). In the sandbox, where the app
    is not run, the browserless IT takes its place.
-3. For changes to filter/AI logic: the affected module's IT classes pass against the Ollama
-   Testcontainer (they run in plain `verify`). Every AI module has two kinds: the `*CustomerSearchIT`
-   (through the service — the eight canonical queries and the five robustness cases) and the
-   browserless IT (the same eight through the UI). 02 has one of each per variant, so four.
+3. For changes to filter/AI logic: the affected module's IT classes pass against an Ollama serving
+   `qwen3:8b`, however the environment provides it (they run in plain `verify`) — the Testcontainer
+   on the development machine, the host's Ollama in the sandbox. Every AI module has two kinds: the
+   `*CustomerSearchIT` (through the service — the eight canonical queries and the five robustness
+   cases) and the browserless IT (the same eight through the UI). 02 has one of each per variant,
+   so four.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
    every AI module's two IT classes as one named `@Test` — the prompt as a string literal, the
    expected customer set computed from the seeded data. Where a variant's filter type cannot express
