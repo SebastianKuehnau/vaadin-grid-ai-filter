@@ -31,7 +31,7 @@ public class TokenUsageAdvisor implements CallAdvisor {
     /** Bounded: a running app never calls {@link #reset()}, and this must not grow all day. */
     private static final int RECORDED_CALLS = 64;
 
-    /** The most recent calls, oldest first; read per query by the benchmark. */
+    /** The most recent calls, oldest first; read per query by the token-usage test extension. */
     private final List<Call> calls = new ArrayList<>();
 
     /**
