@@ -12,27 +12,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.jpa.domain.Specification;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Set;
 
 /** Translates a {@link CustomerFilter} into a JPA {@link Specification}, so the database does the work. */
 public final class CustomerFilterSpecifications {
 
     private static final Logger logger = LoggerFactory.getLogger(CustomerFilterSpecifications.class);
-
-    private static final Set<String> ADDRESS_FIELDS =
-            Set.of("street", "houseNumber", "postalCode", "city", "state", "country", "countryCode");
-    private static final Set<String> TEXT_FIELDS =
-            Set.of("companyName", "contactName", "email", "phone");
-    private static final Set<String> DATE_FIELDS =
-            Set.of("customerSince", "lastOrderDate");
-    private static final Set<String> NUMBER_FIELDS =
-            Set.of("annualRevenue", "creditScore");
-
-    /** Discrete credit-rating field: its value is a {@link CreditRating} (GOOD/MEDIUM/POOR). */
-    private static final String CREDIT_RATING_FIELD = "creditRating";
 
     private CustomerFilterSpecifications() {
     }
@@ -71,49 +57,28 @@ public final class CustomerFilterSpecifications {
         return condition.negate() ? cb.not(combined) : combined;
     }
 
+    /** The three fields this filter knows; anything else the model invents is ignored. */
     private static Predicate valuePredicate(Root<Customer> root, CriteriaBuilder cb,
                                             String field, Operator operator, String value) {
-        if (CREDIT_RATING_FIELD.equals(field)) {
-            return creditRatingPredicate(root, cb, value);
-        }
-        if (DATE_FIELDS.contains(field)) {
-            return datePredicate(root, cb, field, operator, value);
-        }
-        if (NUMBER_FIELDS.contains(field)) {
-            return numberPredicate(root, cb, field, operator, value);
-        }
-        if (TEXT_FIELDS.contains(field)) {
-            return textPredicate(root.get(field), cb, operator, value);
-        }
-        if (ADDRESS_FIELDS.contains(field)) {
-            return textPredicate(root.get("address").get(field), cb, operator, value);
-        }
-
-        logger.warn("Ignoring unknown filter field: {}", field);
-        return cb.conjunction();
+        return switch (field) {
+            case "city" -> textPredicate(root.get("address").get("city"), cb, operator, value);
+            case "lastOrderDate" -> datePredicate(root.get("lastOrderDate"), cb, operator, value);
+            case "creditRating" -> creditRatingPredicate(root, cb, value);
+            default -> {
+                logger.warn("Ignoring unknown filter field: {}", field);
+                yield cb.conjunction();
+            }
+        };
     }
 
-    private static Predicate datePredicate(Root<Customer> root, CriteriaBuilder cb,
-                                           String field, Operator operator, String value) {
+    private static Predicate datePredicate(Path<LocalDate> path, CriteriaBuilder cb,
+                                           Operator operator, String value) {
         LocalDate date = LocalDate.parse(value);
-        Path<LocalDate> path = root.get(field);
         return switch (operator) {
             case EQUALS -> cb.equal(path, date);
             case LESS_OR_EQUAL -> cb.lessThanOrEqualTo(path, date);
             case GREATER_OR_EQUAL, CONTAINS -> cb.greaterThanOrEqualTo(path, date);
             case STARTS_WITH, ENDS_WITH -> cb.conjunction(); // not meaningful for dates -> ignore
-        };
-    }
-
-    private static Predicate numberPredicate(Root<Customer> root, CriteriaBuilder cb,
-                                             String field, Operator operator, String value) {
-        BigDecimal number = new BigDecimal(value);
-        Path<BigDecimal> path = root.get(field);
-        return switch (operator) {
-            case EQUALS, CONTAINS -> cb.equal(path, number);
-            case LESS_OR_EQUAL -> cb.lessThanOrEqualTo(path, number);
-            case GREATER_OR_EQUAL -> cb.greaterThanOrEqualTo(path, number);
-            case STARTS_WITH, ENDS_WITH -> cb.conjunction(); // not meaningful for numbers -> ignore
         };
     }
 
@@ -161,9 +126,8 @@ public final class CustomerFilterSpecifications {
                                            Operator operator, String value) {
         Expression<String> lower = cb.lower(path);
         String lowerValue = value.toLowerCase();
-        String likePattern = "%" + lowerValue + "%";
         return switch (operator) {
-            case CONTAINS -> cb.like(lower, likePattern);
+            case CONTAINS -> cb.like(lower, "%" + lowerValue + "%");
             case EQUALS -> cb.equal(lower, lowerValue);
             case STARTS_WITH -> cb.like(lower, lowerValue + "%");
             case ENDS_WITH -> cb.like(lower, "%" + lowerValue);
