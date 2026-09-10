@@ -85,7 +85,7 @@ limit of any filter type.
 
 | Module | Port | What it shows |
 | --- | --- | --- |
-| `01-non-ai-filter` | 8081 | Two non-AI baselines: an in-memory data provider filtered with a Java `Stream`, and a lazy-loading grid whose per-column filter form becomes a JPA `Specification`. |
+| `01-non-ai-filter` | 8081 | Three non-AI baselines: an in-memory data provider filtered with a Java `Stream`, a lazy-loading grid whose per-column filter form becomes a JPA `Specification`, and the same lazy grid filtered by a query-builder form (`/lazy-form`). |
 | `02-ai-agent-filter` | 8082 | Natural-language filtering via **tool calling**, two variants behind two routes of one app: 02(a) one scalar value per field (`/`), 02(b) value + operator + negate per field (`/operator`). |
 | `03-ai-structured-filter` | 8083 | The model returns the filter as **structured output** — one `CustomerFilter` holding a flat list of conditions. |
 | `04-ai-hybrid-filter` | 8084 | **Tool calling with 03's filter type**: `@Tool searchCustomers(List<Condition>)`. The step that separates capability from delivery. |
@@ -100,7 +100,7 @@ Every app depends on `00-commons`, so a single-module build needs `-am`. `spring
 `-am` and resolves from `~/.m2`, so run `./mvnw install -DskipTests` once first.
 
 ```bash
-./mvnw -pl 01-non-ai-filter        spring-boot:run   # http://localhost:8081 (/ or /in-memory, and /lazy)
+./mvnw -pl 01-non-ai-filter        spring-boot:run   # http://localhost:8081 (/ or /in-memory, /lazy, /lazy-form)
 ./mvnw -pl 02-ai-agent-filter      spring-boot:run   # http://localhost:8082 (/ or /flat, and /operator)
 ./mvnw -pl 03-ai-structured-filter spring-boot:run   # http://localhost:8083
 ./mvnw -pl 04-ai-hybrid-filter     spring-boot:run   # http://localhost:8084
