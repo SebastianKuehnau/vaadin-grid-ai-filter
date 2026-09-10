@@ -37,11 +37,18 @@ class CustomerSearchService implements CustomerSearchAgent {
 
             The values:
               - city matches the whole field, case-insensitively.
-              - lastOrderDate is an ISO yyyy-MM-dd day and matches that one day. Read an ambiguous
-                date day-first (German), e.g. '03.05.05' -> '2005-05-03'. For a relative date
-                ("yesterday", "this year"), call currentLocalDateTime FIRST and compute from its
-                result - never guess today's date.
-              - creditRating is GOOD (creditworthy), MEDIUM (limited) or POOR (at risk).
+              - lastOrderDate is an ISO yyyy-MM-dd day and matches that one day.
+              - A date the user wrote ambiguously is day-first (German): '03.05.05' is 2005-05-03.
+              - creditRating is GOOD (creditworthy), MEDIUM (limited creditworthiness) or POOR
+                (at risk / not creditworthy).
+
+            A RELATIVE date ("yesterday", "today") must be computed, never guessed and never copied
+            from an example in this prompt: call currentLocalDateTime first and compute from the date
+            it returns.
+
+            "Not creditworthy" / "at risk" NAMES the POOR rating - pass creditRating=POOR. The word
+            "not" belongs to the rating's name here; it is not a negation, which this filter type
+            could not express anyway.
             """;
 
     private final ChatClient chatClient;

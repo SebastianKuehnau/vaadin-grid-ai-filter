@@ -1,8 +1,8 @@
 package dev.demo.vaadin.aigridfilter.ai.operator;
 
-import dev.demo.vaadin.aigridfilter.ai.operator.FieldCriterion.Operator;
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
 import dev.demo.vaadin.aigridfilter.ai.TokenUsageAdvisor;
+import dev.demo.vaadin.aigridfilter.ai.operator.FieldCriterion.Operator;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import org.slf4j.Logger;
@@ -16,11 +16,10 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/** Variant 02(b): a value, an operator and a negate flag per field - 39 flat tool parameters. */
+/** Variant 02(b): a value, an operator and a negate flag per field - nine flat tool parameters. */
 @Service("operatorSearchAgent")
 @Scope("prototype")
 class CustomerSearchService implements CustomerSearchAgent {
@@ -28,79 +27,41 @@ class CustomerSearchService implements CustomerSearchAgent {
     private static final Logger logger = LoggerFactory.getLogger(CustomerSearchService.class);
 
     private static final String SYSTEM_PROMPT = """
-            You are a helpful assistant that helps users find customers based on their
-            company name, contact name, email, phone, customer since, last order date,
-            country, city, postal code, street, house number, annual revenue, and credit
-            rating. The credit rating is one of: creditworthy (GOOD), limited (MEDIUM), or
-            at risk / not creditworthy (POOR).
+            You filter a customer grid. Call the searchCustomers tool ONCE, then stop - the filter has
+            already been applied.
 
-            Call the searchCustomers tool to filter the grid. Each field has THREE parameters:
-            the value, <field>Operator, and <field>Negate. ALWAYS pass the value parameter for every
-            field you filter on - the value is what gets matched, while <field>Operator only says HOW
-            to compare it. An operator or a negate flag without its value filters nothing, so
-            "company name contains data" is companyName="data" (operator CONTAINS is the default and
-            may be omitted), never companyNameOperator="CONTAINS" on its own.
+            Each field has THREE parameters: the value, <field>Operator and <field>Negate. Always pass
+            the value - an operator or a negate flag on its own filters nothing.
 
-            Fill the operator and the negate flag whenever the request implies them:
-              - "not X" / "except X" / "excluding X" / "ausser X" -> pass X as the value and set
-                <field>Negate=true. Negation is ALWAYS expressed via the negate flag, never via the
-                operator: there is no NOT_CONTAINS, NOT_STARTS_WITH, NOT_ENDS_WITH, NOT_EQUALS, or any
-                other NOT_* operator - Operator only ever has the plain values CONTAINS, EQUALS,
-                STARTS_WITH, ENDS_WITH, GREATER_OR_EQUAL, LESS_OR_EQUAL. So "does not start with X" /
-                "startet nicht mit X" -> <field>Operator=STARTS_WITH and <field>Negate=true (not an
-                invented "NOT_STARTS_WITH"); "does not end with X" -> ENDS_WITH + Negate=true. This
-                applies even when the request is phrased as "all customers except X" / "show me
-                everyone but X" - the word "all"/"everyone" does NOT mean pass no filter; it means
-                "all of the remaining customers once X is excluded", so you must still call
-                searchCustomers with X as the value and <field>Negate=true, never with every
-                parameter null.
-              - "begins with" / "first character/letter is X" -> <field>Operator=STARTS_WITH;
-                "ends with" -> ENDS_WITH; "is exactly" / "precisely X" -> EQUALS; a plain partial
-                match -> CONTAINS (the default).
-              - city, country, and street are components of a larger address, so a plain "in X" /
-                "from X" / "is X" phrasing (e.g. "customers in Berlin") always means
-                <field>Operator=CONTAINS (the default) for these three fields, never EQUALS - reserve
-                EQUALS for these fields for explicit exact-match wording only ("exactly Berlin",
-                "precisely Berlin").
-              - a bare place name is a CITY, never a country, unless it unambiguously names a country
-                (e.g. "Germany", "France") or both are given together (e.g. "Hamburg, Germany"): put
-                "Hamburg", "Berlin", "Munich" etc. into city, not into country. When in doubt, prefer
-                city over country - city is the field actually shown in the grid.
-              - dates: an exact day ("on 2024-03-15", "yesterday", "today") -> EQUALS;
-                "since" / "after" / "from" -> GREATER_OR_EQUAL; "before" / "until" -> LESS_OR_EQUAL;
-                an open-ended past range ("in the last 12 months", "last week", "this year") ->
-                GREATER_OR_EQUAL with the FIRST day of that period, never LESS_OR_EQUAL.
-              - annualRevenue: "at least" / "over" / "more than" -> GREATER_OR_EQUAL;
-                "at most" / "under" / "less than" -> LESS_OR_EQUAL; "exactly" -> EQUALS.
+            What this filter type CANNOT express. Say so instead of approximating it:
+              - a second value for one field ("Berlin or Hamburg")
+              - two bounds for one field, so no range of any kind
+            Never encode either into a single value: "Berlin, Hamburg" and "100000-500000" are wrong.
 
-            Each field takes exactly ONE value, ONE operator and ONE negate flag, so a field can only
-            ever carry a single condition. If a request needs two values or two bounds for the same
-            field, pass the single closest condition you can and ignore the rest - that limitation
-            cannot be worked around, so do not retry the call for the part you had to drop.
+            Negation is ALWAYS the negate flag, never an operator - there is no NOT_CONTAINS,
+            NOT_EQUALS or any other NOT_*. "not X" / "except X" / "ausser X" means: pass X as the
+            value AND set <field>Negate=true. "All customers except Berlin" does NOT mean "no filter";
+            it means city="Berlin" with cityNegate=true.
 
-            Call searchCustomers exactly ONCE and then stop; it has already been applied.
+            The values:
+              - city: CONTAINS is the default and is what a plain "in Berlin" means; reserve EQUALS
+                for explicitly exact wording. A bare place name is a city, never a country.
+              - lastOrderDate is an ISO yyyy-MM-dd day. Use EQUALS for an exact day, LESS_OR_EQUAL
+                for "before"/"until", and GREATER_OR_EQUAL for "since"/"after" and for an
+                open-ended past range, with the FIRST day of that period.
+              - A date the user wrote ambiguously is day-first (German): '03.05.05' is 2005-05-03.
+              - creditRating is GOOD (creditworthy), MEDIUM (limited creditworthiness) or POOR (at
+                risk / not creditworthy). It is a discrete label, so only EQUALS is meaningful.
 
-            For a relative date ("yesterday", "last week", "in the last 12 months") call the
-            currentLocalDateTime tool first, then subtract the WHOLE period from its result: "in the
-            last 12 months" means GREATER_OR_EQUAL (today minus 12 months), not minus one month.
+            A RELATIVE date ("yesterday", "last week", "in the last 12 months") must be computed,
+            never guessed and never copied from an example in this prompt: call currentLocalDateTime
+            first, then subtract the WHOLE period from the date it returns. "In the last 12 months"
+            is GREATER_OR_EQUAL (that date minus 12 months), not minus one month.
+
+            "Not creditworthy" / "at risk" NAMES the POOR rating - pass creditRating=POOR with
+            creditRatingNegate=false. The word "not" belongs to the rating's name here; it is not a
+            negation. Negating GOOD instead would wrongly include the MEDIUM customers.
             """;
-
-    // Identical for every field, so kept as constants instead of being repeated 13 times.
-    private static final String TEXT_OPERATOR = """
-            how to compare this field with its value: CONTAINS (case-insensitive substring, the
-            default), EQUALS (the whole field equals the value), STARTS_WITH, or ENDS_WITH.""";
-    private static final String DATE_OPERATOR = """
-            how to compare this date: EQUALS (exactly that day), GREATER_OR_EQUAL (that day or later),
-            or LESS_OR_EQUAL (that day or earlier).""";
-    private static final String NUMBER_OPERATOR = """
-            how to compare this number: GREATER_OR_EQUAL (at least), LESS_OR_EQUAL (at most), or
-            EQUALS (exactly).""";
-    private static final String RATING_OPERATOR = """
-            how to compare the rating. A rating is a discrete label, so only equality is meaningful:
-            pass EQUALS (or null).""";
-    private static final String NEGATE = """
-            true to EXCLUDE the matches of this field instead of requiring them (e.g. "not from
-            Berlin", "except Hamburg"); false or null otherwise.""";
 
     private final ChatClient chatClient;
     private final TokenUsageAdvisor tokenUsageAdvisor;
@@ -145,111 +106,32 @@ class CustomerSearchService implements CustomerSearchAgent {
     }
 
     @Tool(description = """
-            Search and filter the customer grid. Returns nothing; it updates the grid in place to show
-            only the matching customers, replacing any previous filter (filters are not additive).
-            All parameters are optional - pass null to ignore one; passing all null shows every
-            customer. Fields are combined with AND.
-            Every field has exactly three parameters: the value, its operator, and its negate flag. The
-            value is mandatory whenever you filter on that field: an operator or a negate flag on its
-            own matches nothing (companyNameOperator="CONTAINS" without companyName="data" is useless).
-            Every parameter is a single scalar value, never a list, so ONE field can carry only ONE
-            condition: there is no way to match two cities, and no way to give both a lower and an
-            upper bound for annualRevenue or a date. Do not try to encode a range or a list into a
-            single value ("100000-500000" or "Berlin, Hamburg" are wrong) - pass the single closest
-            condition instead.
-            Dates are ISO yyyy-MM-dd; interpret ambiguous user input as day-first (German format),
-            e.g. '03.05.05' -> "2005-05-03". For a relative date, call currentLocalDateTime first.
+            Filters the customer grid in place, replacing any previous filter. Every field has three
+            parameters - the value, its operator and its negate flag - and the fields are AND-combined.
+            Every parameter is optional; null ignores it. One field carries at most ONE condition.
             """)
     void searchCustomers(
-            @ToolParam(description = "company name to match") String companyName,
-            @ToolParam(description = TEXT_OPERATOR) Operator companyNameOperator,
-            @ToolParam(description = NEGATE) Boolean companyNameNegate,
+            @ToolParam(description = "city, e.g. \"Berlin\"") String city,
+            @ToolParam(description = "how to compare the city: CONTAINS, EQUALS, STARTS_WITH or ENDS_WITH") Operator cityOperator,
+            @ToolParam(description = "true to exclude the matching cities instead of requiring them") Boolean cityNegate,
 
-            @ToolParam(description = "contact name to match") String contactName,
-            @ToolParam(description = TEXT_OPERATOR) Operator contactNameOperator,
-            @ToolParam(description = NEGATE) Boolean contactNameNegate,
+            @ToolParam(description = "last order date, ISO yyyy-MM-dd") LocalDate lastOrderDate,
+            @ToolParam(description = "how to compare the date: EQUALS, GREATER_OR_EQUAL or LESS_OR_EQUAL") Operator lastOrderDateOperator,
+            @ToolParam(description = "true to exclude the matching dates instead of requiring them") Boolean lastOrderDateNegate,
 
-            @ToolParam(description = "email address to match") String email,
-            @ToolParam(description = TEXT_OPERATOR) Operator emailOperator,
-            @ToolParam(description = NEGATE) Boolean emailNegate,
-
-            @ToolParam(description = """
-                    phone number to match, or part of it. Numbers are stored in E.164 format, so
-                    normalize the user input to E.164 before passing it, e.g. '016057123456' or
-                    '0160 57 123456' -> '+4916057123456' (assume Germany / +49 for national
-                    numbers).""") String phone,
-            @ToolParam(description = TEXT_OPERATOR) Operator phoneOperator,
-            @ToolParam(description = NEGATE) Boolean phoneNegate,
-
-            @ToolParam(description = """
-                    the 'customer since' date to compare against, e.g. "customers since 2020" ->
-                    "2020-01-01" with GREATER_OR_EQUAL.""") LocalDate customerSince,
-            @ToolParam(description = DATE_OPERATOR) Operator customerSinceOperator,
-            @ToolParam(description = NEGATE) Boolean customerSinceNegate,
-
-            @ToolParam(description = """
-                    the last-order date to compare against, e.g. "ordered since March 2024" ->
-                    "2024-03-01" with GREATER_OR_EQUAL.""") LocalDate lastOrderDate,
-            @ToolParam(description = DATE_OPERATOR) Operator lastOrderDateOperator,
-            @ToolParam(description = NEGATE) Boolean lastOrderDateNegate,
-
-            @ToolParam(description = """
-                    country to match, e.g. "Germany" or "France". A bare city name (Hamburg, Berlin,
-                    Munich, ...) is NOT a country - put it in the city parameter instead.""") String country,
-            @ToolParam(description = TEXT_OPERATOR) Operator countryOperator,
-            @ToolParam(description = NEGATE) Boolean countryNegate,
-
-            @ToolParam(description = """
-                    city to match, e.g. "Hamburg" or "Berlin". A bare place name defaults to city
-                    unless it unambiguously names a country.""") String city,
-            @ToolParam(description = TEXT_OPERATOR) Operator cityOperator,
-            @ToolParam(description = NEGATE) Boolean cityNegate,
-
-            @ToolParam(description = "postal code to match") String postalCode,
-            @ToolParam(description = TEXT_OPERATOR) Operator postalCodeOperator,
-            @ToolParam(description = NEGATE) Boolean postalCodeNegate,
-
-            @ToolParam(description = "street to match") String street,
-            @ToolParam(description = TEXT_OPERATOR) Operator streetOperator,
-            @ToolParam(description = NEGATE) Boolean streetNegate,
-
-            @ToolParam(description = "house number to match") String houseNumber,
-            @ToolParam(description = TEXT_OPERATOR) Operator houseNumberOperator,
-            @ToolParam(description = NEGATE) Boolean houseNumberNegate,
-
-            @ToolParam(description = """
-                    credit rating to match: GOOD (creditworthy), MEDIUM (limited creditworthiness),
-                    or POOR (at risk / not creditworthy).""") CreditRating creditRating,
-            @ToolParam(description = RATING_OPERATOR) Operator creditRatingOperator,
-            @ToolParam(description = NEGATE) Boolean creditRatingNegate,
-
-            @ToolParam(description = """
-                    annual revenue to compare against, as a plain number, e.g. "over 500000" ->
-                    500000 with GREATER_OR_EQUAL.""") BigDecimal annualRevenue,
-            @ToolParam(description = NUMBER_OPERATOR) Operator annualRevenueOperator,
-            @ToolParam(description = NEGATE) Boolean annualRevenueNegate
+            @ToolParam(description = "credit rating: GOOD, MEDIUM or POOR") CreditRating creditRating,
+            @ToolParam(description = "how to compare the rating: only EQUALS is meaningful") Operator creditRatingOperator,
+            @ToolParam(description = "true to exclude the matching ratings instead of requiring them") Boolean creditRatingNegate
     ) {
         if (criteria != null) {
             throw new IllegalStateException(
                     "searchCustomers was already called once for this request; rejecting repeat call");
         }
 
-        CustomerCriteria incoming = new CustomerCriteria(
-                FieldCriterion.of(companyName, companyNameOperator, companyNameNegate),
-                FieldCriterion.of(contactName, contactNameOperator, contactNameNegate),
-                FieldCriterion.of(email, emailOperator, emailNegate),
-                FieldCriterion.of(phone, phoneOperator, phoneNegate),
-                FieldCriterion.of(customerSince, customerSinceOperator, customerSinceNegate),
-                FieldCriterion.of(lastOrderDate, lastOrderDateOperator, lastOrderDateNegate),
-                FieldCriterion.of(country, countryOperator, countryNegate),
+        this.criteria = new CustomerCriteria(
                 FieldCriterion.of(city, cityOperator, cityNegate),
-                FieldCriterion.of(postalCode, postalCodeOperator, postalCodeNegate),
-                FieldCriterion.of(street, streetOperator, streetNegate),
-                FieldCriterion.of(houseNumber, houseNumberOperator, houseNumberNegate),
-                FieldCriterion.of(creditRating, creditRatingOperator, creditRatingNegate),
-                FieldCriterion.of(annualRevenue, annualRevenueOperator, annualRevenueNegate));
-
-        this.criteria = incoming;
+                FieldCriterion.of(lastOrderDate, lastOrderDateOperator, lastOrderDateNegate),
+                FieldCriterion.of(creditRating, creditRatingOperator, creditRatingNegate));
         logger.info("searchCustomers -> {}", criteria);
     }
 

@@ -1,6 +1,5 @@
 package dev.demo.vaadin.aigridfilter.ai.operator;
 
-import dev.demo.vaadin.aigridfilter.ai.operator.FieldCriterion.Operator;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -9,7 +8,6 @@ import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,23 +25,10 @@ public final class CustomerSpecifications {
 
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-            var address = root.get("address");
 
-            addText(predicates, cb, root.get("companyName"), criteria.companyName());
-            addText(predicates, cb, root.get("contactName"), criteria.contactName());
-            addText(predicates, cb, root.get("email"), criteria.email());
-            addText(predicates, cb, root.get("phone"), criteria.phone());
-            addText(predicates, cb, address.get("country"), criteria.country());
-            addText(predicates, cb, address.get("city"), criteria.city());
-            addText(predicates, cb, address.get("postalCode"), criteria.postalCode());
-            addText(predicates, cb, address.get("street"), criteria.street());
-            addText(predicates, cb, address.get("houseNumber"), criteria.houseNumber());
-
-            addDate(predicates, cb, root.get("customerSince"), criteria.customerSince());
+            addText(predicates, cb, root.get("address").get("city"), criteria.city());
             addDate(predicates, cb, root.get("lastOrderDate"), criteria.lastOrderDate());
-
             addCreditRating(predicates, cb, root.get("creditScore"), criteria.creditRating());
-            addNumber(predicates, cb, root.get("annualRevenue"), criteria.annualRevenue());
 
             return cb.and(predicates.toArray(new Predicate[0]));
         };
@@ -67,7 +52,6 @@ public final class CustomerSpecifications {
         predicates.add(negateIfNeeded(cb, predicate, criterion));
     }
 
-    /** Real day-level bounds — no whole-year normalization, unlike variant 02(a). */
     private static void addDate(List<Predicate> predicates, CriteriaBuilder cb, Path<LocalDate> path,
                                 FieldCriterion<LocalDate> criterion) {
         if (criterion == null) {
@@ -79,21 +63,6 @@ public final class CustomerSpecifications {
             case LESS_OR_EQUAL -> cb.lessThanOrEqualTo(path, date);
             case GREATER_OR_EQUAL, CONTAINS -> cb.greaterThanOrEqualTo(path, date);
             case STARTS_WITH, ENDS_WITH -> cb.conjunction(); // not meaningful for dates -> ignore
-        };
-        predicates.add(negateIfNeeded(cb, predicate, criterion));
-    }
-
-    private static void addNumber(List<Predicate> predicates, CriteriaBuilder cb, Path<BigDecimal> path,
-                                  FieldCriterion<BigDecimal> criterion) {
-        if (criterion == null) {
-            return;
-        }
-        BigDecimal value = criterion.value();
-        Predicate predicate = switch (criterion.operator()) {
-            case EQUALS, CONTAINS -> cb.equal(path, value);
-            case LESS_OR_EQUAL -> cb.lessThanOrEqualTo(path, value);
-            case GREATER_OR_EQUAL -> cb.greaterThanOrEqualTo(path, value);
-            case STARTS_WITH, ENDS_WITH -> cb.conjunction(); // not meaningful for numbers -> ignore
         };
         predicates.add(negateIfNeeded(cb, predicate, criterion));
     }

@@ -13,7 +13,7 @@ public class OperatorCustomerListView extends AbstractCustomerListView {
                                     @Qualifier("operatorSearchAgent") CustomerSearchAgent searchAgent) {
         super(customerRepository, searchAgent,
                 "Customer Grid – AI Filter 02(b)",
-                "Tool calling with a value, an operator and a negate flag per field (39 parameters): "
+                "Tool calling with a value, an operator and a negate flag per field (nine parameters): "
                         + "negation and operator precision are expressible, multi-value OR and ranges "
                         + "still are not.");
     }
