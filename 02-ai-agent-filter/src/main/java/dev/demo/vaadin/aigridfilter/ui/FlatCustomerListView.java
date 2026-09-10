@@ -16,7 +16,7 @@ public class FlatCustomerListView extends AbstractCustomerListView {
         super(customerRepository, searchAgent,
                 "Customer Grid – AI Filter 02(a)",
                 "Tool calling with one scalar value per field: no operator, no negation, "
-                        + "no second value for a field. Text matches as a substring, a date matches its "
-                        + "whole calendar year, revenue is a minimum.");
+                        + "no second value for a field. Text matches the whole field, case-insensitively; "
+                        + "a date matches that one exact day; revenue is a minimum.");
     }
 }
