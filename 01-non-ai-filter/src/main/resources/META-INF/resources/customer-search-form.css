@@ -1,0 +1,4 @@
+/* Search / Reset sit slightly apart from the last row of fields. */
+.customer-search-form__buttons {
+    margin-top: var(--lumo-space-m);
+}
