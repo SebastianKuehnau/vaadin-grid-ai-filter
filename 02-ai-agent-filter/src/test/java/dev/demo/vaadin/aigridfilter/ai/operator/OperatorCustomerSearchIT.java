@@ -143,6 +143,14 @@ class OperatorCustomerSearchIT {
                         expectedIds(customer -> city(customer).equals("Berlin")));
     }
 
+    @Test
+    void translatesAGermanCityName() {
+        assertThat(search("zeig mir alle Kunden aus München"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(
+                        expectedIds(customer -> city(customer).equals("Munich")));
+    }
+
     /** The mechanism under test: prompt to the model, Specification back, executed by the database. */
     private List<Customer> search(String prompt) {
         Specification<Customer> customerSpecification = agent.resolveFilter(prompt);

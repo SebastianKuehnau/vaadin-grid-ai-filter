@@ -116,7 +116,10 @@ public class CustomerSearchService implements CustomerSearchAgent {
 
                 The fields:
                   - city is text, matched case-insensitively. CONTAINS is what a plain "in Berlin"
-                    means; reserve EQUALS for explicitly exact wording.
+                    means; reserve EQUALS for explicitly exact wording. City names are stored in
+                    English - Berlin, Hamburg, Munich, Frankfurt, Cologne, Dusseldorf - so
+                    translate a German one before passing it: "München" is Munich, "Köln" is
+                    Cologne.
                   - lastOrderDate is an ISO yyyy-MM-dd day. EQUALS for an exact day, LESS_OR_EQUAL
                     for "before"/"until", GREATER_OR_EQUAL for "since"/"after" and for the first day
                     of an open-ended past range. A bare year ("ordered in 2024") is a CLOSED range:

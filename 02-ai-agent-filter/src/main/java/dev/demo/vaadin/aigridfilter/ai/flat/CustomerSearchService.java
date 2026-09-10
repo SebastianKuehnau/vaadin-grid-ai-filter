@@ -36,7 +36,9 @@ class CustomerSearchService implements CustomerSearchAgent {
               - a range of any kind
 
             The values:
-              - city matches the whole field, case-insensitively.
+              - city matches the whole field, case-insensitively. City names are stored in English - Berlin, Hamburg, Munich, Frankfurt, Cologne,
+                Dusseldorf - so translate a German one before passing it: "München" is Munich,
+                "Köln" is Cologne.
               - lastOrderDate is an ISO yyyy-MM-dd day and matches that one day.
               - A date the user wrote ambiguously is day-first (German): '03.05.05' is 2005-05-03.
               - creditRating is GOOD (creditworthy), MEDIUM (limited creditworthiness) or POOR

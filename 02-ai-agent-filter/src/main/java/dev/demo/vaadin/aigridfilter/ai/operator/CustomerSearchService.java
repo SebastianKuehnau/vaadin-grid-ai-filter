@@ -46,6 +46,9 @@ class CustomerSearchService implements CustomerSearchAgent {
             The values:
               - city: CONTAINS is the default and is what a plain "in Berlin" means; reserve EQUALS
                 for explicitly exact wording. A bare place name is a city, never a country.
+                City names are stored in English - Berlin, Hamburg, Munich, Frankfurt, Cologne,
+                Dusseldorf - so translate a German one before passing it: "München" is Munich,
+                "Köln" is Cologne.
               - lastOrderDate is an ISO yyyy-MM-dd day. Use EQUALS for an exact day, LESS_OR_EQUAL
                 for "before"/"until", and GREATER_OR_EQUAL for "since"/"after" and for an
                 open-ended past range, with the FIRST day of that period.
