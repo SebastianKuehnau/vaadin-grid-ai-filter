@@ -29,9 +29,9 @@ public class CustomerSearchForm extends FormLayout {
     final MultiSelectComboBox<String> countries = new MultiSelectComboBox<>("Country");
     final Select<ActiveStatus> active = new Select<>();
     final MultiSelectComboBox<CreditRating> creditRatings = new MultiSelectComboBox<>("Credit rating");
-    final NumberRange revenue = new NumberRange();
-    final DateRange customerSince = new DateRange();
-    final DateRange lastOrder = new DateRange();
+    final NumberRange revenue = new NumberRange("Annual revenue (€)");
+    final DateRange customerSince = new DateRange("Customer since");
+    final DateRange lastOrder = new DateRange("Last order");
     Button search;
 
     private final Consumer<CustomerFilter> onSearch;
@@ -86,11 +86,7 @@ public class CustomerSearchForm extends FormLayout {
                 new ResponsiveStep("500px", 2),
                 new ResponsiveStep("900px", 3));
 
-        add(companyName, contactName, email, city, countries, active, creditRatings);
-        addFormItem(revenue, "Annual revenue (€)");
-        addFormItem(customerSince, "Customer since");
-        addFormItem(lastOrder, "Last order");
-
+        add(companyName, contactName, email, city, countries, active, creditRatings, revenue, customerSince, lastOrder);
         add(new ButtonBar());
     }
 
@@ -149,13 +145,16 @@ public class CustomerSearchForm extends FormLayout {
         final BigDecimalField from = new BigDecimalField();
         final BigDecimalField to = new BigDecimalField();
 
-        NumberRange() {
+        NumberRange(String label) {
+            from.setLabel(label);
             from.setPlaceholder("min");
             to.setPlaceholder("max");
             from.setWidthFull();
             to.setWidthFull();
             setWidthFull();
             add(from, to);
+
+            setAlignItems(Alignment.BASELINE);
         }
 
         void clear() {
@@ -169,13 +168,16 @@ public class CustomerSearchForm extends FormLayout {
         final DatePicker from = new DatePicker();
         final DatePicker to = new DatePicker();
 
-        DateRange() {
+        DateRange(String label) {
+            from.setLabel(label);
             from.setPlaceholder("from");
             to.setPlaceholder("until");
             from.setWidthFull();
             to.setWidthFull();
             setWidthFull();
             add(from, to);
+
+            setAlignItems(Alignment.BASELINE);
         }
 
         void clear() {
