@@ -58,18 +58,7 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>com.vaadin</groupId>
-			<artifactId>browserless-test-spring</artifactId>
-			<version>1.1.1</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.awaitility</groupId>
-			<artifactId>awaitility</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<!-- The shared test mechanism (UI search helper, logging/token extensions), as a test-jar. -->
+			<!-- The shared test mechanism (logging/token extensions, Ollama container), as a test-jar. -->
 			<groupId>dev.demo.vaadin</groupId>
 			<artifactId>00-commons</artifactId>
 			<version>${project.version}</version>

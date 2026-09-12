@@ -3,8 +3,7 @@
 `OllamaContainerConfig` in `00-commons`' test-jar starts an Ollama container from
 `00-commons/src/test/resources/ollama/Dockerfile`, which bakes `qwen3:8b` into the image, and Spring
 AI's `@ServiceConnection` wires `spring.ai.ollama.base-url` to it. `@Import(OllamaContainerConfig.class)`
-sits on the four service ITs and on `AbstractCustomerSearchViewIT`, which the four browserless ITs
-inherit it from. Docker is the only prerequisite for `./mvnw verify`.
+sits on the four service ITs. Docker is the only prerequisite for `./mvnw verify`.
 
 The obvious alternative is to provision an Ollama server next to the build — a service in the dev
 environment, a container in the sandbox kit, an `ollama serve` on the developer's machine. **This
@@ -26,10 +25,9 @@ in one 30-line class, and identical on every machine with a Docker daemon.
 ## Consequences
 
 - **Docker is now required** for `./mvnw verify`. `-DskipITs` still builds without one.
-- **The container must be reused, or the ITs run out of RAM.** The IT classes have different Spring
-  context configurations — `webEnvironment = NONE` for the service ITs, a full context plus a
-  distinct `@ViewPackages` per browserless IT — so Spring caches several contexts per module JVM and
-  never closes them: three in 02, two each in 03 and 04. Without reuse each context starts its own
+- **The container must be reused, or the ITs run out of RAM.** 02 runs two service ITs, one per
+  variant, in one JVM, and Spring caches both contexts without closing them. Without reuse each
+  context starts its own
   Ollama, each with its own resident `qwen3:8b` (`keep-alive=1h`), and 02 alone needs ~15 GB. The
   bean is therefore `withReuse(true)` and the three AI modules set `TESTCONTAINERS_REUSE_ENABLE=true`
   in their failsafe configuration, rather than relying on `~/.testcontainers.properties`, which every

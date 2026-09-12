@@ -11,8 +11,7 @@ thirteen dimensions — that its hand-built form is the most expressive thing in
 point of the first step, not an oversight.
 
 Each AI module contains one `@Test` per query, with the query as a string literal: all eight
-canonical cases in its service-level IT class, and two of them in its browserless IT — C1 plus one
-case the variant can express, because those test the wiring between view and agent, not capability.
+canonical cases in its service-level IT class, which is the only IT class it has.
 Queries a variant's filter type cannot express are `@Disabled` with the reason. **This table and
 those test methods are kept in sync by hand.**
 
