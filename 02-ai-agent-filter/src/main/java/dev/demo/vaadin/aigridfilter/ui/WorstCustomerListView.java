@@ -52,14 +52,12 @@ public class WorstCustomerListView extends VerticalLayout {
                 grid.setItems(getAllCustomers());
                 return;
             }
-
             search(query);
         });
 
         add(filterField);
 
         grid.setItems(getAllCustomers());
-
         add(grid);
 
         setSizeFull();
@@ -71,15 +69,9 @@ public class WorstCustomerListView extends VerticalLayout {
 
         String response = chatClient.prompt()
                 .system("""
-                        You filter customers based on a natural-language query.
-
-                        Follow these steps:
-                        1. Call getAllCustomers to retrieve the available customers.
-                        2. Determine which customers match the user's query.
-                        3. Call showCustomers with the IDs of ALL matching customers.
-
-                        Always call showCustomers, even if no customers match.
-                        Do not explain the result to the user.
+                        Call getAllCustomers, pick the customers matching the user's query, then call
+                        showCustomers with their ids. Always call showCustomers, even with no match.
+                        Do not explain.
                         """)
                 .user(query)
                 .tools(this)
@@ -90,21 +82,7 @@ public class WorstCustomerListView extends VerticalLayout {
     }
 
     @Tool(description = """
-            Returns all available customers that can be searched.
-
-            Customer properties include:
-            id,
-            companyName,
-            contactName,
-            email,
-            phoneNumber,
-            address.country,
-            address.city,
-            address.street,
-            annualRevenue,
-            creditScore,
-            customerSince,
-            lastOrder.
+            Returns all customers that can be searched."
             """)
     List<Customer> getAllCustomers() {
         logger.debug("Getting all customers");
@@ -112,19 +90,14 @@ public class WorstCustomerListView extends VerticalLayout {
     }
 
     @Tool(description = """
-            Display the customers that match the user's search query.
-            Call this tool with the IDs of all relevant customers.
-            If no customer matches, pass an empty set.
+            Shows the matching customers in the grid, replacing what is displayed.
             """)
     void showCustomers(
             @ToolParam(description = "IDs of all customers matching the search query")
             Set<Long> relevantIds) {
         logger.debug("Showing customers with IDs: {}", relevantIds);
 
-        List<Customer> relevantCustomers = customerRepository.findAll()
-                .stream()
-                .filter(customer -> relevantIds.contains(customer.getId()))
-                .toList();
+        List<Customer> relevantCustomers = customerRepository.findAllById(relevantIds);
 
         grid.setItems(relevantCustomers);
     }
