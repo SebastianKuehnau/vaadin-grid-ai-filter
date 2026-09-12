@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
 /** Variant 02(b): a value, an operator and a negate flag per field - nine flat tool parameters. */
 @Service("operatorSearchAgent")
 @Scope("prototype")
-class CustomerSearchService implements CustomerSearchAgent {
+public class CustomerSearchService implements CustomerSearchAgent {
 
     private static final Logger logger = LoggerFactory.getLogger(CustomerSearchService.class);
 

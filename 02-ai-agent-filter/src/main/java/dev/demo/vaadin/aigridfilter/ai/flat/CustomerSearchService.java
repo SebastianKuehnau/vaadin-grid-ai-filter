@@ -21,36 +21,19 @@ import java.time.LocalDateTime;
 /** Variant 02(a): the model calls one {@code searchCustomers} tool with one scalar value per field. */
 @Service("flatSearchAgent")
 @Scope("prototype")
-class CustomerSearchService implements CustomerSearchAgent {
+public class CustomerSearchService implements CustomerSearchAgent {
 
     private static final Logger logger = LoggerFactory.getLogger(CustomerSearchService.class);
 
     private static final String SYSTEM_PROMPT = """
-            You filter a customer grid. Call the searchCustomers tool ONCE, then stop - the filter has
-            already been applied, so never call it a second time.
-
-            What this filter type CANNOT express. Say so instead of approximating it:
-              - a second value for one field ("Berlin or Hamburg")
-              - a negation ("everyone except Berlin")
-              - an operator: no "before", "after", "at least" - every value matches exactly
-              - a range of any kind
-
-            The values:
-              - city matches the whole field, case-insensitively. City names are stored in English - Berlin, Hamburg, Munich, Frankfurt, Cologne,
-                Dusseldorf - so translate a German one before passing it: "München" is Munich,
-                "Köln" is Cologne.
-              - lastOrderDate is an ISO yyyy-MM-dd day and matches that one day.
-              - A date the user wrote ambiguously is day-first (German): '03.05.05' is 2005-05-03.
-              - creditRating is GOOD (creditworthy), MEDIUM (limited creditworthiness) or POOR
-                (at risk / not creditworthy).
-
-            A RELATIVE date ("yesterday", "today") must be computed, never guessed and never copied
-            from an example in this prompt: call currentLocalDateTime first and compute from the date
-            it returns.
-
-            "Not creditworthy" / "at risk" NAMES the POOR rating - pass creditRating=POOR. The word
-            "not" belongs to the rating's name here; it is not a negation, which this filter type
-            could not express anyway.
+            You filter a customer grid. Call searchCustomers exactly once, then stop.
+            Pass only values the user actually asked for; omit every other parameter.
+              - city: stored in English - translate first: "München" is Munich, "Köln" is Cologne.
+              - lastOrderDate: one exact day, ISO yyyy-MM-dd. Dates the user writes are day-first
+                ("03.05.05" is 2005-05-03). For "today"/"yesterday" call currentLocalDateTime first.
+              - creditRating: GOOD (creditworthy), MEDIUM, POOR (not creditworthy / at risk).
+            This filter holds one value per field and no operators, so a range, a second value or a
+            negation cannot be expressed - say so instead of approximating it.
             """;
 
     private final ChatClient chatClient;
@@ -96,7 +79,7 @@ class CustomerSearchService implements CustomerSearchAgent {
             @ToolParam(description = "last order date, ISO yyyy-MM-dd") LocalDate lastOrderDate,
             @ToolParam(description = "credit rating: GOOD, MEDIUM or POOR") CreditRating creditRating
     ) {
-        CustomerCriteria incoming = new CustomerCriteria(city, lastOrderDate, creditRating);
+        var incoming = new CustomerCriteria(city, lastOrderDate, creditRating);
 
         // The model sometimes calls the tool again with no arguments, so never overwrite what it found.
         if (criteria != null && !criteria.isEmpty() && incoming.isEmpty()) {
