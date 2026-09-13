@@ -79,10 +79,13 @@ public class CustomerSearchService implements CustomerSearchAgent {
                 lastOrderDate is an ISO yyyy-MM-dd day: EQUALS an exact day, LESS_OR_EQUAL
                 "before"/"until", GREATER_OR_EQUAL "since"/"after". A date the user wrote
                 ambiguously is day-first (German): '03.05.05' is 2005-05-03. Today is %s - compute
-                a relative date from it, never guess one. Emit a GREATER_OR_EQUAL + LESS_OR_EQUAL
-                pair only for an explicit "between X and Y" or a bare year ("in 2024" is 2024-01-01
-                to 2024-12-31); a relative period is open-ended, so ONE condition:
-                GREATER_OR_EQUAL today minus the WHOLE period.
+                a relative date from it, never guess one, then pick the operator by what was asked
+                for: a single relative DAY ("yesterday", "today") is ONE exact day, so EQUALS it -
+                it never means "from that day on"; a relative PERIOD ("in the last 12 months") is
+                open-ended, so GREATER_OR_EQUAL today minus the WHOLE period. Emit a
+                GREATER_OR_EQUAL + LESS_OR_EQUAL pair only for an explicit "between X and Y" or a
+                bare year ("in 2024" is 2024-01-01 to 2024-12-31), never for a single day, named
+                or relative.
 
                 creditRating EQUALS GOOD (creditworthy), MEDIUM (limited creditworthiness) or POOR
                 (at risk / not creditworthy). Several ratings are alternatives, so they share ONE
@@ -98,6 +101,8 @@ public class CustomerSearchService implements CustomerSearchAgent {
                     -> city CONTAINS [Berlin], negate=true
                   "customers who ordered in the last 12 months"
                     -> lastOrderDate GREATER_OR_EQUAL [today minus 12 months]
+                  "customers who ordered yesterday"
+                    -> lastOrderDate EQUALS [today minus 1 day]
                   "customers who last ordered between 2024-07-01 and 2025-03-31"
                     -> lastOrderDate GREATER_OR_EQUAL [2024-07-01]; lastOrderDate LESS_OR_EQUAL [2025-03-31]
                   "show all customers"

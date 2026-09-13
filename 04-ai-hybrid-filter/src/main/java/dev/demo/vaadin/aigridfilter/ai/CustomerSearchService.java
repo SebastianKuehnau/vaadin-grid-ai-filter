@@ -120,7 +120,8 @@ public class CustomerSearchService implements CustomerSearchAgent {
                     English - Berlin, Hamburg, Munich, Frankfurt, Cologne, Dusseldorf - so
                     translate a German one before passing it: "München" is Munich, "Köln" is
                     Cologne.
-                  - lastOrderDate is an ISO yyyy-MM-dd day. EQUALS for an exact day, LESS_OR_EQUAL
+                  - lastOrderDate is an ISO yyyy-MM-dd day. EQUALS for an exact day - a relative
+                    one such as "yesterday" is an exact day too - LESS_OR_EQUAL
                     for "before"/"until", GREATER_OR_EQUAL for "since"/"after" and for the first day
                     of an open-ended past range. A bare year ("ordered in 2024") is a CLOSED range:
                     two conditions, GREATER_OR_EQUAL 2024-01-01 and LESS_OR_EQUAL 2024-12-31.
@@ -131,12 +132,17 @@ public class CustomerSearchService implements CustomerSearchAgent {
                     a number.
 
                 A RELATIVE date ("yesterday", "last week", "in the last 12 months") must be computed,
-                never guessed and never copied from an example below: today is %s. "In the last 12
-                months" is GREATER_OR_EQUAL (today minus 12 months), not minus one month.
+                never guessed and never copied from an example below: today is %s. Then pick the
+                operator by what was asked for:
+                  - a single relative DAY ("yesterday", "today") is ONE exact day: EQUALS that day.
+                    "Yesterday" means that day alone, never "from that day on".
+                  - a relative PERIOD ("last week", "in the last 12 months") is open-ended:
+                    GREATER_OR_EQUAL its FIRST day, today minus the WHOLE period - "in the last 12
+                    months" is minus 12 months, not minus one month.
 
                 An open-ended range is ONE condition with no upper bound. Emit a GREATER_OR_EQUAL +
                 LESS_OR_EQUAL pair ONLY for an explicit "between X and Y" or a bare year - never for
-                a relative period and never for a single named day.
+                a relative period and never for a single day, named or relative.
 
                 "Not creditworthy" / "at risk" NAMES the POOR rating: creditRating EQUALS [POOR] with
                 negate=false. The word "not" belongs to the rating's name here, it is not a negation.
@@ -152,6 +158,8 @@ public class CustomerSearchService implements CustomerSearchAgent {
                     -> city CONTAINS [Berlin], negate=true
                   "customers who ordered in the last 12 months" (one condition, no upper bound)
                     -> lastOrderDate GREATER_OR_EQUAL [today minus 12 months]
+                  "customers who ordered yesterday" (one exact day, not a lower bound)
+                    -> lastOrderDate EQUALS [today minus 1 day]
                   "customers who last ordered between 2024-07-01 and 2025-03-31"
                     -> lastOrderDate GREATER_OR_EQUAL [2024-07-01];
                        lastOrderDate LESS_OR_EQUAL [2025-03-31]

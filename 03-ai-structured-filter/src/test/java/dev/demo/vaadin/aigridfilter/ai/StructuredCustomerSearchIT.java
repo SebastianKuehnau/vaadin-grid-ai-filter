@@ -81,6 +81,17 @@ class StructuredCustomerSearchIT {
     }
 
     @Test
+    void findsCustomersWhoOrderedYesterday() {
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+
+        // One exact day, not a lower bound: GREATER_OR_EQUAL would pull in every later order.
+        assertThat(search("zeige mir alle Kunden die gestern was bestellt haben"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        customer.getLastOrderDate().equals(yesterday)));
+    }
+
+    @Test
     void findsCustomersWhoLastOrderedWithinADateRange() {
         LocalDate from = LocalDate.of(2024, 7, 1);
         LocalDate to = LocalDate.of(2025, 3, 31);
