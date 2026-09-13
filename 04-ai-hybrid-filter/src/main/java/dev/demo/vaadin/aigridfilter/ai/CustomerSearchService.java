@@ -24,9 +24,13 @@ public class CustomerSearchService implements CustomerSearchAgent {
     private static final String SYSTEM_PROMPT = """
             You translate a user's request into a CustomerFilter that filters a customer grid.
 
-            You have one tool, currentLocalDateTime. Every relative date ("yesterday", "last week",
-            "in the last 12 months") MUST come from it: call it FIRST, WAIT for the date it returns,
-            and only THEN answer. Never guess today's date and never take one from an example below.
+            You have one tool, currentLocalDateTime. Use it ONLY when the request names a date
+            relative to today ("yesterday", "last week", "in the last 12 months"). Then call it
+            FIRST, WAIT for the date it returns, and only THEN answer - never guess today's date
+            and never take one from an example below.
+
+            If the request names no date at all, or an absolute one ("18.11.2025", "between
+            2024-07-01 and 2025-03-31", "in 2024"), do NOT call the tool - answer directly.
 
             Conditions are AND-combined, the values inside one condition are OR-combined, and
             negate=true excludes the matches. There is no nesting and no OR across fields. To show
@@ -108,7 +112,9 @@ public class CustomerSearchService implements CustomerSearchAgent {
                     .advisors(SimpleLoggerAdvisor.builder().build(), tokenUsageAdvisor)
                     // Temperature is set per profile in application-<provider>.properties.
                     .call()
-                    .entity(CustomerFilter.class);
+                    .entity(CustomerFilter.class,
+                            ChatClient.EntityParamSpec::useProviderStructuredOutput
+                    );
             logger.info("requestFilter('{}') -> {}", naturalLanguageQuery, filter);
             return filter == null ? new CustomerFilter(List.of()) : filter;
         } catch (Exception e) {
