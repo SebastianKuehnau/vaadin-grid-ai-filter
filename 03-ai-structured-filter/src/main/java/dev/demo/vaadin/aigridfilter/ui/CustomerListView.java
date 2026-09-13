@@ -1,15 +1,74 @@
 package dev.demo.vaadin.aigridfilter.ui;
 
+import com.vaadin.flow.component.AbstractField;
+import com.vaadin.flow.component.html.H1;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.Route;
-import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
+import dev.demo.vaadin.aigridfilter.ai.CustomerSearchService;
 import dev.demo.vaadin.aigridfilter.data.CustomerRepository;
-import org.springframework.data.jpa.domain.Specification;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-/** The UI layer: a natural-language filter field above the customer grid. No Spring AI here. */
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+
+/** Module 03's view: a natural-language filter field above the customer grid. No Spring AI here. */
 @Route("")
-public class CustomerListView extends AbstractCustomerSearchView {
+public class CustomerListView extends VerticalLayout {
 
-    public CustomerListView(CustomerRepository customerRepository, CustomerSearchAgent searchAgent) {
-        super(customerRepository, searchAgent, "Customer Grid – Structured AI Filter");
+    private static final Logger logger = LoggerFactory.getLogger(CustomerListView.class);
+
+    public final CustomerGrid grid = new CustomerGrid();
+    public final TextField filterField = new TextField("", "filter for ...");
+
+    private final CustomerRepository customerRepository;
+    private final CustomerSearchService searchService;
+
+    public CustomerListView(CustomerRepository customerRepository,
+                            CustomerSearchService searchService) {
+        this.customerRepository = customerRepository;
+        this.searchService = searchService;
+
+        add(new H1("Customer Grid – Structured AI Filter"));
+
+        filterField.setClearButtonVisible(true);
+        filterField.setWidthFull();
+        filterField.addValueChangeListener(this::search);
+        add(filterField, grid);
+
+        grid.setItems(customerRepository.findAll());
+
+        setSizeFull();
+    }
+
+    private void search(AbstractField.ComponentValueChangeEvent<TextField, String> event) {
+        var query = event.getValue();
+
+        if (query == null || query.isBlank()) {
+            grid.setItems(customerRepository.findAll());
+            return;
+        }
+        logger.info("Searching customers for: {}", query);
+
+        var ui = event.getUI();
+        filterField.setEnabled(false);
+
+        // resolveFilter() blocks on the LLM, so run it off the UI thread and apply via ui.access().
+        CompletableFuture
+                .supplyAsync(() -> searchService.resolveFilter(query))
+                .whenComplete((filter, error) -> ui.access(() -> {
+                    if (error != null) {
+                        Throwable cause = error instanceof CompletionException ? error.getCause() : error;
+                        logger.error("Customer search failed", cause);
+                        Notification.show("Error - " + cause.getLocalizedMessage())
+                                .addThemeVariants(NotificationVariant.ERROR);
+                    } else {
+                        grid.setItems(customerRepository.findAll(filter));
+                    }
+                    filterField.setEnabled(true);
+                }));
     }
 }

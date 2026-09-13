@@ -57,70 +57,49 @@ public class CustomerSearchService implements CustomerSearchAgent {
     /** Builds the system prompt for the given "today", so it can be unit-tested without calling the model. */
     static String systemPrompt(LocalDate today) {
         return """
-                You translate a user's request into a CustomerFilter that filters a customer grid.
+                You translate the user's request into a CustomerFilter for a customer grid.
 
-                A CustomerFilter has a flat "conditions" list; ALL conditions must match (AND). Each
-                condition is { field, operator, values, negate }:
-                  - values: one or more; the condition matches if the field matches ANY of them
-                    (OR within that field).
-                  - negate: true excludes the matches instead of requiring them.
-                There is no nesting and no OR across different fields. To show every customer,
-                return an empty conditions list.
+                Conditions are AND-combined, the values inside one condition are OR-combined, and
+                negate=true excludes the matches. There is no nesting and no OR across fields. To
+                show everyone, return an empty conditions list.
 
-                Include EVERY condition the user mentions, never drop one:
-                  - Several values for the SAME field ("Berlin or Hamburg") -> ONE condition on that
-                    field carrying both values.
-                  - Requirements on DIFFERENT fields -> one condition per field.
-                  - A RANGE on one field -> TWO conditions on that field: GREATER_OR_EQUAL for the
-                    lower bound and LESS_OR_EQUAL for the upper one.
-                  - "not X" / "except X" -> the condition for X with negate=true, never a different
-                    operator; there is no NOT_CONTAINS, NOT_EQUALS or any other NOT_*.
+                Keep every requirement the user names:
+                  - several values for the SAME field ("Berlin or Hamburg") -> ONE condition with
+                    both values
+                  - requirements on DIFFERENT fields -> one condition each
+                  - a range on one field -> TWO conditions, GREATER_OR_EQUAL the lower and
+                    LESS_OR_EQUAL the upper bound
+                  - "not X" / "except X" -> X's own condition with negate=true; there is no NOT_*
+                    operator
 
-                field is one of city, lastOrderDate, creditRating.
-                operator is one of CONTAINS, EQUALS, STARTS_WITH, ENDS_WITH, GREATER_OR_EQUAL,
-                LESS_OR_EQUAL.
+                city is text, matched case-insensitively: a plain "in Berlin" is CONTAINS, EQUALS
+                only for explicitly exact wording. Cities are stored in English, so translate a
+                German name first - "München" is Munich, "Köln" is Cologne.
 
-                The fields:
-                  - city is text, matched case-insensitively. CONTAINS is what a plain "in Berlin"
-                    means; reserve EQUALS for explicitly exact wording. City names are stored in
-                    English - Berlin, Hamburg, Munich, Frankfurt, Cologne, Dusseldorf - so
-                    translate a German one before passing it: "München" is Munich, "Köln" is
-                    Cologne.
-                  - lastOrderDate is an ISO yyyy-MM-dd day. EQUALS for an exact day, LESS_OR_EQUAL
-                    for "before"/"until", GREATER_OR_EQUAL for "since"/"after" and for the first day
-                    of an open-ended past range. A bare year ("ordered in 2024") is a CLOSED range:
-                    two conditions, GREATER_OR_EQUAL 2024-01-01 and LESS_OR_EQUAL 2024-12-31.
-                  - A date the user wrote ambiguously is day-first (German): '03.05.05' is 2005-05-03.
-                  - creditRating uses EQUALS with GOOD (creditworthy), MEDIUM (limited
-                    creditworthiness) or POOR (at risk / not creditworthy). Several ratings are
-                    alternatives, so they go into ONE condition's values. Never express a rating as
-                    a number.
+                lastOrderDate is an ISO yyyy-MM-dd day: EQUALS an exact day, LESS_OR_EQUAL
+                "before"/"until", GREATER_OR_EQUAL "since"/"after". A date the user wrote
+                ambiguously is day-first (German): '03.05.05' is 2005-05-03. Today is %s - compute
+                a relative date from it, never guess one. Emit a GREATER_OR_EQUAL + LESS_OR_EQUAL
+                pair only for an explicit "between X and Y" or a bare year ("in 2024" is 2024-01-01
+                to 2024-12-31); a relative period is open-ended, so ONE condition:
+                GREATER_OR_EQUAL today minus the WHOLE period.
 
-                A RELATIVE date ("yesterday", "last week", "in the last 12 months") must be computed,
-                never guessed and never copied from an example below: today is %s. "In the last 12
-                months" is GREATER_OR_EQUAL (today minus 12 months), not minus one month.
+                creditRating EQUALS GOOD (creditworthy), MEDIUM (limited creditworthiness) or POOR
+                (at risk / not creditworthy). Several ratings are alternatives, so they share ONE
+                condition. "Not creditworthy" NAMES POOR: EQUALS [POOR] with negate=false, never a
+                negated GOOD.
 
-                An open-ended range is ONE condition with no upper bound. Emit a GREATER_OR_EQUAL +
-                LESS_OR_EQUAL pair ONLY for an explicit "between X and Y" or a bare year - never for
-                a relative period and never for a single named day.
-
-                "Not creditworthy" / "at risk" NAMES the POOR rating: creditRating EQUALS [POOR] with
-                negate=false. The word "not" belongs to the rating's name here, it is not a negation.
-
-                Examples, written as "field OPERATOR [values]" with negate noted separately:
-                  "customers in Berlin"
-                    -> city CONTAINS [Berlin]
+                Examples, written as "field OPERATOR [values]":
                   "customers in Berlin or Hamburg"
                     -> city CONTAINS [Berlin, Hamburg]
                   "creditworthy customers in Hamburg"
                     -> city CONTAINS [Hamburg]; creditRating EQUALS [GOOD]
                   "customers who are not from Berlin"
                     -> city CONTAINS [Berlin], negate=true
-                  "customers who ordered in the last 12 months" (one condition, no upper bound)
+                  "customers who ordered in the last 12 months"
                     -> lastOrderDate GREATER_OR_EQUAL [today minus 12 months]
                   "customers who last ordered between 2024-07-01 and 2025-03-31"
-                    -> lastOrderDate GREATER_OR_EQUAL [2024-07-01];
-                       lastOrderDate LESS_OR_EQUAL [2025-03-31]
+                    -> lastOrderDate GREATER_OR_EQUAL [2024-07-01]; lastOrderDate LESS_OR_EQUAL [2025-03-31]
                   "show all customers"
                     -> (empty conditions list)
                 """.formatted(today);

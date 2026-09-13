@@ -6,15 +6,15 @@ import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 import java.util.List;
 
 /** One condition on one {@code field}: several {@code values} are OR-combined, {@code negate} excludes them. */
-@JsonClassDescription("One condition on a single field. Multiple values are OR-combined; negate=true excludes matches.")
+@JsonClassDescription("One condition on one field; its values are OR-combined, negate=true excludes the matches.")
 public record Condition(
-        @JsonPropertyDescription("field: city, lastOrderDate or creditRating")
+        @JsonPropertyDescription("city, lastOrderDate or creditRating")
         String field,
-        @JsonPropertyDescription("how to compare the field with each value")
+        @JsonPropertyDescription("how to compare field and value")
         Operator operator,
-        @JsonPropertyDescription("one or more values; matches if the field matches ANY of them, e.g. [Berlin, Hamburg]")
+        @JsonPropertyDescription("one or more values, matching ANY of them, e.g. [Berlin, Hamburg]")
         List<String> values,
-        @JsonPropertyDescription("true to exclude/negate this condition, e.g. 'not in Berlin'")
+        @JsonPropertyDescription("true to exclude the matches, e.g. 'not in Berlin'")
         boolean negate) {
 
     /** How a condition compares a field with a value. Negation is not an operator - that is {@link #negate()}. */
