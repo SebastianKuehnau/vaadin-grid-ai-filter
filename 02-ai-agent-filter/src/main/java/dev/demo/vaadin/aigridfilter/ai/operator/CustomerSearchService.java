@@ -58,10 +58,13 @@ public class CustomerSearchService implements CustomerSearchAgent {
 
             A RELATIVE date ("yesterday", "last week", "in the last 12 months") must be computed,
             never guessed and never copied from an example in this prompt: call currentLocalDateTime
-            FIRST, WAIT for the date it returns, and only THEN call searchCustomers with the WHOLE
-            period subtracted from it. Never emit both calls in the same turn - in that turn you do
-            not know the date yet. "In the last 12 months" is GREATER_OR_EQUAL (that date minus
-            12 months), not minus one month.
+            FIRST, WAIT for the date it returns, and only THEN call searchCustomers. Never emit both
+            calls in the same turn - in that turn you do not know the date yet. Then pick the operator:
+              - a single relative DAY ("yesterday", "today") is ONE exact day: EQUALS that day.
+                "Yesterday" means that day alone, never "from that day on".
+              - a relative PERIOD ("last week", "in the last 12 months") is open-ended:
+                GREATER_OR_EQUAL its FIRST day, that date minus the WHOLE period - "in the last
+                12 months" is minus 12 months, not minus one month.
 
             "Not creditworthy" / "at risk" NAMES the POOR rating - pass creditRating=POOR with
             creditRatingNegate=false. The word "not" belongs to the rating's name here; it is not a
