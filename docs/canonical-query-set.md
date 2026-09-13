@@ -57,8 +57,8 @@ type, so every AI module is expected to pass all of them — a failure here is a
 not a documented limit. Only the service-level `*CustomerSearchIT` classes run these.
 
 `main` runs ten of these (R1–R10), because comparing models against each other is what they are for
-and that is `main`'s job. This branch keeps the three that earn their place in a talk, plus one new
-one.
+and that is `main`'s job. This branch keeps the three that earn their place in a talk, plus two new
+ones.
 
 | # | Query | Expected | IT test method | 02(a) | 02(b) | 03 | 04 |
 |---|---|---|---|---|---|---|---|
@@ -66,6 +66,7 @@ one.
 | R3 | `show me all customers` | every customer | `showsEveryCustomerWhenAskedForAll` | ✅ | ✅ | ✅ | ✅ |
 | R5 | `zeig mir alle Kunden aus Berlin` | the Berlin customers — C1 in a language the prompt is not written in | `understandsAGermanQuery` | ✅ | ✅ | ✅ | ✅ |
 | R11 | `zeig mir alle Kunden aus München` | the Munich customers | `translatesAGermanCityName` | ✅ | ✅ | ✅ | ✅ |
+| R12 | `zeige mir alle Kunden die gestern was bestellt haben` | the customers whose last order was exactly yesterday | `findsCustomersWhoOrderedYesterday` | ✅ | ✅ | ✅ | ✅ |
 
 R8, the prompt injection, is not run here. It fails in all four variants, it is measured and
 documented in `main`, and a slide stating that result is worth more than a `@Disabled` test nobody
@@ -82,6 +83,20 @@ audience is the cheapest demonstration of what a prompt actually buys.
 value-rewriting rule, and the last value-rewriting rule this project tried bled into a neighbouring
 field. C3 and C12 — the two negation cases — are what to watch. They run in the same `./mvnw verify`,
 so a regression shows up immediately.
+
+### R12 and the operator it is about
+
+The date was never the problem: all four variants computed yesterday correctly from the start. The
+operator was. 02(b) read "gestern" as `LESS_OR_EQUAL` (everything *up to* yesterday), 03 and 04 as
+`GREATER_OR_EQUAL` (everything *from* yesterday on) - three different wrong answers to the same
+question, each one a plausible reading of a prompt that named "yesterday" in the same breath as "in
+the last 12 months" and gave only that period's operator. Each prompt now separates a single relative
+DAY from a relative PERIOD and says which operator belongs to which.
+
+With today's seeded data nobody ordered yesterday, so a correct answer is the empty grid - which is
+what makes the case worth running: every wrong operator returns rows. 02(a) passes it without a rule,
+because it has no operator to get wrong; its single date value is matched exactly by construction.
+That is the one place in this table where the poorest filter type is the safest.
 
 ## Why there is no misspelling case
 

@@ -89,6 +89,17 @@ class OperatorCustomerSearchIT {
     }
 
     @Test
+    void findsCustomersWhoOrderedYesterday() {
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+
+        // One exact day, not a bound: GREATER_OR_EQUAL or LESS_OR_EQUAL would widen the result.
+        assertThat(search("zeige mir alle Kunden die gestern was bestellt haben"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        customer.getLastOrderDate().equals(yesterday)));
+    }
+
+    @Test
     @Disabled("02(b) holds one value and one operator per field - a date range needs two bounds")
     void findsCustomersWhoLastOrderedWithinADateRange() {
         LocalDate from = LocalDate.of(2024, 7, 1);

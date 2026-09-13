@@ -51,7 +51,8 @@ public class CustomerSearchService implements CustomerSearchAgent {
                 "Köln" is Cologne.
               - lastOrderDate is an ISO yyyy-MM-dd day. Use EQUALS for an exact day, LESS_OR_EQUAL
                 for "before"/"until", and GREATER_OR_EQUAL for "since"/"after" and for an
-                open-ended past range, with the FIRST day of that period.
+                open-ended past range, with the FIRST day of that period. A bare day name is an
+                exact day, not a bound: "yesterday" is not "until yesterday".
               - A date the user wrote ambiguously is day-first (German): '03.05.05' is 2005-05-03.
               - creditRating is GOOD (creditworthy), MEDIUM (limited creditworthiness) or POOR (at
                 risk / not creditworthy). It is a discrete label, so only EQUALS is meaningful.
@@ -60,8 +61,11 @@ public class CustomerSearchService implements CustomerSearchAgent {
             never guessed and never copied from an example in this prompt: call currentLocalDateTime
             FIRST, WAIT for the date it returns, and only THEN call searchCustomers. Never emit both
             calls in the same turn - in that turn you do not know the date yet. Then pick the operator:
-              - a single relative DAY ("yesterday", "today") is ONE exact day: EQUALS that day.
-                "Yesterday" means that day alone, never "from that day on".
+              - a single relative DAY ("yesterday", "gestern", "today") is ONE exact day: pass that
+                day with <field>Operator=EQUALS. It names that day alone - neither "from that day
+                on" (GREATER_OR_EQUAL) nor "up to that day" (LESS_OR_EQUAL). "Customers who
+                ordered yesterday" is lastOrderDate=<the day currentLocalDateTime returned, minus
+                one> with lastOrderDateOperator=EQUALS.
               - a relative PERIOD ("last week", "in the last 12 months") is open-ended:
                 GREATER_OR_EQUAL its FIRST day, that date minus the WHOLE period - "in the last
                 12 months" is minus 12 months, not minus one month.
