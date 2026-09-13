@@ -57,6 +57,22 @@ class StructuredCustomerSearchIT {
     }
 
     @Test
+    void findsCustomersInOneGermanWrittenCity() {
+        assertThat(search("show me all customers in München"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(
+                        expectedIds(customer -> city(customer).equals("Munich")));
+    }
+
+    @Test
+    void findsCustomersInOneCityInGerman() {
+        assertThat(search("zeige mir alle Kunden aus Köln"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(
+                        expectedIds(customer -> city(customer).equals("Cologne")));
+    }
+
+    @Test
     void findsCreditworthyCustomersInOneCity() {
         assertThat(search("creditworthy customers in Hamburg"))
                 .extracting(Customer::getId)
@@ -81,11 +97,37 @@ class StructuredCustomerSearchIT {
     }
 
     @Test
-    void findsCustomersWhoOrderedYesterday() {
+    void findsCustomersWithAnOrderInTheLastWeek() {
+        LocalDate oneWeekAgo = LocalDate.now().minusWeeks(1);
+
+        // Both readings - with and without an upper bound - count as correct, as above. Nobody
+        // ordered in the last week, so this case only catches a bound that is wrong by months.
+        assertThat(search("show me all customers who placed an order in the last week"))
+                .extracting(Customer::getId)
+                .isSubsetOf(expectedIds(customer ->
+                        !customer.getLastOrderDate().isBefore(oneWeekAgo)))
+                .containsAll(expectedIds(customer ->
+                        !customer.getLastOrderDate().isBefore(oneWeekAgo)
+                                && !customer.getLastOrderDate().isAfter(LocalDate.now())));
+    }
+
+    @Test
+    void findsCustomersWhoOrderedYesterdayInGerman() {
         LocalDate yesterday = LocalDate.now().minusDays(1);
 
         // One exact day, not a lower bound: GREATER_OR_EQUAL would pull in every later order.
         assertThat(search("zeige mir alle Kunden die gestern was bestellt haben"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        customer.getLastOrderDate().equals(yesterday)));
+    }
+
+    @Test
+    void findsCustomersWhoOrderedYesterday() {
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+
+        // One exact day, not a lower bound: GREATER_OR_EQUAL would pull in every later order.
+        assertThat(search("show all customer who ordered yesterday"))
                 .extracting(Customer::getId)
                 .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
                         customer.getLastOrderDate().equals(yesterday)));
@@ -135,22 +177,6 @@ class StructuredCustomerSearchIT {
         assertThat(search("show me all customers"))
                 .extracting(Customer::getId)
                 .containsExactlyInAnyOrderElementsOf(expectedIds(customer -> true));
-    }
-
-    @Test
-    void understandsAGermanQuery() {
-        assertThat(search("zeig mir alle Kunden aus Berlin"))
-                .extracting(Customer::getId)
-                .containsExactlyInAnyOrderElementsOf(
-                        expectedIds(customer -> city(customer).equals("Berlin")));
-    }
-
-    @Test
-    void translatesAGermanCityName() {
-        assertThat(search("zeig mir alle Kunden aus München"))
-                .extracting(Customer::getId)
-                .containsExactlyInAnyOrderElementsOf(
-                        expectedIds(customer -> city(customer).equals("Munich")));
     }
 
     /** The mechanism under test: prompt to the model, Specification back, executed by the database. */
