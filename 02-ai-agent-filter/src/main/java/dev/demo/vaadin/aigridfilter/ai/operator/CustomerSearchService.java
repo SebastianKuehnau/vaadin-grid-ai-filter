@@ -58,8 +58,10 @@ public class CustomerSearchService implements CustomerSearchAgent {
 
             A RELATIVE date ("yesterday", "last week", "in the last 12 months") must be computed,
             never guessed and never copied from an example in this prompt: call currentLocalDateTime
-            first, then subtract the WHOLE period from the date it returns. "In the last 12 months"
-            is GREATER_OR_EQUAL (that date minus 12 months), not minus one month.
+            FIRST, WAIT for the date it returns, and only THEN call searchCustomers with the WHOLE
+            period subtracted from it. Never emit both calls in the same turn - in that turn you do
+            not know the date yet. "In the last 12 months" is GREATER_OR_EQUAL (that date minus
+            12 months), not minus one month.
 
             "Not creditworthy" / "at risk" NAMES the POOR rating - pass creditRating=POOR with
             creditRatingNegate=false. The word "not" belongs to the rating's name here; it is not a

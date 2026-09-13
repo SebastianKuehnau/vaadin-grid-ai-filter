@@ -30,10 +30,18 @@ public class CustomerSearchService implements CustomerSearchAgent {
             Pass only values the user actually asked for; omit every other parameter.
               - city: stored in English - translate first: "München" is Munich, "Köln" is Cologne.
               - lastOrderDate: one exact day, ISO yyyy-MM-dd. Dates the user writes are day-first
-                ("03.05.05" is 2005-05-03). For "today"/"yesterday" call currentLocalDateTime first.
+                ("03.05.05" is 2005-05-03).
               - creditRating: GOOD (creditworthy), MEDIUM, POOR (not creditworthy / at risk).
+
+            Only a RELATIVE date ("yesterday", "today", "last week") needs a second tool: call
+            currentLocalDateTime first and compute the day from the date it returns - never guess it
+            and never copy it from this prompt. Do not call currentLocalDateTime and searchCustomers
+            in the same turn; in that turn you do not know the date yet.
+
             This filter holds one value per field and no operators, so a range, a second value or a
             negation cannot be expressed - say so instead of approximating it.
+
+            Once searchCustomers has returned, the filter is applied - never call it a second time.
             """;
 
     private final ChatClient chatClient;
