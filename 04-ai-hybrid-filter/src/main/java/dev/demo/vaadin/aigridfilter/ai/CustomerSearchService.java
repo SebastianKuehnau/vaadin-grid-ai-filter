@@ -1,6 +1,5 @@
 package dev.demo.vaadin.aigridfilter.ai;
 
-import dev.demo.vaadin.aigridfilter.ai.filter.Condition;
 import dev.demo.vaadin.aigridfilter.ai.filter.CustomerFilter;
 import dev.demo.vaadin.aigridfilter.ai.filter.CustomerFilterSpecifications;
 import dev.demo.vaadin.aigridfilter.data.Customer;
@@ -10,34 +9,28 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.context.annotation.Scope;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** The hybrid step: 02's tool calling, date tool included, with 03's {@code List<Condition>} as the search tool's payload. */
+/** The hybrid step: 03's structured output for the filter, 02's tool calling for the date the model cannot know. */
 @Service
-@Scope("prototype")
 public class CustomerSearchService implements CustomerSearchAgent {
 
     private static final Logger logger = LoggerFactory.getLogger(CustomerSearchService.class);
 
     private static final String SYSTEM_PROMPT = """
-            You translate a user's request into a searchCustomers call that filters a customer grid.
-            Call searchCustomers exactly ONCE, then stop - the filter has already been applied.
+            You translate a user's request into a CustomerFilter that filters a customer grid.
 
-            You have a second tool, currentLocalDateTime. Every relative date ("yesterday", "last
-            week", "in the last 12 months") MUST come from it: call it FIRST, WAIT for the date it
-            returns, and only THEN call searchCustomers. Never emit both calls in the same turn - in
-            that turn you do not know the date yet. Never guess today's date and never take one from
-            an example below.
+            You have one tool, currentLocalDateTime. Every relative date ("yesterday", "last week",
+            "in the last 12 months") MUST come from it: call it FIRST, WAIT for the date it returns,
+            and only THEN answer. Never guess today's date and never take one from an example below.
 
             Conditions are AND-combined, the values inside one condition are OR-combined, and
             negate=true excludes the matches. There is no nesting and no OR across fields. To show
-            everyone, call searchCustomers with an empty conditions list.
+            everyone, return an empty conditions list.
 
             Keep every requirement the user names:
               - several values for the SAME field ("Berlin or Hamburg") -> ONE condition with both
@@ -91,66 +84,41 @@ public class CustomerSearchService implements CustomerSearchAgent {
     private final ChatClient chatClient;
     private final TokenUsageAdvisor tokenUsageAdvisor;
 
-    /** What the model passed to {@link #searchCustomers}; {@code null} until the tool is called. */
-    CustomerFilter filter;
-
     public CustomerSearchService(ChatModel chatModel, TokenUsageAdvisor tokenUsageAdvisor) {
         this.chatClient = ChatClient.builder(chatModel).build();
         this.tokenUsageAdvisor = tokenUsageAdvisor;
     }
 
-    /** Asks the LLM to call the search tool and turns the conditions it passed into a {@link Specification}. */
+    /** Asks the LLM for a {@link CustomerFilter} and translates it into a {@link Specification}. */
     @Override
     public Specification<Customer> resolveFilter(String naturalLanguageQuery) {
         return CustomerFilterSpecifications.from(requestFilter(naturalLanguageQuery));
     }
 
-    /** Asks the LLM to call {@code searchCustomers}; an empty filter (match all) if it produced nothing usable. */
+    /** Asks the LLM for a {@link CustomerFilter}; an empty one (match all) on a bad response. */
     CustomerFilter requestFilter(String naturalLanguageQuery) {
-        filter = null;
         try {
-            // By the time this returns, searchCustomers(...) has run; the answer text is irrelevant.
-            chatClient.prompt()
+            // Both mechanisms in one exchange: .tools(...) lets the model ask for the date,
+            // .entity(...) parses the answer it gives afterwards. No provider-enforced schema -
+            // that would leave the response grammar no room for a tool call.
+            CustomerFilter filter = chatClient.prompt()
                     .system(SYSTEM_PROMPT)
                     .user(naturalLanguageQuery)
                     .tools(this)
                     .advisors(SimpleLoggerAdvisor.builder().build(), tokenUsageAdvisor)
                     // Temperature is set per profile in application-<provider>.properties.
                     .call()
-                    .chatResponse();
+                    .entity(CustomerFilter.class);
+            logger.info("requestFilter('{}') -> {}", naturalLanguageQuery, filter);
+            return filter == null ? new CustomerFilter(List.of()) : filter;
         } catch (Exception e) {
             logger.warn("Could not turn query into a filter; showing all customers. Query: '{}'",
                     naturalLanguageQuery, e);
             return new CustomerFilter(List.of());
         }
-        logger.info("requestFilter('{}') -> {}", naturalLanguageQuery, filter);
-        return filter == null ? new CustomerFilter(List.of()) : filter;
     }
 
-    /** The search tool: a single parameter carrying the whole condition list - 03's payload. */
-    // returnDirect: the answer text is irrelevant, so the call ends here instead of going back to the model.
-    @Tool(returnDirect = true, description = """
-            Filters the customer grid in place, replacing any previous filter. Pass the complete list
-            of conditions in one call; ALL of them must match (AND). An empty list shows every customer.
-            """)
-    void searchCustomers(
-            @ToolParam(description = "all conditions the customer must satisfy (AND); empty list matches everything")
-            List<Condition> conditions
-    ) {
-        CustomerFilter incoming = new CustomerFilter(conditions == null ? List.of() : conditions);
-
-        // The model sometimes calls the tool again with an empty list, so never overwrite a built filter.
-        // Structured output (03) cannot hit this: one response, one filter.
-        if (filter != null && !filter.conditions().isEmpty() && incoming.conditions().isEmpty()) {
-            logger.warn("Ignoring a repeated searchCustomers call with an empty conditions list; keeping {}", filter);
-            return;
-        }
-
-        this.filter = incoming;
-        logger.info("searchCustomers -> {}", filter);
-    }
-
-    /** The second tool: the model asks for today rather than reading it off a prompt baked at build time. */
+    /** The only tool: the model asks for today rather than reading it off a prompt baked at build time. */
     @Tool(description = "Current date and time")
     LocalDateTime currentLocalDateTime() {
         return LocalDateTime.now();
