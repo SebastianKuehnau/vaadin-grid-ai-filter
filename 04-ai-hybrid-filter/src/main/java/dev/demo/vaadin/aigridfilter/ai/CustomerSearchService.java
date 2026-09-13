@@ -112,9 +112,7 @@ public class CustomerSearchService implements CustomerSearchAgent {
                     .advisors(SimpleLoggerAdvisor.builder().build(), tokenUsageAdvisor)
                     // Temperature is set per profile in application-<provider>.properties.
                     .call()
-                    .entity(CustomerFilter.class,
-                            ChatClient.EntityParamSpec::useProviderStructuredOutput
-                    );
+                    .entity(CustomerFilter.class);
             logger.info("requestFilter('{}') -> {}", naturalLanguageQuery, filter);
             return filter == null ? new CustomerFilter(List.of()) : filter;
         } catch (Exception e) {
