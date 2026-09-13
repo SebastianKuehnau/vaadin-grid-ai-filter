@@ -47,7 +47,10 @@ public class CustomerSearchService implements CustomerSearchAgent {
             city is text, matched case-insensitively: a plain "in Berlin" is CONTAINS, EQUALS only
             for explicitly exact wording. City names are stored in English - Berlin, Hamburg, Munich,
             Frankfurt, Cologne, Dusseldorf - so translate a German one before passing it: "München"
-            is Munich, "Köln" is Cologne.
+            is Munich, "Köln" is Cologne. The value you pass must be one of those six names: if the
+            user's word is none of them, pass the one it is closest to - "Brelin" is Berlin. That
+            repairs the NAME only; it never changes what the condition asks for, so negate stays
+            exactly as the sentence had it.
 
             lastOrderDate is an ISO yyyy-MM-dd day: EQUALS an exact day, LESS_OR_EQUAL
             "before"/"until", GREATER_OR_EQUAL "since"/"after". A date the user wrote ambiguously is
@@ -71,6 +74,10 @@ public class CustomerSearchService implements CustomerSearchAgent {
                 -> city CONTAINS [Berlin]
               "customers in Berlin or Hamburg"
                 -> city CONTAINS [Berlin, Hamburg]
+              "Kunden aus Köln"
+                -> city CONTAINS [Cologne]
+              "customers in Brelin"
+                -> city CONTAINS [Berlin]
               "creditworthy customers in Hamburg"
                 -> city CONTAINS [Hamburg]; creditRating EQUALS [GOOD]
               "customers who are not from Berlin"
