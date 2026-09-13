@@ -117,7 +117,7 @@ public class CustomerSearchService implements CustomerSearchAgent {
         return criteria;
     }
 
-    @Tool(description = """
+    @Tool(returnDirect = true, description = """
             Filters the customer grid in place, replacing any previous filter. Every field has three
             parameters - the value, its operator and its negate flag - and the fields are AND-combined.
             Every parameter is optional; null ignores it. One field carries at most ONE condition.

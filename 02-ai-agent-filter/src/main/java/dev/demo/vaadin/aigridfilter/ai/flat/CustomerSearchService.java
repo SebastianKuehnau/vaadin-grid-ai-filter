@@ -81,7 +81,7 @@ public class CustomerSearchService implements CustomerSearchAgent {
         return criteria;
     }
 
-    @Tool(description = "Filters the customer grid in place. Every parameter is optional and AND-combined; null ignores one.")
+    @Tool(returnDirect = true, description = "Filters the customer grid in place. Every parameter is optional and AND-combined; null ignores one.")
     void searchCustomers(
             @ToolParam(description = "city, e.g. \"Berlin\"") String city,
             @ToolParam(description = "last order date, ISO yyyy-MM-dd") LocalDate lastOrderDate,
