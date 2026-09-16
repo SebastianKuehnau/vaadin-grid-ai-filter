@@ -38,6 +38,10 @@ class CustomerSearchService implements CustomerSearchAgent {
             one field (e.g. two cities), pass the first one and accept that the rest cannot be
             expressed - do not call the tool again for them.
 
+            City names are stored in English - Berlin, Hamburg, Munich, Frankfurt, Cologne,
+            Dusseldorf - so translate a German one before passing it: "München" is Munich,
+            "Köln" is Cologne.
+
             For a relative date ("yesterday", "this year", "last week", "in the last 12 months"), you
             MUST call the currentLocalDateTime tool first and compute the date from its result - NEVER
             guess or assume today's date from memory or context. Only after that call, call
@@ -118,7 +122,9 @@ class CustomerSearchService implements CustomerSearchAgent {
                     ...) is NOT a country - put it in the city parameter instead.""") String country,
             @ToolParam(description = """
                     city, e.g. "Hamburg" or "Berlin". A bare place name defaults to city unless it
-                    unambiguously names a country.""") String city,
+                    unambiguously names a country. City names are stored in English - Berlin,
+                    Hamburg, Munich, Frankfurt, Cologne, Dusseldorf - so translate a German one
+                    before passing it: "München" is Munich, "Köln" is Cologne.""") String city,
             @ToolParam(description = "postal code") String postalCode,
             @ToolParam(description = "street") String street,
             @ToolParam(description = "house number") String houseNumber,

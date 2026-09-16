@@ -196,6 +196,14 @@ class OperatorCustomerSearchIT {
     }
 
     @Test
+    void translatesAGermanCityName() {
+        assertThat(search("zeig mir alle Kunden aus München"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(
+                        expectedIds(customer -> city(customer).equals("Munich")));
+    }
+
+    @Test
     void understandsAnAllUppercaseQuery() {
         assertThat(search("SHOW ME ALL CUSTOMERS IN BERLIN"))
                 .extracting(Customer::getId)

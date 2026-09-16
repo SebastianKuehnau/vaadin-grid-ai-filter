@@ -71,7 +71,7 @@ host's Ollama is not running or lacks the model.
 
 ## The benchmark
 
-`benchmark` measures the models, not the code: the 22 queries of the four `*CustomerSearchIT` classes,
+`benchmark` measures the models, not the code: the 23 queries of the four `*CustomerSearchIT` classes,
 replayed against a **running** Ollama (it never starts one), for every configured model and approach.
 It is only ever started by hand:
 
@@ -94,7 +94,7 @@ Two things about its architecture are worth knowing before changing it:
   qualified names, so they can never share a classpath; each worker gets its own module's
   `target/classes`. That is also why the orchestrator needs a listable classpath — run it with
   `spring-boot:run`, not from a fat jar (there is none, `repackage` is disabled on purpose).
-- **The 22 cases are copied, not imported.** Every query and expectation lives in
+- **The 23 cases are copied, not imported.** Every query and expectation lives in
   `CaseCatalog`, next to the name of the IT test method it came from; the capability gaps and their
   reasons live in `Approach`. Both are kept in sync with `docs/canonical-query-set.md` by hand, exactly
   like the IT classes themselves.

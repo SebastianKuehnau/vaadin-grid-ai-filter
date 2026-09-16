@@ -16,7 +16,7 @@ import static dev.demo.vaadin.aigridfilter.benchmark.cases.BenchmarkCase.exact;
 import static dev.demo.vaadin.aigridfilter.benchmark.cases.BenchmarkCase.knownFailure;
 
 /**
- * The 22 measured queries — the service-level {@code *CustomerSearchIT} classes of 02, 03 and 04,
+ * The 23 measured queries — the service-level {@code *CustomerSearchIT} classes of 02, 03 and 04,
  * copied here query by query, with the expectation as a predicate over the seeded data.
  *
  * <p>Kept in sync with {@code docs/canonical-query-set.md} and those IT classes by hand; every case
@@ -124,7 +124,13 @@ public final class CaseCatalog {
                     "showsEveryCustomerForAnEmptyQuery", customer -> true),
 
             exact("R10", ROBUSTNESS, " ",
-                    "showsEveryCustomerForABlankQuery", customer -> true));
+                    "showsEveryCustomerForABlankQuery", customer -> true),
+
+            // The cities are seeded in English, so this only passes if the model translates the
+            // value before it reaches the filter - one prompt rule per module does that.
+            exact("R11", ROBUSTNESS, "zeig mir alle Kunden aus München",
+                    "translatesAGermanCityName",
+                    customer -> city(customer).equals("Munich")));
 
     private static final Map<String, BenchmarkCase> BY_ID = index();
 

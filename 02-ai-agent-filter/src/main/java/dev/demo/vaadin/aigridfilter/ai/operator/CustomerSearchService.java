@@ -66,6 +66,9 @@ class CustomerSearchService implements CustomerSearchAgent {
                 (e.g. "Germany", "France") or both are given together (e.g. "Hamburg, Germany"): put
                 "Hamburg", "Berlin", "Munich" etc. into city, not into country. When in doubt, prefer
                 city over country - city is the field actually shown in the grid.
+              - city names are stored in English - Berlin, Hamburg, Munich, Frankfurt, Cologne,
+                Dusseldorf - so translate a German one before passing it: "München" is Munich,
+                "Köln" is Cologne.
               - dates: an exact day ("on 2024-03-15", "yesterday", "today") -> EQUALS;
                 "since" / "after" / "from" -> GREATER_OR_EQUAL; "before" / "until" -> LESS_OR_EQUAL;
                 an open-ended past range ("in the last 12 months", "last week", "this year") ->

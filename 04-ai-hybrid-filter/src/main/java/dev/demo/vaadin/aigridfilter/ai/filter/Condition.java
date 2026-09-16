@@ -14,7 +14,7 @@ public record Condition(
         String field,
         @JsonPropertyDescription("how to compare the field with each value")
         Operator operator,
-        @JsonPropertyDescription("one or more values; matches if the field matches ANY of them, e.g. [Berlin, Köln]")
+        @JsonPropertyDescription("one or more values; matches if the field matches ANY of them, e.g. [Berlin, Hamburg]")
         List<String> values,
         @JsonPropertyDescription("true to exclude/negate this condition, e.g. 'not in Berlin'")
         // The model sometimes sends negate=null, which a primitive cannot take - read it as false.

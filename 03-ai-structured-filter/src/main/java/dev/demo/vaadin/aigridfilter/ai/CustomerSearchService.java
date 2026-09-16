@@ -98,6 +98,9 @@ public class CustomerSearchService implements CustomerSearchAgent {
                   - Text fields match case-insensitively. Use CONTAINS for partial matches; set
                     negate=true to exclude (e.g. "not in Berlin" -> field=city, operator=CONTAINS,
                     values=[Berlin], negate=true).
+                  - city names are stored in English - Berlin, Hamburg, Munich, Frankfurt, Cologne,
+                    Dusseldorf - so translate a German one before passing it: "München" is Munich,
+                    "Köln" is Cologne.
                   - For "begins with" / "first character/letter is X" use STARTS_WITH; for "ends with"
                     use ENDS_WITH. The value is just the prefix/suffix, e.g. "name starts with M" ->
                     field=contactName, operator=STARTS_WITH, values=[M].
@@ -133,9 +136,11 @@ public class CustomerSearchService implements CustomerSearchAgent {
                   "customers in Berlin"
                     -> city CONTAINS [Berlin]
                   "customers in Berlin or Köln"
-                    -> city CONTAINS [Berlin, Köln]
+                    -> city CONTAINS [Berlin, Cologne]
+                  "Kunden aus Köln"
+                    -> city CONTAINS [Cologne]
                   "all customers in Berlin or Köln with a minimal revenue of 100000"
-                    -> city CONTAINS [Berlin, Köln]; annualRevenue GREATER_OR_EQUAL [100000]
+                    -> city CONTAINS [Berlin, Cologne]; annualRevenue GREATER_OR_EQUAL [100000]
                   "customers whose contact name starts with M"
                     -> contactName STARTS_WITH [M]
                   "customers who are not from Berlin"
