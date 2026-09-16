@@ -24,10 +24,6 @@ The single `data.sql` lives in `00-commons` and is picked up from the jar (Boot'
 `optional:classpath*:data.sql`) — there must never be a second copy, or the data is seeded twice.
 Each module's architecture is meant to be read from its own source; there are no per-module READMEs.
 
-The eight natural-language queries all AI modules are measured with, and the four robustness cases
-beside them, live in `docs/canonical-query-set.md` — the single source of truth; see the Definition
-of Done below.
-
 ## Build & Run
 
 ```bash
@@ -64,7 +60,7 @@ The container is marked reusable and the three AI modules set `TESTCONTAINERS_RE
 their failsafe configuration, so **one** container serves every Spring context — without that, each
 context starts its own Ollama and their resident models exhaust the machine's RAM. It outlives the
 build on purpose; `docker rm -f $(docker ps -q --filter ancestor=ai-grid-filter/ollama:qwen3-8b)`
-removes it. See `docs/adr/0002-ollama-as-a-testcontainer.md`.
+removes it.
 
 **The app is never run inside the sandbox** — only its tests are. `spring-boot:run` and the
 Playwright screenshots below belong on the development machine.
@@ -97,13 +93,6 @@ A task is only finished when:
    kind: the `*CustomerSearchIT` (through the service — the eight canonical queries and the four
    robustness cases). 02 has one per variant, so two. The views are not covered by a test; the
    view↔agent wiring is verified by running the app.
-4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
-   every AI module's IT class as one named `@Test` — the prompt as a string literal, the
-   expected customer set computed from the seeded data. Where a variant's filter type cannot express
-   it, the test still spells out what it would assert and carries `@Disabled` with the reason. No
-   compile-time gate enforces this; the table in that document is the checklist. Nothing else needs
-   updating here — the `CaseCatalog`/`Approach` copies of that list live in `main`, with the
-   benchmark. A capability that is meant to survive into future talks belongs in `main` first.
 
 Points 1–3 apply before **every** commit, not only at the end of the task.
 Iterate on your own until all points are met before reporting the task as done.
