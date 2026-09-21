@@ -89,6 +89,55 @@ public final class CaseCatalog {
                     "findsCustomersWhoAreNotCreditworthy",
                     customer -> customer.getCreditRating() == CreditRating.POOR),
 
+            exact("C13", CANONICAL, "show me companies with a \"V\" as the first character in the company name",
+                    "findsCompaniesWhoseNameStartsWithALetter",
+                    customer -> customer.getCompanyName().toLowerCase().startsWith("v")),
+
+            exact("C14", CANONICAL, "show me customers with annual revenue of at least 50000",
+                    "findsCustomersWithAMinimumRevenue",
+                    customer -> revenue(customer).compareTo(BigDecimal.valueOf(50_000)) >= 0),
+
+            exact("C15", CANONICAL, "show me customers whose contact name ends with \"schmidt\"",
+                    "findsCustomersWhoseContactNameEndsWithAWord",
+                    customer -> customer.getContactName().toLowerCase().endsWith("schmidt")),
+
+            exact("C16", CANONICAL, "show me customers whose city ends with \"dorf\"",
+                    "findsCustomersWhoseCityEndsWithAWord",
+                    customer -> city(customer).toLowerCase().endsWith("dorf")),
+
+            exact("C17", CANONICAL, "show me customers who registered between 2025-01-01 and 2025-12-31",
+                    "findsCustomersWhoRegisteredWithinADateRange",
+                    customer -> !customer.getCustomerSince().isBefore(LocalDate.of(2025, 1, 1))
+                            && !customer.getCustomerSince().isAfter(LocalDate.of(2025, 12, 31))),
+
+            exact("C18", CANONICAL,
+                    "show me customers who have been our customer since the start of last year",
+                    "findsCustomersWhoRegisteredSinceLastYear",
+                    customer -> !customer.getCustomerSince().isBefore(LocalDate.of(TODAY.getYear() - 1, 1, 1))),
+
+            exact("C20", CANONICAL, "show me the customer named Anna Schmidt at \"Vertex Automotive Munich\", "
+                            + "who is not creditworthy, with an annual revenue of at least 30000, and a "
+                            + "customer since date of 2024-01-20",
+                    "findsACustomerByCombiningManyFields",
+                    customer -> customer.getContactName().equalsIgnoreCase("Anna Schmidt")
+                            && customer.getCompanyName().equalsIgnoreCase("Vertex Automotive Munich")
+                            && customer.getCreditRating() == CreditRating.POOR
+                            && revenue(customer).compareTo(BigDecimal.valueOf(30_000)) >= 0
+                            && customer.getCustomerSince().equals(LocalDate.of(2024, 1, 20))),
+
+            exact("C21", CANONICAL, "show me all customers from France",
+                    "findsCustomersInAnUnambiguousCountry",
+                    customer -> customer.getAddress().getCountry().equals("France")),
+
+            exact("C22", CANONICAL, "show me customers from Munich, Cologne, Dusseldorf and Berlin",
+                    "findsCustomersInFourCities",
+                    customer -> city(customer).equals("Munich") || city(customer).equals("Cologne")
+                            || city(customer).equals("Dusseldorf") || city(customer).equals("Berlin")),
+
+            exact("C23", CANONICAL, "show me customers whose phone number starts with \"+4930\"",
+                    "findsCustomersWhosePhoneStartsWithAPrefix",
+                    customer -> customer.getPhone().startsWith("+4930")),
+
             exact("R1", ROBUSTNESS, "Nice weather today, isn't it?",
                     "ignoresSmallTalk", customer -> true),
 
@@ -130,7 +179,25 @@ public final class CaseCatalog {
             // value before it reaches the filter - one prompt rule per module does that.
             exact("R11", ROBUSTNESS, "zeig mir alle Kunden aus München",
                     "translatesAGermanCityName",
-                    customer -> city(customer).equals("Munich")));
+                    customer -> city(customer).equals("Munich")),
+
+            exact("R12", ROBUSTNESS, "wie geht es dir?",
+                    "ignoresSmallTalkInGerman", customer -> true),
+
+            exact("R13", ROBUSTNESS, "zeige mir alle kunden",
+                    "showsEveryCustomerForAGermanShowAllRequest", customer -> true),
+
+            // @Disabled("not supported yet") in all four IT classes - the model reliably invents a
+            // contactName CONTAINS "male" condition instead of recognizing there is no gender field.
+            knownFailure("R14", ROBUSTNESS, "show me customer with male contact persons",
+                    "ignoresANonExistentFilterField", customer -> true),
+
+            exact("R15", ROBUSTNESS, "What is the time?",
+                    "ignoresATimeQuestionDespiteHavingATimeTool", customer -> true),
+
+            exact("R16", ROBUSTNESS, "show me all customers who placed an order yesterday",
+                    "findsCustomersWhoOrderedYesterday",
+                    customer -> customer.getLastOrderDate().equals(TODAY.minusDays(1))));
 
     private static final Map<String, BenchmarkCase> BY_ID = index();
 

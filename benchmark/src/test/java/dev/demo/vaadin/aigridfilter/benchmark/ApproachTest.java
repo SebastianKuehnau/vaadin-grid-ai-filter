@@ -11,9 +11,10 @@ class ApproachTest {
     @Test
     void skipsTheCasesEachVariantCannotExpress() {
         assertThat(Approach.FLAT_02A.unsupportedCases().keySet())
-                .containsExactlyInAnyOrder("C2", "C3", "C4", "C6", "C7", "C8", "C10");
+                .containsExactlyInAnyOrder("C2", "C3", "C4", "C6", "C7", "C8", "C10",
+                        "C13", "C15", "C16", "C17", "C18", "C22", "C23");
         assertThat(Approach.OPERATOR_02B.unsupportedCases().keySet())
-                .containsExactlyInAnyOrder("C2", "C6", "C8");
+                .containsExactlyInAnyOrder("C2", "C6", "C8", "C17", "C22");
         assertThat(Approach.STRUCTURED_03.unsupportedCases()).isEmpty();
         assertThat(Approach.HYBRID_04.unsupportedCases()).isEmpty();
     }

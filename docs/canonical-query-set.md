@@ -4,7 +4,7 @@ The natural-language queries every AI module is tested with — one per capabili
 as a capability ladder rather than a list of anecdotes.
 
 Each AI module contains one `@Test` per query, with the query as a string literal: C1–C8 in both of
-its IT classes (through the service and through the UI), C9–C12 and the robustness set in the
+its IT classes (through the service and through the UI), C9–C23 and the robustness set in the
 service-level one only. Queries a variant's filter type cannot express are `@Disabled` with the
 reason. **This table and those test methods are kept in sync by hand.**
 
@@ -25,7 +25,20 @@ unreliable: no prompt and no model can make a filter type carry a value it has n
 | C10 | `show me customers with annual revenue of at most 50000` | numeric upper bound | `findsCustomersUpToARevenueLimit` | ❌ | ✅ | ✅ | ✅ |
 | C11 | `Kunden, die zuletzt am 18.11.2025 bestellt haben` | exact day, German date format | `findsCustomersWhoLastOrderedOnAGermanFormattedDate` | ✅ | ✅ | ✅ | ✅ |
 | C12 | `show me all customers who are not creditworthy` | rating stated as a negation | `findsCustomersWhoAreNotCreditworthy` | ✅ | ✅ | ✅ | ✅ |
-| | | **Capabilities reached** | | **5 / 12** | **9 / 12** | **12 / 12** | **12 / 12** |
+| C13 | `show me companies with a "V" as the first character in the company name` | non-CONTAINS operator on a second text field | `findsCompaniesWhoseNameStartsWithALetter` | ❌ | ✅ | ✅ | ✅ |
+| C14 | `show me customers with annual revenue of at least 50000` | numeric lower bound | `findsCustomersWithAMinimumRevenue` | ✅ | ✅ | ✅ | ✅ |
+| C15 | `show me customers whose contact name ends with "schmidt"` | ends-with operator | `findsCustomersWhoseContactNameEndsWithAWord` | ❌ | ✅ | ✅ | ✅ |
+| C16 | `show me customers whose city ends with "dorf"` | ends-with operator on a second (address) field | `findsCustomersWhoseCityEndsWithAWord` | ❌ | ✅ | ✅ | ✅ |
+| C17 | `show me customers who registered between 2025-01-01 and 2025-12-31` | date range on a third date field (`customerSince`) | `findsCustomersWhoRegisteredWithinADateRange` | ❌ | ❌ | ✅ | ✅ |
+| C18 | `show me customers who have been our customer since the start of last year` | relative date, open-ended lower bound, on `customerSince` | `findsCustomersWhoRegisteredSinceLastYear` | ❌ | ✅ | ✅ | ✅ |
+| C20 | `show me the customer named Anna Schmidt at "Vertex Automotive Munich", who is not creditworthy, with an annual revenue of at least 30000, and a customer since date of 2024-01-20` | many simultaneous AND conditions | `findsACustomerByCombiningManyFields` | ✅ | ✅ | ✅ | ✅ |
+| C21 | `show me all customers from France` | single value on the country field, deliberately a country that cannot be mistaken for a city | `findsCustomersInAnUnambiguousCountry` | ✅ | ✅ | ✅ | ✅ |
+| C22 | `show me customers from Munich, Cologne, Dusseldorf and Berlin` | multiple values for one field (OR), more than two | `findsCustomersInFourCities` | ❌ | ❌ | ✅ | ✅ |
+| C23 | `show me customers whose phone number starts with "+4930"` | non-CONTAINS operator on a fourth text field (phone) | `findsCustomersWhosePhoneStartsWithAPrefix` | ❌ | ✅ | ✅ | ✅ |
+| | | **Capabilities reached** | | **8 / 22** | **17 / 22** | **22 / 22** | **22 / 22** |
+
+C19 is a separate, unnumbered prototype — see "A universal gap: comparing a field to itself" below; it is
+deliberately left out of this table and its totals until it has been validated and rolled out.
 
 The `@Disabled` reasons, verbatim from the test classes, are what each ❌ means:
 
@@ -38,6 +51,27 @@ The `@Disabled` reasons, verbatim from the test classes, are what each ❌ means
 | C7 | 02(a) has no operator - a date can only be matched exactly, not as 'on or after' | — |
 | C8 | 02(a) holds one value per field - a date range needs two bounds | 02(b) holds one value and one operator per field - a date range needs two bounds |
 | C10 | 02(a)'s annualRevenue is a minimum - an upper bound cannot be expressed | — |
+| C13 | 02(a) has no start operator | — |
+| C15 | 02(a) has no end operator | — |
+| C16 | 02(a) has no end operator | — |
+| C17 | 02(a) holds one value per field - a range needs a lower and an upper bound | 02(b) holds one value and one operator per field - a range needs two bounds |
+| C18 | 02(a) has no operator - a date can only be matched exactly, not as 'on or after' | — |
+| C22 | 02(a) holds one value per field - four cities need four | 02(b) holds one value per field - four cities need four |
+| C23 | 02(a) has no start operator | — |
+
+### A universal gap: comparing a field to itself
+
+`show me companies with their city in the company name` cannot be expressed by **any** of the four
+approaches: every `Condition`/tool parameter compares a named field against a literal value the model
+supplies, never against another field of the same row. A model could try to fake it by enumerating the
+six known city names as `CONTAINS` values on `companyName` — which would even mostly work here, since
+those six names happen to be the only ones ever seeded — but that is the model exploiting incidental
+knowledge of this demo's data, not a real capability; it would silently stop working the moment a company
+name used a city outside that list.
+
+This is being prototyped as a single `@Disabled` test in `04-ai-hybrid-filter`'s service-level IT only
+(method `comparesCompanyNameAgainstItsOwnCity`), before it is rolled out to 02(a), 02(b) and 03 and added
+to the tables above and to `benchmark`.
 
 ## The robustness set
 
@@ -59,10 +93,17 @@ classes run these.
 | R9 | the empty string | every customer | `showsEveryCustomerForAnEmptyQuery` | ✅ | ✅ | ✅ | ✅ |
 | R10 | a single blank | every customer | `showsEveryCustomerForABlankQuery` | ✅ | ✅ | ✅ | ✅ |
 | R11 | `zeig mir alle Kunden aus München` | the Munich customers — the city names are seeded in English | `translatesAGermanCityName` | ✅ | ✅ | ✅ | ✅ |
+| R12 | `wie geht es dir?` | every customer — small talk in German, not just English (R1) | `ignoresSmallTalkInGerman` | ✅ | ✅ | ✅ | ✅ |
+| R13 | `zeige mir alle kunden` | every customer — "show all" in German, not just English (R3) | `showsEveryCustomerForAGermanShowAllRequest` | ✅ | ✅ | ✅ | ✅ |
+| R14 | `show me customer with male contact persons` | every customer — no gender field exists, so nothing should be filtered | `ignoresANonExistentFilterField` | ⏸ | ⏸ | ⏸ | ⏸ |
+| R15 | `What is the time?` | every customer — off-topic, even though 02(a), 02(b) and 04 expose a `currentLocalDateTime` tool that could tempt a tool-calling model into answering it instead | `ignoresATimeQuestionDespiteHavingATimeTool` | ✅ | ✅ | ✅ | ✅ |
+| R16 | `show me all customers who placed an order yesterday` | customers whose `lastOrderDate` is exactly yesterday — the seed data has fixed calendar dates with no relation to "today", so this is empty on most days; that is a correct answer too | `findsCustomersWhoOrderedYesterday` | ✅ | ✅ | ✅ | ✅ |
 
 ⏸ is `@Disabled("not supported yet")`, not a ❌: **R8 fails in all four variants** — the model follows
-the injected instruction and clears the filter. The filter type has nothing to do with it, so this is
-a reliability finding and an open task, not a documented limit.
+the injected instruction and clears the filter. **R14 fails the same way** — instead of recognizing
+that no field represents gender, the model reliably invents a `contactName CONTAINS "male"` condition
+(verified reproducible: two runs against `qwen3:8b` produced the exact same wrong condition). Neither
+is a filter-type limit, so both are reliability findings and open tasks, not documented limits.
 
 ### R11 and the rule that makes it pass
 
@@ -96,11 +137,12 @@ line: it names the six stored spellings instead of licensing a general correctio
 ## Measuring models against this set
 
 The tables above say what a *filter type* can express. What a *model* actually gets right is measured
-by the `benchmark` module, which replays all 23 queries against every configured Ollama model and
-every approach, several runs each, and reports correctness together with latency, tokens and the
-model's resident size. Its `CaseCatalog` and `Approach` hold copies of the queries and of the ❌ cells
-above — kept in sync by hand, like the IT classes, and pinned by unit tests. ⏸ R8 is measured rather
-than skipped there: it is a reliability finding, so its failure rate is worth a number.
+by the `benchmark` module, which replays all 38 queries (22 canonical, 16 robustness — C19 excluded
+until its prototype is validated) against every configured Ollama model and every approach, several
+runs each, and reports correctness together with latency, tokens and the model's resident size. Its
+`CaseCatalog` and `Approach` hold copies of the queries and of the ❌ cells above — kept in sync by
+hand, like the IT classes, and pinned by unit tests. ⏸ R8 is measured rather than skipped there: it
+is a reliability finding, so its failure rate is worth a number.
 
 One lesson from that measurement is worth keeping in mind when reading any row above: **a single
 green run proves nothing here.** The same prompt, byte for byte, produced opposite results in an

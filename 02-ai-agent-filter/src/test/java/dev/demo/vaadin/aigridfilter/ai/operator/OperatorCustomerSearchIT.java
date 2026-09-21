@@ -160,6 +160,106 @@ class OperatorCustomerSearchIT {
     }
 
     @Test
+    void findsCompaniesWhoseNameStartsWithALetter() {
+        assertThat(search("show me companies with a \"V\" as the first character in the company name"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        customer.getCompanyName().toLowerCase().startsWith("v")));
+    }
+
+    @Test
+    void findsCustomersWithAMinimumRevenue() {
+        BigDecimal lower = BigDecimal.valueOf(50_000);
+
+        assertThat(search("show me customers with annual revenue of at least 50000"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        customer.getAnnualRevenue().compareTo(lower) >= 0));
+    }
+
+    @Test
+    void findsCustomersWhoseContactNameEndsWithAWord() {
+        assertThat(search("show me customers whose contact name ends with \"schmidt\""))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        customer.getContactName().toLowerCase().endsWith("schmidt")));
+    }
+
+    @Test
+    void findsCustomersWhoseCityEndsWithAWord() {
+        assertThat(search("show me customers whose city ends with \"dorf\""))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        city(customer).toLowerCase().endsWith("dorf")));
+    }
+
+    @Test
+    @Disabled("02(b) holds one value and one operator per field - a range needs two bounds")
+    void findsCustomersWhoRegisteredWithinADateRange() {
+        LocalDate from = LocalDate.of(2025, 1, 1);
+        LocalDate to = LocalDate.of(2025, 12, 31);
+
+        assertThat(search("show me customers who registered between 2025-01-01 and 2025-12-31"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        !customer.getCustomerSince().isBefore(from)
+                                && !customer.getCustomerSince().isAfter(to)));
+    }
+
+    @Test
+    void findsCustomersWhoRegisteredSinceLastYear() {
+        LocalDate startOfLastYear = LocalDate.of(LocalDate.now().getYear() - 1, 1, 1);
+
+        assertThat(search("show me customers who have been our customer since the start of last year"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        !customer.getCustomerSince().isBefore(startOfLastYear)));
+    }
+
+    @Test
+    void findsACustomerByCombiningManyFields() {
+        BigDecimal minRevenue = BigDecimal.valueOf(30_000);
+        LocalDate since = LocalDate.of(2024, 1, 20);
+
+        assertThat(search("show me the customer named Anna Schmidt at \"Vertex Automotive Munich\", who is "
+                + "not creditworthy, with an annual revenue of at least 30000, and a customer since date "
+                + "of 2024-01-20"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        customer.getContactName().equalsIgnoreCase("Anna Schmidt")
+                                && customer.getCompanyName().equalsIgnoreCase("Vertex Automotive Munich")
+                                && customer.getCreditRating() == CreditRating.POOR
+                                && customer.getAnnualRevenue().compareTo(minRevenue) >= 0
+                                && customer.getCustomerSince().equals(since)));
+    }
+
+    @Test
+    void findsCustomersInAnUnambiguousCountry() {
+        assertThat(search("show me all customers from France"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        customer.getAddress().getCountry().equals("France")));
+    }
+
+    @Test
+    @Disabled("02(b) holds one value per field - four cities need four")
+    void findsCustomersInFourCities() {
+        assertThat(search("show me customers from Munich, Cologne, Dusseldorf and Berlin"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        city(customer).equals("Munich") || city(customer).equals("Cologne")
+                                || city(customer).equals("Dusseldorf") || city(customer).equals("Berlin")));
+    }
+
+    @Test
+    void findsCustomersWhosePhoneStartsWithAPrefix() {
+        assertThat(search("show me customers whose phone number starts with \"+4930\""))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        customer.getPhone().startsWith("+4930")));
+    }
+
+    @Test
     void ignoresSmallTalk() {
         assertThat(search("Nice weather today, isn't it?"))
                 .extracting(Customer::getId)
@@ -242,6 +342,47 @@ class OperatorCustomerSearchIT {
         assertThat(search(" "))
                 .extracting(Customer::getId)
                 .containsExactlyInAnyOrderElementsOf(expectedIds(customer -> true));
+    }
+
+    @Test
+    void ignoresSmallTalkInGerman() {
+        assertThat(search("wie geht es dir?"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer -> true));
+    }
+
+    @Test
+    void showsEveryCustomerForAGermanShowAllRequest() {
+        assertThat(search("zeige mir alle kunden"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer -> true));
+    }
+
+    @Test
+    @Disabled("not supported yet")
+    void ignoresANonExistentFilterField() {
+        // The model reliably invents a contactName CONTAINS "male" condition instead of recognizing
+        // there is no gender field - a reliability finding, not a filter-type limit (see R8).
+        assertThat(search("show me customer with male contact persons"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer -> true));
+    }
+
+    @Test
+    void ignoresATimeQuestionDespiteHavingATimeTool() {
+        assertThat(search("What is the time?"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer -> true));
+    }
+
+    @Test
+    void findsCustomersWhoOrderedYesterday() {
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+
+        assertThat(search("show me all customers who placed an order yesterday"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        customer.getLastOrderDate().equals(yesterday)));
     }
 
     /** The mechanism under test: prompt to the model, Specification back, executed by the database. */
