@@ -1,7 +1,5 @@
 package dev.demo.vaadin.aigridfilter.ai;
 
-import dev.demo.vaadin.aigridfilter.ai.filter.Condition.Operator;
-import dev.demo.vaadin.aigridfilter.ai.filter.Condition;
 import dev.demo.vaadin.aigridfilter.ai.filter.CustomerFilter;
 import dev.demo.vaadin.aigridfilter.ai.filter.CustomerFilterSpecifications;
 import dev.demo.vaadin.aigridfilter.data.Customer;
@@ -11,12 +9,11 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.context.annotation.Scope;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /** The hybrid step: tool calling like 02, but the tool takes 03's {@code List<Condition>} as its one parameter. */
@@ -28,9 +25,6 @@ public class CustomerSearchService implements CustomerSearchAgent {
 
     private final ChatClient chatClient;
     private final TokenUsageAdvisor tokenUsageAdvisor;
-
-    /** What the model passed to {@link #searchCustomers}; {@code null} until the tool is called. */
-    CustomerFilter filter;
 
     public CustomerSearchService(ChatModel chatModel, TokenUsageAdvisor tokenUsageAdvisor) {
         this.chatClient = ChatClient.builder(chatModel).build();
@@ -45,172 +39,100 @@ public class CustomerSearchService implements CustomerSearchAgent {
 
     /** Asks the LLM to call {@code searchCustomers}; an empty filter (match all) if it produced nothing usable. */
     CustomerFilter requestFilter(String naturalLanguageQuery) {
-        filter = null;
+        CustomerFilter filter;
         try {
             // By the time this returns, searchCustomers(...) has run; the answer text is irrelevant.
-            chatClient.prompt()
-                    .system(systemPrompt(LocalDate.now()))
+            filter = chatClient.prompt()
+                    .system(SYSTEM_PROMPT)
                     .user(naturalLanguageQuery)
                     .tools(this)
                     .advisors(SimpleLoggerAdvisor.builder().build(), tokenUsageAdvisor)
                     // Temperature is set per profile in application-<provider>.properties.
                     .call()
-                    .chatResponse();
+                    .entity(CustomerFilter.class);
         } catch (Exception e) {
             logger.warn("Could not turn query into a filter; showing all customers. Query: '{}'",
                     naturalLanguageQuery, e);
-            return new CustomerFilter(List.of());
+            filter = new CustomerFilter(List.of());
         }
         logger.info("requestFilter('{}') -> {}", naturalLanguageQuery, filter);
-        return filter == null ? new CustomerFilter(List.of()) : filter;
+        return filter;
     }
 
-    /** The one tool of this module: a single parameter carrying the whole condition list - 03's payload. */
-    // returnDirect: the answer text is irrelevant, so the call ends here instead of going back to the model.
-    @Tool(returnDirect = true, description = """
-            Search and filter the customer grid. Returns nothing; it updates the grid in place to show
-            only the matching customers, replacing any previous filter (filters are not additive).
-            Pass the complete list of conditions in one call. ALL conditions must match (AND). Several
-            values inside ONE condition are alternatives (OR) for that field, and a value range on one
-            field is TWO conditions on that field (GREATER_OR_EQUAL for the lower bound,
-            LESS_OR_EQUAL for the upper one). Pass an empty list to show every customer.
-            """)
-    void searchCustomers(
-            @ToolParam(description = "all conditions the customer must satisfy (AND); empty list matches everything")
-            List<Condition> conditions
-    ) {
-        CustomerFilter incoming = new CustomerFilter(conditions == null ? List.of() : conditions);
-
-        // The model sometimes calls the tool again with an empty list, so never overwrite a built filter.
-        // Structured output (03) cannot hit this: one response, one filter.
-        if (filter != null && !filter.conditions().isEmpty() && incoming.conditions().isEmpty()) {
-            logger.warn("Ignoring a repeated searchCustomers call with an empty conditions list; keeping {}", filter);
-            return;
-        }
-
-        this.filter = incoming;
-        logger.info("searchCustomers -> {}", filter);
+    /** The only tool: the model asks for today rather than reading it off a prompt baked at build time. */
+    @Tool(description = "Current date and time")
+    LocalDateTime currentLocalDateTime() {
+        return LocalDateTime.now();
     }
 
-    /** Builds the system prompt for the given "today", so it can be unit-tested without calling the model. */
-    static String systemPrompt(LocalDate today) {
-        LocalDate yesterday = today.minusDays(1);
-        LocalDate thisWeekMonday = today.minusDays(today.getDayOfWeek().getValue() - 1L);
-        LocalDate lastWeekMonday = thisWeekMonday.minusWeeks(1);
-        LocalDate lastMonthStart = today.withDayOfMonth(1).minusMonths(1);
-        return """
-                You translate a user's request into a call of the searchCustomers tool, which filters a
-                list of customers.
+    private static final String SYSTEM_PROMPT = """
+            You translate a user's request into a CustomerFilter that filters a customer grid.
 
-                Call searchCustomers exactly ONCE, with the complete list of conditions. Do not call it
-                a second time afterwards - it has already been applied.
+            You have one tool, currentLocalDateTime. Use it ONLY when the request names a date
+            relative to today ("yesterday", "last week", "in the last 12 months"). Then call it
+            FIRST, WAIT for the date it returns, and only THEN answer - never guess today's date
+            and never take one from an example below.
 
-                searchCustomers takes a flat "conditions" list; ALL conditions must match (AND). Each
-                condition is: { field, operator, values: [...], negate }.
-                  - values: one or more values; the condition matches if the field matches ANY of them
-                    (OR within the field).
-                  - negate: true to exclude matches instead of requiring them (e.g. "not from Berlin").
-                There is no nesting and no OR across different fields — only within one field's values.
-                To show all customers, call the tool with an empty conditions list.
+            If the request names no date at all, or an absolute one ("18.11.2025", "between
+            2024-07-01 and 2025-03-31", "in 2024"), do NOT call the tool - answer directly.
 
-                IMPORTANT: include EVERY condition the user mentions. Never drop one (e.g. keep the
-                revenue condition even when cities are also given).
+            Conditions are AND-combined, the values inside one condition are OR-combined, and
+            negate=true excludes the matches. There is no nesting and no OR across fields. To show
+            everyone, return an empty conditions list.
 
-                Building the conditions list:
-                  - Several values for the SAME field ("Berlin or Köln", or the colloquial "Berlin and
-                    Köln" meaning either city) -> one condition on that field with both values.
-                  - Several requirements across DIFFERENT fields that must all hold -> one condition per
-                    field; the list is always AND-combined.
-                  - A value RANGE on one field is two conditions on that field, e.g. revenue between
-                    100000 and 500000 -> [ annualRevenue GREATER_OR_EQUAL [100000],
-                    annualRevenue LESS_OR_EQUAL [500000] ].
-                  - "not X" / "except X" / "excluding X" -> the condition for X with negate=true, NOT a
-                    different operator (there is no NOT_CONTAINS/NOT_EQUALS operator).
+            Keep every requirement the user names:
+              - several values for the SAME field ("Berlin or Hamburg") -> ONE condition with both
+                values
+              - requirements on DIFFERENT fields -> one condition each
+              - a range on one field -> TWO conditions, GREATER_OR_EQUAL the lower and LESS_OR_EQUAL
+                the upper bound
+              - "not X" / "except X" -> X's own condition with negate=true; there is no NOT_* operator
 
-                Each condition has:
-                  - field: one of companyName, contactName, email, phone, annualRevenue, creditRating,
-                           customerSince, lastOrderDate, country, city, postalCode, street, houseNumber,
-                           state, countryCode
-                  - operator: CONTAINS, EQUALS, STARTS_WITH, ENDS_WITH, GREATER_OR_EQUAL, LESS_OR_EQUAL
-                  - values: the comparison value(s), as text
-                  - negate: true/false, default false
+            city is text, matched case-insensitively: a plain "in Berlin" is CONTAINS, EQUALS only
+            for explicitly exact wording. City names are stored in English - Berlin, Hamburg, Munich,
+            Frankfurt, Cologne, Dusseldorf - so translate a German one before passing it: "München"
+            is Munich, "Köln" is Cologne. The value you pass must be one of those six names: if the
+            user's word is none of them, pass the one it is closest to - "Brelin" is Berlin. That
+            repairs the NAME only; it never changes what the condition asks for, so negate stays
+            exactly as the sentence had it.
 
-                Rules:
-                  - Text fields match case-insensitively. Use CONTAINS for partial matches; set
-                    negate=true to exclude (e.g. "not in Berlin" -> field=city, operator=CONTAINS,
-                    values=[Berlin], negate=true).
-                  - city names are stored in English - Berlin, Hamburg, Munich, Frankfurt, Cologne,
-                    Dusseldorf - so translate a German one before passing it: "München" is Munich,
-                    "Köln" is Cologne.
-                  - For "begins with" / "first character/letter is X" use STARTS_WITH; for "ends with"
-                    use ENDS_WITH. The value is just the prefix/suffix, e.g. "name starts with M" ->
-                    field=contactName, operator=STARTS_WITH, values=[M].
-                  - phone: always use CONTAINS with the value exactly as the user typed it (no
-                    normalization, no leading +). Phone numbers are stored in E.164, so a partial
-                    number like '5020000001' will match via substring.
-                  - customerSince and lastOrderDate use ISO date yyyy-MM-dd. Read ambiguous dates
-                    day-first (German), e.g. '03.05.05' -> '2005-05-03'.
-                    Operator choice for dates:
-                    * exact day (today, yesterday, a specific date like 2024-03-15) -> EQUALS
-                    * open-ended past range (since/after/last week/last month/this year) -> GREATER_OR_EQUAL with the first day of that period
-                    * open-ended future/past boundary (before/until) -> LESS_OR_EQUAL
-                    * a bare year with no "since"/"before" qualifier, for lastOrderDate ("last ordered
-                      in 2024", "2024 zuletzt gekauft") -> a CLOSED range: two conditions on
-                      lastOrderDate, GREATER_OR_EQUAL <year>-01-01 and LESS_OR_EQUAL <year>-12-31 (same
-                      two-condition idiom as a revenue range). customerSince is inherently open-ended
-                      even for a bare year ("customer since 2020" -> GREATER_OR_EQUAL only).
-                    Never emit a GREATER_OR_EQUAL + LESS_OR_EQUAL pair for a single named day.
-                  - annualRevenue is a plain number, e.g. 100000; use GREATER_OR_EQUAL / LESS_OR_EQUAL
-                    for "more/less than".
-                  - creditRating is the bank credit rating. Use field=creditRating, operator=EQUALS, and
-                    a value one of GOOD, MEDIUM, POOR:
-                    * "creditworthy" / "good credit" -> GOOD
-                    * "limited" / "medium" -> MEDIUM
-                    * "at risk" / "risky" / "not creditworthy" / "poor credit" -> POOR
-                    For SEVERAL ratings put them all in ONE condition's values (they are alternatives,
-                    OR-combined within the field), e.g. "good or at-risk rating" -> creditRating EQUALS
-                    [GOOD, POOR]. Never express a rating via a numeric score.
-                  - Today is %s. Resolve relative dates ("yesterday", "today", "last month", "this year",
-                    "last week") against this date.
+            lastOrderDate is an ISO yyyy-MM-dd day: EQUALS an exact day, LESS_OR_EQUAL
+            "before"/"until", GREATER_OR_EQUAL "since"/"after". A date the user wrote ambiguously is
+            day-first (German): '03.05.05' is 2005-05-03. Emit a GREATER_OR_EQUAL + LESS_OR_EQUAL
+            pair only for an explicit "between X and Y" or a bare year ("in 2024" is 2024-01-01 to
+            2024-12-31), never for a single day, named or relative.
 
-                Examples (conditions written as "field OP [values]" for brevity, negate noted separately):
-                  "customers in Berlin"
-                    -> city CONTAINS [Berlin]
-                  "customers in Berlin or Köln"
-                    -> city CONTAINS [Berlin, Cologne]
-                  "Kunden aus Köln"
-                    -> city CONTAINS [Cologne]
-                  "all customers in Berlin or Köln with a minimal revenue of 100000"
-                    -> city CONTAINS [Berlin, Cologne]; annualRevenue GREATER_OR_EQUAL [100000]
-                  "customers whose contact name starts with M"
-                    -> contactName STARTS_WITH [M]
-                  "customers who are not from Berlin"
-                    -> city CONTAINS [Berlin], negate=true
-                  "companies not in Munich with revenue between 100000 and 500000"
-                    -> city CONTAINS [Munich], negate=true; annualRevenue GREATER_OR_EQUAL [100000];
-                       annualRevenue LESS_OR_EQUAL [500000]
-                  "creditworthy customers in Berlin"
-                    -> city CONTAINS [Berlin]; creditRating EQUALS [GOOD]
-                  "customers at risk"
-                    -> creditRating EQUALS [POOR]
-                  "customers in Berlin with a good and an at-risk credit rating"
-                    -> city CONTAINS [Berlin]; creditRating EQUALS [GOOD, POOR]
-                  "customers since 2020"
-                    -> customerSince GREATER_OR_EQUAL [2020-01-01]
-                  "customers who last ordered in 2024" (bare year, no "since"/"before" -> CLOSED range,
-                  both bounds required)
-                    -> lastOrderDate GREATER_OR_EQUAL [2024-01-01]; lastOrderDate LESS_OR_EQUAL [2024-12-31]
-                  "customers who placed an order yesterday" (today = %s)
-                    -> lastOrderDate EQUALS [%s]
-                  "customers who placed an order today" (today = %s)
-                    -> lastOrderDate EQUALS [%s]
-                  "customers who ordered last week" (today = %s, week starts Mon %s)
-                    -> lastOrderDate GREATER_OR_EQUAL [%s]
-                  "customers who ordered last month" (today = %s)
-                    -> lastOrderDate GREATER_OR_EQUAL [%s]
-                  "show all customers"
-                    -> (empty conditions list)
-                """.formatted(today, today, yesterday, today, today, today, thisWeekMonday, lastWeekMonday, today,
-                lastMonthStart);
-    }
+            Once currentLocalDateTime has answered, pick the operator by what was asked for:
+              - a single relative DAY ("yesterday", "today") is ONE exact day: EQUALS that day,
+                never "from that day on".
+              - a relative PERIOD ("last week", "in the last 12 months") is open-ended:
+                GREATER_OR_EQUAL that date minus the WHOLE period - "in the last 12 months" is
+                minus 12 months, not minus one month.
+
+            creditRating EQUALS GOOD (creditworthy), MEDIUM (limited creditworthiness) or POOR (at
+            risk / not creditworthy). Several ratings are alternatives, so they share ONE condition.
+            "Not creditworthy" NAMES POOR: EQUALS [POOR] with negate=false, never a negated GOOD.
+
+            Examples, written as "field OPERATOR [values]":
+              "customers in Berlin"
+                -> city CONTAINS [Berlin]
+              "customers in Berlin or Hamburg"
+                -> city CONTAINS [Berlin, Hamburg]
+              "Kunden aus Köln"
+                -> city CONTAINS [Cologne]
+              "customers in Brelin"
+                -> city CONTAINS [Berlin]
+              "creditworthy customers in Hamburg"
+                -> city CONTAINS [Hamburg]; creditRating EQUALS [GOOD]
+              "customers who are not from Berlin"
+                -> city CONTAINS [Berlin], negate=true
+              "customers who ordered in the last 12 months"
+                -> lastOrderDate GREATER_OR_EQUAL [that date minus 12 months]
+              "customers who ordered yesterday"
+                -> lastOrderDate EQUALS [that date minus 1 day]
+              "customers who last ordered between 2024-07-01 and 2025-03-31"
+                -> lastOrderDate GREATER_OR_EQUAL [2024-07-01]; lastOrderDate LESS_OR_EQUAL [2025-03-31]
+              "show all customers"
+                -> (empty conditions list)
+            """;
 }
