@@ -528,9 +528,7 @@ class FlatCustomerSearchIT {
                 .containsExactlyInAnyOrderElementsOf(expectedIds(customer -> true));
     }
 
-    // Reliability finding, not a filter-type limit - the model resolves the date wrongly (issue #32).
     @Test
-    @Disabled("not supported yet")
     void findsCustomersWhoOrderedYesterday() {
         LocalDate yesterday = LocalDate.now().minusDays(1);
 
