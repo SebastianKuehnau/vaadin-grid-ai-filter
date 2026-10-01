@@ -47,13 +47,13 @@ wrong although the filter type could carry it; see below the robustness table.
 | C5 | **Dates: exact day, relative dates and ranges** | | | | | | |
 | C5.1 | `Kunden, die zuletzt am 18.11.2025 bestellt haben` | exact day, German date format | `findsCustomersWhoLastOrderedOnAGermanFormattedDate` | ✅ | ✅ | ✅ | ✅ |
 | C5.2 | `show me all customers who placed an order in the last 12 months` | relative date | `findsCustomersWithAnOrderInTheLastTwelveMonths` | ❌ | ✅ | ✅ | ✅ |
-| C5.3 | `show me customers who have been our customer since the start of last year` | relative date, open-ended lower bound, on `customerSince` | `findsCustomersWhoRegisteredSinceLastYear` | ❌ | ⏸ | ✅ | ✅ |
+| C5.3 | `show me customers who have been our customer since the start of last year` | relative date, open-ended lower bound, on `customerSince` | `findsCustomersWhoRegisteredSinceLastYear` | ❌ | ✅ | ✅ | ✅ |
 | C5.4 | `customers who last ordered between 2024-07-01 and 2025-03-31` | date range | `findsCustomersWhoLastOrderedWithinADateRange` | ❌ | ❌ | ✅ | ✅ |
 | C5.5 | `show me customers who registered between 2025-01-01 and 2025-12-31` | date range on a third date field (`customerSince`) | `findsCustomersWhoRegisteredWithinADateRange` | ❌ | ❌ | ✅ | ✅ |
-| C5.6 | `show me all customers who placed an order this year` | relative period: this year | `findsCustomersWhoOrderedThisYear` | ❌ | ⏸ | ✅ | ✅ |
+| C5.6 | `show me all customers who placed an order this year` | relative period: this year | `findsCustomersWhoOrderedThisYear` | ❌ | ✅ | ✅ | ✅ |
 | C5.7 | `show me all customers whose last order was last year` | relative period: last year — a closed range, so two bounds | `findsCustomersWhoLastOrderedLastYear` | ❌ | ❌ | ✅ | ✅ |
-| C5.8 | `show me all customers who placed an order this month` | relative period: this month — empty on the 1st of a month | `findsCustomersWhoOrderedThisMonth` | ❌ | ⏸ | ⏸ | ⏸ |
-| C5.9 | `show me all customers who placed an order last week` | relative period: last week — a closed range; empty in most weeks | `findsCustomersWhoOrderedLastWeek` | ❌ | ❌ | ⏸ | ⏸ |
+| C5.8 | `show me all customers who placed an order this month` | relative period: this month — empty on the 1st of a month | `findsCustomersWhoOrderedThisMonth` | ❌ | ✅ | ✅ | ✅ |
+| C5.9 | `show me all customers who placed an order last week` | relative period: last week — a closed range; empty in most weeks | `findsCustomersWhoOrderedLastWeek` | ❌ | ❌ | ✅ | ✅ |
 | C6 | **Credit rating and combined conditions** | | | | | | |
 | C6.1 | `show me all customers who are not creditworthy` | rating stated as a negation | `findsCustomersWhoAreNotCreditworthy` | ✅ | ✅ | ✅ | ✅ |
 | C6.2 | `creditworthy customers in Hamburg` | combined AND across fields | `findsCreditworthyCustomersInOneCity` | ✅ | ✅ | ✅ | ✅ |
@@ -147,7 +147,7 @@ classes run these.
 | R3.4 | `Could you please, well, show me all customers in Berlin? Thanks.` | the Berlin customers — filler words are ignored | `understandsAPoliteQueryWithFillerWords` | ✅ | ✅ | ✅ | ✅ |
 | R4 | **Edge cases: a missing field, an empty result** | | | | | | |
 | R4.1 | `show me customer with male contact persons` | every customer — no gender field exists, so nothing should be filtered | `ignoresANonExistentFilterField` | ⏸ | ⏸ | ⏸ | ⏸ |
-| R4.2 | `show me all customers who placed an order yesterday` | customers whose `lastOrderDate` is exactly yesterday — every app moves "Berlin Data Works"' last order to yesterday at startup, so there is always exactly one hit | `findsCustomersWhoOrderedYesterday` | ⏸ | ⏸ | ✅ | ✅ |
+| R4.2 | `show me all customers who placed an order yesterday` | customers whose `lastOrderDate` is exactly yesterday — every app moves "Berlin Data Works"' last order to yesterday at startup, so there is always exactly one hit | `findsCustomersWhoOrderedYesterday` | ✅ | ✅ | ✅ | ✅ |
 | R4.3 | `show me all customers who placed an order today` | customers whose `lastOrderDate` is today — no seeded order is dated today, so an empty grid, not every customer | `findsCustomersWhoOrderedToday` | ✅ | ✅ | ✅ | ✅ |
 | R4.4 | `show me all customers in Tokyo` | no customer — an empty grid, not every customer | `findsNoCustomerInAnUnknownCity` | ✅ | ✅ | ✅ | ✅ |
 | R5 | **Hostile input** | | | | | | |
@@ -160,15 +160,13 @@ that no field represents gender, the model reliably invents a `contactName CONTA
 (verified reproducible: two runs against `qwen3:8b` produced the exact same wrong condition). Neither
 is a filter-type limit, so both are reliability findings and open tasks, not documented limits.
 
-**C5.3 in 02(b) and R4.2 in 02(a) and 02(b)** are ⏸ for the same reason: 03 and 04 pass both, but
-02's tool-calling variants resolve the relative date wrongly — R4.2 returns nothing on a day that
-has a match, C5.3 picks too early a lower bound. Tracked in
-[issue #32](https://github.com/SebastianKuehnau/vaadin-grid-ai-filter/issues/32).
-
-**C5.6 and C5.8 in 02(b), C5.8 and C5.9 in 03 and 04** are ⏸ for the same reason — the relative
-periods. 02(b) does not ask for the current date and guesses a year (2024); 03 and 04 read "this
-month" on the 1st of October as September, and "last week" with no or a wrong upper bound. Same
-issue.
+**Relative dates are computed in code, never by the model.** C5.3, C5.6, C5.8, C5.9 and R4.2 used to
+fail because `qwen3:8b` got the calendar arithmetic wrong — "this month" on the 1st of October read as
+September, "last week" without its upper bound, a guessed year
+([issue #32](https://github.com/SebastianKuehnau/vaadin-grid-ai-filter/issues/32)). Every module now
+hands the model a `RelativeDates` record — today, yesterday and the boundaries of this/last week,
+month and year — to copy from: 03 in its system prompt, 02 and 04 as the answer of their
+`currentLocalDateTime` tool.
 
 ### R3.2 and the rule that makes it pass
 
