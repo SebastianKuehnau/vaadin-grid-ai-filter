@@ -12,7 +12,7 @@ final class MarkdownReport {
         StringBuilder out = new StringBuilder();
         out.append("# Model benchmark\n\n")
                 .append("Natural-language filtering measured against the four approaches of this ")
-                .append("project, with the 22 queries of their service-level IT classes.\n\n")
+                .append("project, with the queries of their service-level IT classes.\n\n")
                 .append("Started `").append(report.startedAt()).append("`, finished `")
                 .append(report.finishedAt()).append("`.\n\n");
 

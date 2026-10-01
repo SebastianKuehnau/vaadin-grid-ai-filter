@@ -29,8 +29,8 @@ class CustomerSearchService implements CustomerSearchAgent {
     private static final String SYSTEM_PROMPT = """
             You are a helpful assistant that helps users find customers based on their
             company name, contact name, email, phone, customer since, last order date,
-            country, city, postal code, street, house number, annual revenue, and credit
-            rating. The credit rating is one of: creditworthy (GOOD), limited (MEDIUM), or
+            country, city, postal code, street, house number, state, country code, annual
+            revenue, and credit rating. The credit rating is one of: creditworthy (GOOD), limited (MEDIUM), or
             at risk / not creditworthy (POOR).
             Call the searchCustomers tool ONCE to filter the grid, then stop - it has already been
             applied, so never call it a second time. Every parameter takes exactly ONE value; there is
@@ -128,6 +128,8 @@ class CustomerSearchService implements CustomerSearchAgent {
             @ToolParam(description = "postal code") String postalCode,
             @ToolParam(description = "street") String street,
             @ToolParam(description = "house number") String houseNumber,
+            @ToolParam(description = "state or region, e.g. \"Ile-de-France\"") String state,
+            @ToolParam(description = "two-letter ISO country code, e.g. \"DE\" or \"GB\"") String countryCode,
             @ToolParam(description = """
                     credit rating to match, or null. One of: GOOD (creditworthy),
                     MEDIUM (limited creditworthiness), POOR (at risk / not creditworthy).""") CreditRating creditRating,
@@ -137,7 +139,7 @@ class CustomerSearchService implements CustomerSearchAgent {
                     200000" cannot be expressed.""") BigDecimal annualRevenue
     ) {
         CustomerCriteria incoming = new CustomerCriteria(companyName, contactName, email, phone, customerSince,
-                lastOrderDate, country, city, postalCode, street, houseNumber, creditRating, annualRevenue);
+                lastOrderDate, country, city, postalCode, street, houseNumber, state, countryCode, creditRating, annualRevenue);
 
         // The model sometimes calls the tool again with no arguments, so never overwrite what it found.
         if (criteria != null && !criteria.isEmpty() && incoming.isEmpty()) {

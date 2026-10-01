@@ -19,6 +19,8 @@ public record CustomerCriteria(
         FieldCriterion<String> postalCode,
         FieldCriterion<String> street,
         FieldCriterion<String> houseNumber,
+        FieldCriterion<String> state,
+        FieldCriterion<String> countryCode,
         FieldCriterion<CreditRating> creditRating,
         FieldCriterion<BigDecimal> annualRevenue) {
 
@@ -27,6 +29,7 @@ public record CustomerCriteria(
         return companyName == null && contactName == null && email == null && phone == null
                 && customerSince == null && lastOrderDate == null && country == null && city == null
                 && postalCode == null && street == null && houseNumber == null
+                && state == null && countryCode == null
                 && creditRating == null && annualRevenue == null;
     }
 }

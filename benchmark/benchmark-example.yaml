@@ -27,14 +27,14 @@ benchmark:
     - llama3.1:8b
 
   # Which of the four filtering approaches to measure:
-  #   02a  tool calling, one scalar value per field        (5 of 12 capabilities)
-  #   02b  tool calling, value + operator + negate         (9 of 12)
-  #   03   structured output, a CustomerFilter             (12 of 12)
-  #   04   tool calling with 03's condition list           (12 of 12)
+  #   02a  tool calling, one scalar value per field        (14 of 35 capabilities)
+  #   02b  tool calling, value + operator + negate         (26 of 35)
+  #   03   structured output, a CustomerFilter             (35 of 35)
+  #   04   tool calling with 03's condition list           (35 of 35)
   approaches: [ 02a, 02b, 03, 04 ]
 
-  # The case ids to measure; empty means all 39. C1.1 to C6.3 are the canonical capability queries,
-  # R1.1 to R5.1 the robustness ones - see docs/canonical-query-set.md.
+  # The case ids to measure; empty means all 54. C1.1 to C6.4 are the canonical capability queries,
+  # R1.1 to R5.2 the robustness ones - see docs/canonical-query-set.md.
   cases: [ ]
 
   # How often every case is measured. One run proves nothing: the same prompt can produce different

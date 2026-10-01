@@ -47,7 +47,7 @@ class OperatorCustomerListViewBrowserlessIT extends AbstractCustomerSearchViewIT
                         expectedIds(customer -> !city(customer).equals("Berlin")));
     }
 
-    // C3 Text operators: starts with, ends with
+    // C3 Text operators: starts with, ends with, contains, equals
     @Test
     void findsCustomersWhoseContactNameStartsWithALetter() {
         assertThat(search("show me all customers with an \"m\" as the first character in the contact name"))
