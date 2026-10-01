@@ -38,7 +38,7 @@ class AggregatorTest {
 
     @Test
     void countsSkippedCasesFromTheApproachesCapabilityGaps() {
-        // 02(a) cannot express C3, so of the two selected cases one is skipped.
+        // 02(a) cannot express C2-3, so of the two selected cases one is skipped.
         assertThat(summary(ReportFixture.report(), "02a").casesSkipped()).isEqualTo(1);
         assertThat(summary(ReportFixture.report(), "03").casesSkipped()).isZero();
     }
@@ -47,8 +47,8 @@ class AggregatorTest {
     void writesPassesOutOfRunsIntoEveryCellAndADashWhereNothingRan() {
         BenchmarkReport report = ReportFixture.report();
         // Columns are 02a first, then 03 - the order the workers ran in.
-        assertThat(row(report, "C1").cells()).containsExactly("1/3", "3/3");
-        assertThat(row(report, "C3").cells()).containsExactly("-", "2/3");
+        assertThat(row(report, "C1-1").cells()).containsExactly("1/3", "3/3");
+        assertThat(row(report, "C2-3").cells()).containsExactly("-", "2/3");
     }
 
     @Test
@@ -57,7 +57,7 @@ class AggregatorTest {
                 .singleElement()
                 .satisfies(skipped -> {
                     assertThat(skipped.approachId()).isEqualTo("02a");
-                    assertThat(skipped.caseId()).isEqualTo("C3");
+                    assertThat(skipped.caseId()).isEqualTo("C2-3");
                     assertThat(skipped.reason()).contains("negate flag");
                 });
     }

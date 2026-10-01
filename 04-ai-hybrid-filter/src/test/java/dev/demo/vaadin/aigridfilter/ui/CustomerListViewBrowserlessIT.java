@@ -19,6 +19,7 @@ class CustomerListViewBrowserlessIT extends AbstractCustomerSearchViewIT {
         return CustomerListView.class;
     }
 
+    // C1 Location: one value
     @Test
     void findsCustomersInOneCity() {
         assertThat(search("show me all customers in Berlin"))
@@ -27,6 +28,7 @@ class CustomerListViewBrowserlessIT extends AbstractCustomerSearchViewIT {
                         expectedIds(customer -> city(customer).equals("Berlin")));
     }
 
+    // C2 Location: several values and negation
     @Test
     void findsCustomersInEitherOfTwoCities() {
         assertThat(search("show me customers from Berlin or Hamburg"))
@@ -43,6 +45,7 @@ class CustomerListViewBrowserlessIT extends AbstractCustomerSearchViewIT {
                         expectedIds(customer -> !city(customer).equals("Berlin")));
     }
 
+    // C3 Text operators: starts with, ends with
     @Test
     void findsCustomersWhoseContactNameStartsWithALetter() {
         assertThat(search("show me all customers with an \"m\" as the first character in the contact name"))
@@ -51,15 +54,7 @@ class CustomerListViewBrowserlessIT extends AbstractCustomerSearchViewIT {
                         customer.getContactName().toLowerCase().startsWith("m")));
     }
 
-    @Test
-    void findsCreditworthyCustomersInOneCity() {
-        assertThat(search("creditworthy customers in Hamburg"))
-                .extracting(Customer::getId)
-                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
-                        city(customer).equals("Hamburg")
-                                && customer.getCreditRating() == CreditRating.GOOD));
-    }
-
+    // C4 Revenue: bounds and ranges
     @Test
     void findsCustomersWithinARevenueRange() {
         BigDecimal lower = BigDecimal.valueOf(100_000);
@@ -72,6 +67,7 @@ class CustomerListViewBrowserlessIT extends AbstractCustomerSearchViewIT {
                                 && customer.getAnnualRevenue().compareTo(upper) <= 0));
     }
 
+    // C5 Dates: exact day, relative dates and ranges
     @Test
     void findsCustomersWithAnOrderInTheLastTwelveMonths() {
         LocalDate oneYearAgo = LocalDate.now().minusYears(1);
@@ -97,5 +93,15 @@ class CustomerListViewBrowserlessIT extends AbstractCustomerSearchViewIT {
                 .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
                         !customer.getLastOrderDate().isBefore(from)
                                 && !customer.getLastOrderDate().isAfter(to)));
+    }
+
+    // C6 Credit rating and combined conditions
+    @Test
+    void findsCreditworthyCustomersInOneCity() {
+        assertThat(search("creditworthy customers in Hamburg"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        city(customer).equals("Hamburg")
+                                && customer.getCreditRating() == CreditRating.GOOD));
     }
 }

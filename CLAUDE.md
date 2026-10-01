@@ -79,7 +79,7 @@ It is only ever started by hand:
 ./mvnw install -DskipTests                                    # once, so the module jars exist
 ./mvnw spring-boot:run -pl benchmark                          # all approaches, all cases, 3 runs
 ./mvnw spring-boot:run -pl benchmark \
-  -Dspring-boot.run.arguments="--benchmark.models=qwen3:8b --benchmark.cases=C1,C5 --benchmark.runs=1"
+  -Dspring-boot.run.arguments="--benchmark.models=qwen3:8b --benchmark.cases=C1-1,C6-2 --benchmark.runs=1"
 ```
 
 Every setting is documented in `benchmark/benchmark-example.yaml`; copy it to `config/application.yaml`

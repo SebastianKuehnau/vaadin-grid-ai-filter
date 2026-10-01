@@ -30,22 +30,23 @@ cannot express that query. The queries themselves are in
 
 | # | Capability | IT test method | 02(a) | 02(b) | 03 | 04 |
 |---|---|---|---|---|---|---|
-| C1 | single value | `findsCustomersInOneCity` | ✅ | ✅ | ✅ | ✅ |
-| C2 | multiple values for one field (OR) | `findsCustomersInEitherOfTwoCities` | ❌ | ❌ | ✅ | ✅ |
-| C3 | negation | `findsCustomersOutsideOneCity` | ❌ | ✅ | ✅ | ✅ |
-| C4 | non-CONTAINS operator (starts-with) | `findsCustomersWhoseContactNameStartsWithALetter` | ❌ | ✅ | ✅ | ✅ |
-| C5 | combined AND across fields | `findsCreditworthyCustomersInOneCity` | ✅ | ✅ | ✅ | ✅ |
-| C6 | numeric range | `findsCustomersWithinARevenueRange` | ❌ | ❌ | ✅ | ✅ |
-| C7 | relative date | `findsCustomersWithAnOrderInTheLastTwelveMonths` | ❌ | ✅ | ✅ | ✅ |
-| C8 | date range | `findsCustomersWhoLastOrderedWithinADateRange` | ❌ | ❌ | ✅ | ✅ |
-| C9 | single value on a second address field | `findsCustomersInOneCountry` | ✅ | ✅ | ✅ | ✅ |
-| C10 | numeric upper bound | `findsCustomersUpToARevenueLimit` | ❌ | ✅ | ✅ | ✅ |
-| C11 | exact day, German date format | `findsCustomersWhoLastOrderedOnAGermanFormattedDate` | ✅ | ✅ | ✅ | ✅ |
-| C12 | rating stated as a negation | `findsCustomersWhoAreNotCreditworthy` | ✅ | ✅ | ✅ | ✅ |
+| C1-1 | single value | `findsCustomersInOneCity` | ✅ | ✅ | ✅ | ✅ |
+| C1-2 | single value on a second address field | `findsCustomersInOneCountry` | ✅ | ✅ | ✅ | ✅ |
+| C2-1 | multiple values for one field (OR) | `findsCustomersInEitherOfTwoCities` | ❌ | ❌ | ✅ | ✅ |
+| C2-3 | negation | `findsCustomersOutsideOneCity` | ❌ | ✅ | ✅ | ✅ |
+| C3-1 | non-CONTAINS operator (starts-with) | `findsCustomersWhoseContactNameStartsWithALetter` | ❌ | ✅ | ✅ | ✅ |
+| C4-2 | numeric upper bound | `findsCustomersUpToARevenueLimit` | ❌ | ✅ | ✅ | ✅ |
+| C4-3 | numeric range | `findsCustomersWithinARevenueRange` | ❌ | ❌ | ✅ | ✅ |
+| C5-1 | exact day, German date format | `findsCustomersWhoLastOrderedOnAGermanFormattedDate` | ✅ | ✅ | ✅ | ✅ |
+| C5-2 | relative date | `findsCustomersWithAnOrderInTheLastTwelveMonths` | ❌ | ✅ | ✅ | ✅ |
+| C5-4 | date range | `findsCustomersWhoLastOrderedWithinADateRange` | ❌ | ❌ | ✅ | ✅ |
+| C6-1 | rating stated as a negation | `findsCustomersWhoAreNotCreditworthy` | ✅ | ✅ | ✅ | ✅ |
+| C6-2 | combined AND across fields | `findsCreditworthyCustomersInOneCity` | ✅ | ✅ | ✅ | ✅ |
 | | **Capabilities reached** | | **5 / 12** | **9 / 12** | **12 / 12** | **12 / 12** |
 
-C1–C8 run twice per variant — once through the AI service (`*CustomerSearchIT`) and once through the
-UI (`*BrowserlessIT`). C9–C12 run through the service only.
+C1-1, C2-1, C2-3, C3-1, C4-3, C5-2, C5-4 and C6-2 run twice per variant — once through the AI service
+(`*CustomerSearchIT`) and once through the UI (`*BrowserlessIT`). C1-2, C4-2, C5-1 and C6-1 run through
+the service only.
 
 ❌ means *architecturally impossible*, not *unreliable*: no prompt and no model can make a filter type
 carry a value it has no slot for.
@@ -58,18 +59,18 @@ pass all of it; these run in the service-level `*CustomerSearchIT` only.
 
 | # | Input | IT test method | 02(a) | 02(b) | 03 | 04 |
 |---|---|---|---|---|---|---|
-| R1 | small talk | `ignoresSmallTalk` | ✅ | ✅ | ✅ | ✅ |
-| R2 | an unrelated question | `ignoresAnUnrelatedQuestion` | ✅ | ✅ | ✅ | ✅ |
-| R3 | "show me all customers" | `showsEveryCustomerWhenAskedForAll` | ✅ | ✅ | ✅ | ✅ |
-| R4 | asking for the filter to be reset | `showsEveryCustomerWhenTheFilterIsReset` | ✅ | ✅ | ✅ | ✅ |
-| R5 | C1 asked in German | `understandsAGermanQuery` | ✅ | ✅ | ✅ | ✅ |
-| R6 | C1 in all caps | `understandsAnAllUppercaseQuery` | ✅ | ✅ | ✅ | ✅ |
-| R7 | C1 with polite filler words | `understandsAPoliteQueryWithFillerWords` | ✅ | ✅ | ✅ | ✅ |
-| R8 | a prompt injection that tells the model to clear the filter | `keepsTheFilterWhenTheQueryContainsAnInjection` | ⏸ | ⏸ | ⏸ | ⏸ |
-| R9 | the empty string | `showsEveryCustomerForAnEmptyQuery` | ✅ | ✅ | ✅ | ✅ |
-| R10 | a single blank | `showsEveryCustomerForABlankQuery` | ✅ | ✅ | ✅ | ✅ |
+| R1-1 | small talk | `ignoresSmallTalk` | ✅ | ✅ | ✅ | ✅ |
+| R1-3 | an unrelated question | `ignoresAnUnrelatedQuestion` | ✅ | ✅ | ✅ | ✅ |
+| R2-1 | "show me all customers" | `showsEveryCustomerWhenAskedForAll` | ✅ | ✅ | ✅ | ✅ |
+| R2-3 | asking for the filter to be reset | `showsEveryCustomerWhenTheFilterIsReset` | ✅ | ✅ | ✅ | ✅ |
+| R2-4 | the empty string | `showsEveryCustomerForAnEmptyQuery` | ✅ | ✅ | ✅ | ✅ |
+| R2-5 | a single blank | `showsEveryCustomerForABlankQuery` | ✅ | ✅ | ✅ | ✅ |
+| R3-1 | C1-1 asked in German | `understandsAGermanQuery` | ✅ | ✅ | ✅ | ✅ |
+| R3-3 | C1-1 in all caps | `understandsAnAllUppercaseQuery` | ✅ | ✅ | ✅ | ✅ |
+| R3-4 | C1-1 with polite filler words | `understandsAPoliteQueryWithFillerWords` | ✅ | ✅ | ✅ | ✅ |
+| R5-1 | a prompt injection that tells the model to clear the filter | `keepsTheFilterWhenTheQueryContainsAnInjection` | ⏸ | ⏸ | ⏸ | ⏸ |
 
-⏸ is `@Disabled("not supported yet")`: **R8 fails in all four variants** — the model follows the
+⏸ is `@Disabled("not supported yet")`: **R5-1 fails in all four variants** — the model follows the
 injected instruction and clears the filter. That is a reliability finding and an open task, not a
 limit of any filter type.
 
