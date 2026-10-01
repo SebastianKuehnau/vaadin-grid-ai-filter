@@ -58,12 +58,13 @@ benchmark:
   # timeout - the worker log says which query it was.
   max-model-calls-per-query: 12
 
-  # The chat options, mirroring every module's application-ollama.properties, so the benchmark
-  # measures the models under the settings the apps actually use.
+  # The chat options, mirroring the modules' application-ollama.properties. One set serves every
+  # approach, so it takes the largest value any module needs: 02's num-ctx (its 45-parameter tool
+  # overflows 4096) and 03's num-predict (a filter over every field overflows 512).
   chat:
     temperature: 0.0
-    num-ctx: 4096
-    num-predict: 512
+    num-ctx: 8192
+    num-predict: 1024
     # Without this a reasoning model burns hundreds of tokens on a <think> block per call.
     think: false
     keep-alive: 1h

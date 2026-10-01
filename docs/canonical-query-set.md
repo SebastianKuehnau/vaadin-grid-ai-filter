@@ -117,6 +117,9 @@ filter type as 03 through a single parameter.
 into `num-predict=512` — the response is cut off mid-object. 03 therefore runs with
 `num-predict=1024`.
 
+The `benchmark` passes one set of chat options to every approach, so it uses both larger values
+(`num-ctx=8192`, `num-predict=1024`) for all four.
+
 ## The robustness set
 
 Input that exercises no new capability — phrasing, language, empty results, and two hostile queries. This
