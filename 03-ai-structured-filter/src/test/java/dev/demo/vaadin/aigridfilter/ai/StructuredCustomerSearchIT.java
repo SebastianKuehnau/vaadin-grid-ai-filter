@@ -302,9 +302,7 @@ class StructuredCustomerSearchIT {
                         customer.getLastOrderDate().getYear() == LocalDate.now().getYear() - 1));
     }
 
-    // Reliability finding, not a filter-type limit - the model resolves the date wrongly (issue #32).
     @Test
-    @Disabled("not supported yet")
     void findsCustomersWhoOrderedThisMonth() {
         LocalDate monthStart = LocalDate.now().withDayOfMonth(1);
 
@@ -318,9 +316,7 @@ class StructuredCustomerSearchIT {
                                 && !customer.getLastOrderDate().isAfter(LocalDate.now())));
     }
 
-    // Reliability finding, not a filter-type limit - the model resolves the date wrongly (issue #32).
     @Test
-    @Disabled("not supported yet")
     void findsCustomersWhoOrderedLastWeek() {
         LocalDate monday = LocalDate.now().minusWeeks(1).with(DayOfWeek.MONDAY);
         LocalDate sunday = monday.plusDays(6);

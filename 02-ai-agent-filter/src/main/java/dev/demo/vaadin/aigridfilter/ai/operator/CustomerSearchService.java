@@ -2,6 +2,7 @@ package dev.demo.vaadin.aigridfilter.ai.operator;
 
 import dev.demo.vaadin.aigridfilter.ai.operator.FieldCriterion.Operator;
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
+import dev.demo.vaadin.aigridfilter.ai.RelativeDates;
 import dev.demo.vaadin.aigridfilter.ai.TokenUsageAdvisor;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
@@ -18,7 +19,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 /** Variant 02(b): a value, an operator and a negate flag per field - 39 flat tool parameters. */
 @Service("operatorSearchAgent")
@@ -54,6 +54,8 @@ class CustomerSearchService implements CustomerSearchAgent {
                 "all of the remaining customers once X is excluded", so you must still call
                 searchCustomers with X as the value and <field>Negate=true, never with every
                 parameter null.
+              - "not creditworthy" is no negation - it NAMES a rating: creditRating=POOR with
+                creditRatingNegate=false, never a negated POOR or GOOD.
               - "begins with" / "first character/letter is X" -> <field>Operator=STARTS_WITH;
                 "ends with" -> ENDS_WITH; "is exactly" / "precisely X" -> EQUALS; a plain partial
                 match -> CONTAINS (the default).
@@ -65,13 +67,14 @@ class CustomerSearchService implements CustomerSearchAgent {
               - a bare place name is a CITY, never a country, unless it unambiguously names a country
                 (e.g. "Germany", "France") or both are given together (e.g. "Hamburg, Germany"): put
                 "Hamburg", "Berlin", "Munich" etc. into city, not into country. When in doubt, prefer
-                city over country - city is the field actually shown in the grid.
+                city over country - city is the field actually shown in the grid. A place the user
+                calls a state or region ("in the state Ile-de-France") goes into state, not city.
               - city names are stored in English - Berlin, Hamburg, Munich, Frankfurt, Cologne,
                 Dusseldorf - so translate a German one before passing it: "München" is Munich,
                 "Köln" is Cologne.
               - dates: an exact day ("on 2024-03-15", "yesterday", "today") -> EQUALS;
                 "since" / "after" / "from" -> GREATER_OR_EQUAL; "before" / "until" -> LESS_OR_EQUAL;
-                an open-ended past range ("in the last 12 months", "last week", "this year") ->
+                a relative period ("in the last 12 months", "this month", "this year") ->
                 GREATER_OR_EQUAL with the FIRST day of that period, never LESS_OR_EQUAL.
               - annualRevenue: "at least" / "over" / "more than" -> GREATER_OR_EQUAL;
                 "at most" / "under" / "less than" -> LESS_OR_EQUAL; "exactly" -> EQUALS.
@@ -83,9 +86,14 @@ class CustomerSearchService implements CustomerSearchAgent {
 
             Call searchCustomers exactly ONCE and then stop; it has already been applied.
 
-            For a relative date ("yesterday", "last week", "in the last 12 months") call the
-            currentLocalDateTime tool first, then subtract the WHOLE period from its result: "in the
-            last 12 months" means GREATER_OR_EQUAL (today minus 12 months), not minus one month.
+            For a relative date ("yesterday", "today", "last week", "this month", "this year", "in the
+            last 12 months", "since the start of last year") call the currentLocalDateTime tool FIRST -
+            never guess today's date or the year. It returns the dates already computed, so copy the
+            matching one and never calculate a date yourself:
+              - "yesterday" -> yesterday, "today" -> today, both with EQUALS
+              - "this month" -> startOfThisMonth, "this year" -> startOfThisYear, "in the last 12
+                months" -> twelveMonthsAgo, "since the start of last year" -> startOfLastYear, "last
+                week" -> startOfLastWeek, all with GREATER_OR_EQUAL
             """;
 
     // Identical for every field, so kept as constants instead of being repeated 13 times.
@@ -266,8 +274,8 @@ class CustomerSearchService implements CustomerSearchAgent {
         logger.info("searchCustomers -> {}", criteria);
     }
 
-    @Tool(description = "Current date and time")
-    LocalDateTime currentLocalDateTime() {
-        return LocalDateTime.now();
+    @Tool(description = "Today's date and the period boundaries around it, already computed (weeks start on Monday)")
+    RelativeDates currentLocalDateTime() {
+        return RelativeDates.of(LocalDate.now());
     }
 }

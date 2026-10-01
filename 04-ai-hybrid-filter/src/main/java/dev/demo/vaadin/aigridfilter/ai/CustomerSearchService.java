@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 /** The hybrid step: tool calling like 02, but the tool takes 03's {@code List<Condition>} as its one parameter. */
@@ -60,16 +60,17 @@ public class CustomerSearchService implements CustomerSearchAgent {
     }
 
     /** The only tool: the model asks for today rather than reading it off a prompt baked at build time. */
-    @Tool(description = "Current date and time")
-    LocalDateTime currentLocalDateTime() {
-        return LocalDateTime.now();
+    @Tool(description = "Today's date and the period boundaries around it, already computed (weeks start on Monday)")
+    RelativeDates currentLocalDateTime() {
+        return RelativeDates.of(LocalDate.now());
     }
 
     private static final String SYSTEM_PROMPT = """
             You translate a user's request into a CustomerFilter that filters a customer grid.
 
             You have one tool, currentLocalDateTime. Use it ONLY when the request names a date
-            relative to today ("yesterday", "last week", "in the last 12 months"). Then call it
+            relative to today ("yesterday", "today", "last week", "this month", "this year", "in the
+            last 12 months", "since the start of last year"). Then call it
             FIRST, WAIT for the date it returns, and only THEN answer - never guess today's date
             and never take one from an example below.
 
@@ -88,6 +89,11 @@ public class CustomerSearchService implements CustomerSearchAgent {
                 the upper bound
               - "not X" / "except X" -> X's own condition with negate=true; there is no NOT_* operator
 
+            A condition's field is one of companyName, contactName, email, phone, annualRevenue,
+            creditRating, customerSince, lastOrderDate, country, city, postalCode, street,
+            houseNumber, state, countryCode. A country name ("from Germany") goes into country, never
+            into countryCode; a street ("on Market Street") into street, both with CONTAINS.
+
             city is text, matched case-insensitively: a plain "in Berlin" is CONTAINS, EQUALS only
             for explicitly exact wording. City names are stored in English - Berlin, Hamburg, Munich,
             Frankfurt, Cologne, Dusseldorf - so translate a German one before passing it: "München"
@@ -99,15 +105,22 @@ public class CustomerSearchService implements CustomerSearchAgent {
             lastOrderDate is an ISO yyyy-MM-dd day: EQUALS an exact day, LESS_OR_EQUAL
             "before"/"until", GREATER_OR_EQUAL "since"/"after". A date the user wrote ambiguously is
             day-first (German): '03.05.05' is 2005-05-03. Emit a GREATER_OR_EQUAL + LESS_OR_EQUAL
-            pair only for an explicit "between X and Y" or a bare year ("in 2024" is 2024-01-01 to
-            2024-12-31), never for a single day, named or relative.
+            pair only for an explicit "between X and Y", a bare year ("in 2024" is 2024-01-01 to
+            2024-12-31) or a relative period already over (below), never for a single day, named or
+            relative.
 
-            Once currentLocalDateTime has answered, pick the operator by what was asked for:
-              - a single relative DAY ("yesterday", "today") is ONE exact day: EQUALS that day,
-                never "from that day on".
-              - a relative PERIOD ("last week", "in the last 12 months") is open-ended:
-                GREATER_OR_EQUAL that date minus the WHOLE period - "in the last 12 months" is
-                minus 12 months, not minus one month.
+            currentLocalDateTime returns today and the period boundaries around it, already
+            computed. Copy the matching date from its answer - never calculate a date yourself, and
+            pass the date itself as the value, never the name it has in the answer:
+              - a single relative DAY ("yesterday", "today") is ONE exact day: EQUALS yesterday or
+                today, never "from that day on".
+              - a period still running is open-ended, GREATER_OR_EQUAL its start and NO upper
+                bound: "this month" is
+                startOfThisMonth, "this year" startOfThisYear, "in the last 12 months"
+                twelveMonthsAgo, "since the start of last year" startOfLastYear.
+              - a period already over is a CLOSED range, two conditions: "last week" is
+                GREATER_OR_EQUAL startOfLastWeek and LESS_OR_EQUAL endOfLastWeek; "last month" and
+                "last year" likewise.
 
             creditRating EQUALS GOOD (creditworthy), MEDIUM (limited creditworthiness) or POOR (at
             risk / not creditworthy). Several ratings are alternatives, so they share ONE condition.
@@ -126,13 +139,23 @@ public class CustomerSearchService implements CustomerSearchAgent {
                 -> city CONTAINS [Hamburg]; creditRating EQUALS [GOOD]
               "customers who are not from Berlin"
                 -> city CONTAINS [Berlin], negate=true
+              "customers from Germany or France"
+                -> country CONTAINS [Germany, France]
               "customers who ordered in the last 12 months"
-                -> lastOrderDate GREATER_OR_EQUAL [that date minus 12 months]
+                -> lastOrderDate GREATER_OR_EQUAL [the twelveMonthsAgo date the tool returned]
               "customers who ordered yesterday"
-                -> lastOrderDate EQUALS [that date minus 1 day]
+                -> lastOrderDate EQUALS [the yesterday date the tool returned]
+              "customers who ordered this year" (still running - no upper bound, not even today)
+                -> lastOrderDate GREATER_OR_EQUAL [the startOfThisYear date the tool returned]
+              "customers who ordered last week"
+                -> lastOrderDate GREATER_OR_EQUAL [the startOfLastWeek date the tool returned];
+                   lastOrderDate LESS_OR_EQUAL [the endOfLastWeek date the tool returned]
               "customers who last ordered between 2024-07-01 and 2025-03-31"
                 -> lastOrderDate GREATER_OR_EQUAL [2024-07-01]; lastOrderDate LESS_OR_EQUAL [2025-03-31]
               "show all customers"
                 -> (empty conditions list)
+
+            Answer with exactly ONE JSON object, {"conditions": [...]}, and nothing after it: close
+            every bracket once - no extra "}" or "]" at the end.
             """;
 }

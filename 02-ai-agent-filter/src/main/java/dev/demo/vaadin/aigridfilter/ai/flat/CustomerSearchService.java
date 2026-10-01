@@ -1,6 +1,7 @@
 package dev.demo.vaadin.aigridfilter.ai.flat;
 
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
+import dev.demo.vaadin.aigridfilter.ai.RelativeDates;
 import dev.demo.vaadin.aigridfilter.ai.TokenUsageAdvisor;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
@@ -17,7 +18,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 /** Variant 02(a): the model calls one {@code searchCustomers} tool with one scalar value per field. */
 @Service("flatSearchAgent")
@@ -42,10 +42,13 @@ class CustomerSearchService implements CustomerSearchAgent {
             Dusseldorf - so translate a German one before passing it: "München" is Munich,
             "Köln" is Cologne.
 
-            For a relative date ("yesterday", "this year", "last week", "in the last 12 months"), you
-            MUST call the currentLocalDateTime tool first and compute the date from its result - NEVER
-            guess or assume today's date from memory or context. Only after that call, call
-            searchCustomers with the computed date.
+            For a relative date ("yesterday", "today", "this year", "last week", "in the last 12
+            months"), you MUST call the currentLocalDateTime tool first - NEVER guess or assume today's
+            date from memory or context. It returns today and the period boundaries around it
+            (yesterday, startOfThisWeek, startOfThisMonth, startOfThisYear, ...) already computed: copy
+            the matching date from its result instead of calculating one yourself, e.g. "yesterday" is
+            its yesterday, "today" is its today. Only after that call, call searchCustomers with that
+            date.
             """;
 
     private final ChatClient chatClient;
@@ -151,8 +154,8 @@ class CustomerSearchService implements CustomerSearchAgent {
         logger.info("searchCustomers -> {}", criteria);
     }
 
-    @Tool(description = "Current date and time")
-    LocalDateTime currentLocalDateTime() {
-        return LocalDateTime.now();
+    @Tool(description = "Today's date and the period boundaries around it, already computed (weeks start on Monday)")
+    RelativeDates currentLocalDateTime() {
+        return RelativeDates.of(LocalDate.now());
     }
 }

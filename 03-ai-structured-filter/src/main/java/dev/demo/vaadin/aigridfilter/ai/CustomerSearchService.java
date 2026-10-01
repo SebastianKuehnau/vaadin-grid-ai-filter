@@ -57,10 +57,7 @@ public class CustomerSearchService implements CustomerSearchAgent {
 
     /** Builds the system prompt for the given "today", so it can be unit-tested without calling the model. */
     static String systemPrompt(LocalDate today) {
-        LocalDate yesterday = today.minusDays(1);
-        LocalDate thisWeekMonday = today.minusDays(today.getDayOfWeek().getValue() - 1L);
-        LocalDate lastWeekMonday = thisWeekMonday.minusWeeks(1);
-        LocalDate lastMonthStart = today.withDayOfMonth(1).minusMonths(1);
+        RelativeDates dates = RelativeDates.of(today);
         return """
                 You translate a user's request into a CustomerFilter that filters a list of customers.
 
@@ -111,7 +108,10 @@ public class CustomerSearchService implements CustomerSearchAgent {
                     day-first (German), e.g. '03.05.05' -> '2005-05-03'.
                     Operator choice for dates:
                     * exact day (today, yesterday, a specific date like 2024-03-15) -> EQUALS
-                    * open-ended past range (since/after/last week/last month/this year) -> GREATER_OR_EQUAL with the first day of that period
+                    * since/after a date, or a period still running (this week, this month, this year,
+                      in the last 12 months) -> GREATER_OR_EQUAL with the first day of that period
+                    * a period already over (last week, last month, last year) -> a CLOSED range: two
+                      conditions, GREATER_OR_EQUAL its first day and LESS_OR_EQUAL its last day
                     * open-ended future/past boundary (before/until) -> LESS_OR_EQUAL
                     * a bare year with no "since"/"before" qualifier, for lastOrderDate ("last ordered
                       in 2024", "2024 zuletzt gekauft") -> a CLOSED range: two conditions on
@@ -129,8 +129,16 @@ public class CustomerSearchService implements CustomerSearchAgent {
                     For SEVERAL ratings put them all in ONE condition's values (they are alternatives,
                     OR-combined within the field), e.g. "good or at-risk rating" -> creditRating EQUALS
                     [GOOD, POOR]. Never express a rating via a numeric score.
-                  - Today is %s. Resolve relative dates ("yesterday", "today", "last month", "this year",
-                    "last week") against this date.
+                  - Today is %s. Relative dates are already computed below - copy the matching one,
+                    never calculate a date yourself (weeks start on Monday):
+                    * yesterday: %s
+                    * this week: from %s
+                    * last week: %s to %s
+                    * this month: from %s
+                    * last month: %s to %s
+                    * this year: from %s
+                    * last year: %s to %s
+                    * 12 months ago: %s
 
                 Examples (conditions written as "field OP [values]" for brevity, negate noted separately):
                   "customers in Berlin"
@@ -159,17 +167,28 @@ public class CustomerSearchService implements CustomerSearchAgent {
                   "customers who last ordered in 2024" (bare year, no "since"/"before" -> CLOSED range,
                   both bounds required)
                     -> lastOrderDate GREATER_OR_EQUAL [2024-01-01]; lastOrderDate LESS_OR_EQUAL [2024-12-31]
-                  "customers who placed an order yesterday" (today = %s)
+                  "customers who placed an order yesterday"
                     -> lastOrderDate EQUALS [%s]
-                  "customers who placed an order today" (today = %s)
+                  "customers who placed an order today"
                     -> lastOrderDate EQUALS [%s]
-                  "customers who ordered last week" (today = %s, week starts Mon %s)
+                  "customers who ordered this month" (still running -> lower bound only)
                     -> lastOrderDate GREATER_OR_EQUAL [%s]
-                  "customers who ordered last month" (today = %s)
+                  "customers who ordered this year" (still running -> lower bound only)
                     -> lastOrderDate GREATER_OR_EQUAL [%s]
+                  "customers who ordered last week" (already over -> CLOSED range)
+                    -> lastOrderDate GREATER_OR_EQUAL [%s]; lastOrderDate LESS_OR_EQUAL [%s]
+                  "customers who ordered last month" (already over -> CLOSED range)
+                    -> lastOrderDate GREATER_OR_EQUAL [%s]; lastOrderDate LESS_OR_EQUAL [%s]
                   "show all customers"
                     -> (empty conditions list)
-                """.formatted(today, today, yesterday, today, today, today, thisWeekMonday, lastWeekMonday, today,
-                lastMonthStart);
+                """.formatted(dates.today(),
+                dates.yesterday(),
+                dates.startOfThisWeek(), dates.startOfLastWeek(), dates.endOfLastWeek(),
+                dates.startOfThisMonth(), dates.startOfLastMonth(), dates.endOfLastMonth(),
+                dates.startOfThisYear(), dates.startOfLastYear(), dates.endOfLastYear(),
+                dates.twelveMonthsAgo(),
+                dates.yesterday(), dates.today(), dates.startOfThisMonth(), dates.startOfThisYear(),
+                dates.startOfLastWeek(), dates.endOfLastWeek(),
+                dates.startOfLastMonth(), dates.endOfLastMonth());
     }
 }
