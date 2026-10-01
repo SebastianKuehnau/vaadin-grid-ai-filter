@@ -39,7 +39,7 @@ public class CustomerSearchService implements CustomerSearchAgent {
     CustomerFilter requestFilter(String naturalLanguageQuery) {
         try {
             // .entity(...) is the whole mechanism: one JSON object matching CustomerFilter's schema.
-            CustomerFilter filter = chatClient.prompt()
+            var filter = chatClient.prompt()
                     .advisors(SimpleLoggerAdvisor.builder().build(), tokenUsageAdvisor)
                     .system(systemPrompt(LocalDate.now()))
                     .user(naturalLanguageQuery)
