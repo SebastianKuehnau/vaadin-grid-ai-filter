@@ -39,8 +39,8 @@ public record BenchmarkProperties(
 
     /** The chat options, mirroring every module's {@code application-ollama.properties}. */
     public record Chat(@DefaultValue("0.0") double temperature,
-                       @DefaultValue("4096") int numCtx,
-                       @DefaultValue("512") int numPredict,
+                       @DefaultValue("8192") int numCtx,
+                       @DefaultValue("1024") int numPredict,
                        @DefaultValue("false") boolean think,
                        @DefaultValue("1h") String keepAlive) {
     }

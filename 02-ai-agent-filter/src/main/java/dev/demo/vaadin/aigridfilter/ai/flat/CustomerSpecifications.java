@@ -35,6 +35,8 @@ public final class CustomerSpecifications {
             addEquals(predicates, cb, address.get("postalCode"), criteria.postalCode());
             addEquals(predicates, cb, address.get("street"), criteria.street());
             addEquals(predicates, cb, address.get("houseNumber"), criteria.houseNumber());
+            addEquals(predicates, cb, address.get("state"), criteria.state());
+            addEquals(predicates, cb, address.get("countryCode"), criteria.countryCode());
 
             addDate(predicates, cb, root.get("customerSince"), criteria.customerSince());
             addDate(predicates, cb, root.get("lastOrderDate"), criteria.lastOrderDate());

@@ -19,8 +19,9 @@ The single `data.sql` lives in `00-commons` and is picked up from the jar (Boot'
 `optional:classpath*:data.sql`) — there must never be a second copy, or the data is seeded twice.
 Each module's architecture is meant to be read from its own source; there are no per-module READMEs.
 
-The eight natural-language queries all AI modules are measured with live in
-`docs/canonical-query-set.md` — the single source of truth; see the Definition of Done below.
+The natural-language queries all AI modules are measured with — 35 canonical and 19 robustness cases,
+grouped by theme and numbered `<group>.<position>` (e.g. `C2.3`) — live in
+`docs/canonical-query-set.md`, the single source of truth; see the Definition of Done below.
 
 ## Build & Run
 
@@ -71,7 +72,7 @@ host's Ollama is not running or lacks the model.
 
 ## The benchmark
 
-`benchmark` measures the models, not the code: the 23 queries of the four `*CustomerSearchIT` classes,
+`benchmark` measures the models, not the code: the 54 queries of the four `*CustomerSearchIT` classes,
 replayed against a **running** Ollama (it never starts one), for every configured model and approach.
 It is only ever started by hand:
 
@@ -79,7 +80,7 @@ It is only ever started by hand:
 ./mvnw install -DskipTests                                    # once, so the module jars exist
 ./mvnw spring-boot:run -pl benchmark                          # all approaches, all cases, 3 runs
 ./mvnw spring-boot:run -pl benchmark \
-  -Dspring-boot.run.arguments="--benchmark.models=qwen3:8b --benchmark.cases=C1,C5 --benchmark.runs=1"
+  -Dspring-boot.run.arguments="--benchmark.models=qwen3:8b --benchmark.cases=C1.1,C6.2 --benchmark.runs=1"
 ```
 
 Every setting is documented in `benchmark/benchmark-example.yaml`; copy it to `config/application.yaml`
@@ -94,7 +95,7 @@ Two things about its architecture are worth knowing before changing it:
   qualified names, so they can never share a classpath; each worker gets its own module's
   `target/classes`. That is also why the orchestrator needs a listable classpath — run it with
   `spring-boot:run`, not from a fat jar (there is none, `repackage` is disabled on purpose).
-- **The 23 cases are copied, not imported.** Every query and expectation lives in
+- **The 54 cases are copied, not imported.** Every query and expectation lives in
   `CaseCatalog`, next to the name of the IT test method it came from; the capability gaps and their
   reasons live in `Approach`. Both are kept in sync with `docs/canonical-query-set.md` by hand, exactly
   like the IT classes themselves.
@@ -107,19 +108,19 @@ A task is only finished when:
 2. For UI changes: on the development machine, the app has been started and the change verified
    via a Playwright screenshot (save screenshots to `~/screenshots/`). In the sandbox, where the app
    is not run, the browserless IT takes its place.
-3. For changes to filter/AI logic: the affected module's IT classes pass against an Ollama serving
-   `qwen3:8b`, however the environment provides it (they run in plain `verify`) — the Testcontainer
-   on the development machine, the host's Ollama in the sandbox. Every AI module has two kinds: the
-   `*CustomerSearchIT` (through the service — the eight canonical queries and the five robustness
-   cases) and the browserless IT (the same eight through the UI). 02 has one of each per variant,
-   so four.
+3. For changes to filter/AI logic: the affected module's service-level `*CustomerSearchIT` classes
+   pass against an Ollama serving `qwen3:8b`, however the environment provides it (they run in plain
+   `verify`) — the Testcontainer on the development machine, the host's Ollama in the sandbox. They
+   are the relevant tests: every canonical query and the robustness set, through the service. 02 has
+   one per variant, so two. The browserless ITs only prove the UI wiring with a fixed set of eight
+   queries; they still run in `verify`, but they never take new cases.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
-   every AI module's two IT classes as one named `@Test` — the prompt as a string literal, the
-   expected customer set computed from the seeded data. Where a variant's filter type cannot express
-   it, the test still spells out what it would assert and carries `@Disabled` with the reason. No
-   compile-time gate enforces this; the table in that document is the checklist. The same query then
-   goes into `benchmark`'s `CaseCatalog`, and a new capability gap into `Approach` with its reason —
-   `CaseCatalogTest` and `ApproachTest` pin both lists, so a forgotten case fails the build.
+   every AI module's service-level `*CustomerSearchIT` as one named `@Test` — the prompt as a string
+   literal, the expected customer set computed from the seeded data. Where a variant's filter type
+   cannot express it, the test still spells out what it would assert and carries `@Disabled` with the
+   reason. No compile-time gate enforces this; the table in that document is the checklist. The same
+   query then goes into `benchmark`'s `CaseCatalog`, and a new capability gap into `Approach` with its
+   reason — `CaseCatalogTest` and `ApproachTest` pin both lists, so a forgotten case fails the build.
 
 Points 1–3 apply before **every** commit, not only at the end of the task.
 Iterate on your own until all points are met before reporting the task as done.

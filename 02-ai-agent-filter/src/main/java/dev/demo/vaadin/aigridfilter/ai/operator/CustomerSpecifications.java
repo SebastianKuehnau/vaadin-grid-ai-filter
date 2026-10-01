@@ -38,6 +38,8 @@ public final class CustomerSpecifications {
             addText(predicates, cb, address.get("postalCode"), criteria.postalCode());
             addText(predicates, cb, address.get("street"), criteria.street());
             addText(predicates, cb, address.get("houseNumber"), criteria.houseNumber());
+            addText(predicates, cb, address.get("state"), criteria.state());
+            addText(predicates, cb, address.get("countryCode"), criteria.countryCode());
 
             addDate(predicates, cb, root.get("customerSince"), criteria.customerSince());
             addDate(predicates, cb, root.get("lastOrderDate"), criteria.lastOrderDate());

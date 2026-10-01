@@ -8,7 +8,7 @@ import java.util.function.Predicate;
  * One measured query: the prompt, and which customers a correct answer selects from the seeded data.
  *
  * <p>Most cases have one exact answer, so {@code mustMatch} and {@code mayMatch} are the same
- * predicate. Where the IT class accepts a range of answers (C7), {@code mustMatch} is the smallest
+ * predicate. Where the IT class accepts a range of answers (C5.2, C5.8), {@code mustMatch} is the smallest
  * correct set and {@code mayMatch} the largest one.
  */
 public record BenchmarkCase(String id, Group group, String query, String itTestMethod,

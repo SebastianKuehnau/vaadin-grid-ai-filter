@@ -16,7 +16,7 @@ final class TextReport {
         out.append("MODEL BENCHMARK\n")
                 .append("===============\n\n")
                 .append("Natural-language filtering measured against the four approaches of this\n")
-                .append("project, with the 22 queries of their service-level IT classes.\n\n")
+                .append("project, with the queries of their service-level IT classes.\n\n")
                 .append("Started  ").append(report.startedAt()).append('\n')
                 .append("Finished ").append(report.finishedAt()).append("\n\n");
 

@@ -20,6 +20,7 @@ class FlatCustomerListViewBrowserlessIT extends AbstractCustomerSearchViewIT {
         return FlatCustomerListView.class;
     }
 
+    // C1 Location: one value
     @Test
     void findsCustomersInOneCity() {
         assertThat(search("show me all customers in Berlin"))
@@ -28,6 +29,7 @@ class FlatCustomerListViewBrowserlessIT extends AbstractCustomerSearchViewIT {
                         expectedIds(customer -> city(customer).equals("Berlin")));
     }
 
+    // C2 Location: several values and negation
     @Test
     @Disabled("02(a) holds one value per field - 'Berlin or Hamburg' needs two")
     void findsCustomersInEitherOfTwoCities() {
@@ -46,6 +48,7 @@ class FlatCustomerListViewBrowserlessIT extends AbstractCustomerSearchViewIT {
                         expectedIds(customer -> !city(customer).equals("Berlin")));
     }
 
+    // C3 Text operators: starts with, ends with, contains, equals
     @Test
     @Disabled("02(a) has no operator - every field is matched exactly")
     void findsCustomersWhoseContactNameStartsWithALetter() {
@@ -55,15 +58,7 @@ class FlatCustomerListViewBrowserlessIT extends AbstractCustomerSearchViewIT {
                         customer.getContactName().toLowerCase().startsWith("m")));
     }
 
-    @Test
-    void findsCreditworthyCustomersInOneCity() {
-        assertThat(search("creditworthy customers in Hamburg"))
-                .extracting(Customer::getId)
-                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
-                        city(customer).equals("Hamburg")
-                                && customer.getCreditRating() == CreditRating.GOOD));
-    }
-
+    // C4 Revenue: bounds and ranges
     @Test
     @Disabled("02(a) holds one value per field - a range needs a lower and an upper bound")
     void findsCustomersWithinARevenueRange() {
@@ -77,6 +72,7 @@ class FlatCustomerListViewBrowserlessIT extends AbstractCustomerSearchViewIT {
                                 && customer.getAnnualRevenue().compareTo(upper) <= 0));
     }
 
+    // C5 Dates: exact day, relative dates and ranges
     @Test
     @Disabled("02(a) has no operator - a date can only be matched exactly, not as 'on or after'")
     void findsCustomersWithAnOrderInTheLastTwelveMonths() {
@@ -104,5 +100,15 @@ class FlatCustomerListViewBrowserlessIT extends AbstractCustomerSearchViewIT {
                 .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
                         !customer.getLastOrderDate().isBefore(from)
                                 && !customer.getLastOrderDate().isAfter(to)));
+    }
+
+    // C6 Credit rating and combined conditions
+    @Test
+    void findsCreditworthyCustomersInOneCity() {
+        assertThat(search("creditworthy customers in Hamburg"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        city(customer).equals("Hamburg")
+                                && customer.getCreditRating() == CreditRating.GOOD));
     }
 }

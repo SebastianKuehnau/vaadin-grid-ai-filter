@@ -22,8 +22,8 @@ benchmark:
   max-model-calls-per-query: 12
   chat:
     temperature: 0.0
-    num-ctx: 4096
-    num-predict: 512
+    num-ctx: 8192
+    num-predict: 1024
     think: false
     keep-alive: 1h
   report:

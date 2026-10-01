@@ -42,7 +42,7 @@ final class HtmlReport {
                 .append("</style>\n</head>\n<body>\n")
                 .append("<h1>Model benchmark</h1>\n")
                 .append("<p class=\"lede\">Natural-language filtering measured against the four ")
-                .append("approaches of this project, with the 22 queries of their service-level IT ")
+                .append("approaches of this project, with the queries of their service-level IT ")
                 .append("classes.<br>Started ").append(escape(report.startedAt()))
                 .append(", finished ").append(escape(report.finishedAt())).append(".</p>\n");
 

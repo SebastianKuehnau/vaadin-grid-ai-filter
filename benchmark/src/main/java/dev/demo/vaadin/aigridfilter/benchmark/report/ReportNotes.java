@@ -65,7 +65,7 @@ public final class ReportNotes {
         notes.add("A query that exceeds the model-call budget is given up on and counts as a failure, "
                 + "not a timeout: the model kept asking for a tool without ever settling on an answer. "
                 + "The worker log names the query, and its call count is far above the others.");
-        notes.add("R8, marked with an asterisk in the case matrix, is the prompt-injection case and is "
+        notes.add("R5.1, marked with an asterisk in the case matrix, is the prompt-injection case and is "
                 + "@Disabled in all four IT classes. It is measured here on purpose: its cell says how "
                 + "often the filter intent held against the injection - neither a pass nor a failure "
                 + "there is a regression.");

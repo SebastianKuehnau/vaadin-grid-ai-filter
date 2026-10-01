@@ -30,8 +30,8 @@ class CustomerSearchService implements CustomerSearchAgent {
     private static final String SYSTEM_PROMPT = """
             You are a helpful assistant that helps users find customers based on their
             company name, contact name, email, phone, customer since, last order date,
-            country, city, postal code, street, house number, annual revenue, and credit
-            rating. The credit rating is one of: creditworthy (GOOD), limited (MEDIUM), or
+            country, city, postal code, street, house number, state, country code, annual
+            revenue, and credit rating. The credit rating is one of: creditworthy (GOOD), limited (MEDIUM), or
             at risk / not creditworthy (POOR).
 
             Call the searchCustomers tool to filter the grid. Each field has THREE parameters:
@@ -220,6 +220,14 @@ class CustomerSearchService implements CustomerSearchAgent {
             @ToolParam(description = TEXT_OPERATOR) Operator houseNumberOperator,
             @ToolParam(description = NEGATE) Boolean houseNumberNegate,
 
+            @ToolParam(description = "state or region to match, e.g. \"Ile-de-France\"") String state,
+            @ToolParam(description = TEXT_OPERATOR) Operator stateOperator,
+            @ToolParam(description = NEGATE) Boolean stateNegate,
+
+            @ToolParam(description = "two-letter ISO country code to match, e.g. \"DE\" or \"GB\"") String countryCode,
+            @ToolParam(description = TEXT_OPERATOR) Operator countryCodeOperator,
+            @ToolParam(description = NEGATE) Boolean countryCodeNegate,
+
             @ToolParam(description = """
                     credit rating to match: GOOD (creditworthy), MEDIUM (limited creditworthiness),
                     or POOR (at risk / not creditworthy).""") CreditRating creditRating,
@@ -249,6 +257,8 @@ class CustomerSearchService implements CustomerSearchAgent {
                 FieldCriterion.of(postalCode, postalCodeOperator, postalCodeNegate),
                 FieldCriterion.of(street, streetOperator, streetNegate),
                 FieldCriterion.of(houseNumber, houseNumberOperator, houseNumberNegate),
+                FieldCriterion.of(state, stateOperator, stateNegate),
+                FieldCriterion.of(countryCode, countryCodeOperator, countryCodeNegate),
                 FieldCriterion.of(creditRating, creditRatingOperator, creditRatingNegate),
                 FieldCriterion.of(annualRevenue, annualRevenueOperator, annualRevenueNegate));
 
