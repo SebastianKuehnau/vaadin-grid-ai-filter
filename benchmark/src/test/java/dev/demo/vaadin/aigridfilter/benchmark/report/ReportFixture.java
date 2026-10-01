@@ -22,35 +22,35 @@ final class ReportFixture {
                 latencies, latencies.isEmpty() ? null : latencies.getFirst(), 1000, 40, 12.5, null);
     }
 
-    /** 03 against one model: C1-1 always right, C2-3 right in two of three runs. */
+    /** 03 against one model: C1.1 always right, C2.3 right in two of three runs. */
     static WorkerResult structuredResult() {
         return new WorkerResult("03", "qwen3:8b", List.of(
-                measurement("C1-1", 1, Measurement.Status.PASS, 1.0, 1.0, 1000, List.of(900L)),
-                measurement("C1-1", 2, Measurement.Status.PASS, 1.0, 1.0, 2000, List.of(1900L)),
-                measurement("C1-1", 3, Measurement.Status.PASS, 1.0, 1.0, 3000, List.of(2900L)),
-                measurement("C2-3", 1, Measurement.Status.PASS, 1.0, 1.0, 4000, List.of(3900L)),
-                measurement("C2-3", 2, Measurement.Status.FAIL, 0.5, 0.5, 5000, List.of(4900L)),
-                measurement("C2-3", 3, Measurement.Status.PASS, 1.0, 1.0, 6000, List.of(5900L))),
+                measurement("C1.1", 1, Measurement.Status.PASS, 1.0, 1.0, 1000, List.of(900L)),
+                measurement("C1.1", 2, Measurement.Status.PASS, 1.0, 1.0, 2000, List.of(1900L)),
+                measurement("C1.1", 3, Measurement.Status.PASS, 1.0, 1.0, 3000, List.of(2900L)),
+                measurement("C2.3", 1, Measurement.Status.PASS, 1.0, 1.0, 4000, List.of(3900L)),
+                measurement("C2.3", 2, Measurement.Status.FAIL, 0.5, 0.5, 5000, List.of(4900L)),
+                measurement("C2.3", 3, Measurement.Status.PASS, 1.0, 1.0, 6000, List.of(5900L))),
                 5_000_000_000L, 0L, 90_000_000L, null);
     }
 
-    /** 02(a) against the same model: C1-1 only, because C2-3 has no negate flag there. */
+    /** 02(a) against the same model: C1.1 only, because C2.3 has no negate flag there. */
     static WorkerResult flatResult() {
         return new WorkerResult("02a", "qwen3:8b", List.of(
-                measurement("C1-1", 1, Measurement.Status.PASS, 1.0, 1.0, 1500, List.of(1400L)),
-                measurement("C1-1", 2, Measurement.Status.TIMEOUT, 0.0, 0.0, 300_000, List.of()),
-                measurement("C1-1", 3, Measurement.Status.FAIL, 0.0, 0.0, 2500, List.of(2400L))),
+                measurement("C1.1", 1, Measurement.Status.PASS, 1.0, 1.0, 1500, List.of(1400L)),
+                measurement("C1.1", 2, Measurement.Status.TIMEOUT, 0.0, 0.0, 300_000, List.of()),
+                measurement("C1.1", 3, Measurement.Status.FAIL, 0.0, 0.0, 2500, List.of(2400L))),
                 5_000_000_000L, 0L, 80_000_000L, null);
     }
 
     static BenchmarkReport.Configuration configuration() {
         return new BenchmarkReport.Configuration("http://localhost:11434", "0.33.2",
-                List.of("qwen3:8b"), List.of("02a", "03"), List.of("C1-1", "C2-3"), 3, true, false,
+                List.of("qwen3:8b"), List.of("02a", "03"), List.of("C1.1", "C2.3"), 3, true, false,
                 300, 12, true, 0.0, 4096, 512, false, "1h");
     }
 
     static BenchmarkReport report() {
         return Aggregator.aggregate(configuration(), List.of(flatResult(), structuredResult()),
-                List.of("C1-1", "C2-3"), STARTED_AT, FINISHED_AT);
+                List.of("C1.1", "C2.3"), STARTED_AT, FINISHED_AT);
     }
 }

@@ -389,7 +389,7 @@ class FlatCustomerSearchIT {
     @Disabled("not supported yet")
     void ignoresANonExistentFilterField() {
         // The model reliably invents a contactName CONTAINS "male" condition instead of recognizing
-        // there is no gender field - a reliability finding, not a filter-type limit (see R5-1).
+        // there is no gender field - a reliability finding, not a filter-type limit (see R5.1).
         assertThat(search("show me customer with male contact persons"))
                 .extracting(Customer::getId)
                 .containsExactlyInAnyOrderElementsOf(expectedIds(customer -> true));

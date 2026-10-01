@@ -33,8 +33,8 @@ benchmark:
   #   04   tool calling with 03's condition list           (12 of 12)
   approaches: [ 02a, 02b, 03, 04 ]
 
-  # The case ids to measure; empty means all 39. C1-1 to C6-3 are the canonical capability queries,
-  # R1-1 to R5-1 the robustness ones - see docs/canonical-query-set.md.
+  # The case ids to measure; empty means all 39. C1.1 to C6.3 are the canonical capability queries,
+  # R1.1 to R5.1 the robustness ones - see docs/canonical-query-set.md.
   cases: [ ]
 
   # How often every case is measured. One run proves nothing: the same prompt can produce different
