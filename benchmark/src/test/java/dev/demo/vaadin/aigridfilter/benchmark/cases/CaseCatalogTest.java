@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class CaseCatalogTest {
 
     @Test
-    void holdsThirtyFiveCanonicalAndNineteenRobustnessCases() {
+    void holdsThirtySixCanonicalAndNineteenRobustnessCases() {
         assertThat(CaseCatalog.allIds()).containsExactly(
                 "C1.1", "C1.2", "C1.3", "C1.4", "C1.5", "C1.6", "C1.7",
                 "C2.1", "C2.2", "C2.3", "C2.4", "C2.5",
@@ -19,6 +19,7 @@ class CaseCatalogTest {
                 "C4.1", "C4.2", "C4.3",
                 "C5.1", "C5.2", "C5.3", "C5.4", "C5.5", "C5.6", "C5.7", "C5.8", "C5.9",
                 "C6.1", "C6.2", "C6.3", "C6.4",
+                "C7.1",
                 "R1.1", "R1.2", "R1.3", "R1.4",
                 "R2.1", "R2.2", "R2.3", "R2.4", "R2.5",
                 "R3.1", "R3.2", "R3.3", "R3.4",

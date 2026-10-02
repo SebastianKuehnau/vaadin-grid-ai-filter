@@ -390,6 +390,17 @@ class StructuredCustomerSearchIT {
                                 && customer.getLastOrderDate().equals(LocalDate.of(2025, 11, 18))));
     }
 
+    // C7 Comparing one field to another
+    @Test
+    @Disabled("no Condition can compare a field against another field of the same row - "
+            + "values are always literals the model supplies")
+    void comparesCompanyNameAgainstItsOwnCity() {
+        assertThat(search("show me companies with their city in the company name"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        customer.getCompanyName().toLowerCase().contains(city(customer).toLowerCase())));
+    }
+
     // R1 Off-topic input: no filter was asked for
     @Test
     void ignoresSmallTalk() {

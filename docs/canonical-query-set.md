@@ -59,12 +59,13 @@ wrong although the filter type could carry it; see below the robustness table.
 | C6.2 | `creditworthy customers in Hamburg` | combined AND across fields | `findsCreditworthyCustomersInOneCity` | ✅ | ✅ | ✅ | ✅ |
 | C6.3 | `show me the customer named Anna Schmidt at "Vertex Automotive Munich", who is not creditworthy, with an annual revenue of at least 30000, and a customer since date of 2024-01-20` | many simultaneous AND conditions | `findsACustomerByCombiningManyFields` | ✅ | ✅ | ✅ | ✅ |
 | C6.4 | `show me the customer "Vaadin Consulting GmbH" with contact Max Mustermann, email max.mustermann@vaadin-consulting.example, phone +493010007919, street Innovation Way, house number 12, 10115 Berlin, state Berlin, Germany, country code DE, who is creditworthy, with an annual revenue of at least 25000, a customer since date of 2005-12-23 and a last order on 2025-11-18` | every field at once — all 15 | `findsACustomerByCombiningEveryField` | ✅ | ✅ | ✅ | ✅ |
-| | | **Capabilities reached** | | **14 / 35** | **26 / 35** | **35 / 35** | **35 / 35** |
+| C7 | **Comparing one field to another** | | | | | | |
+| C7.1 | `show me companies with their city in the company name` | one field compared against another field of the same row — inexpressible by all four, see below | `comparesCompanyNameAgainstItsOwnCity` | ❌ | ❌ | ❌ | ❌ |
+| | | **Capabilities reached** | | **14 / 36** | **26 / 36** | **35 / 36** | **35 / 36** |
 
-The field-against-field query is a separate, unnumbered prototype — see "A universal gap: comparing
-a field to itself" below; it is deliberately left out of this table and its totals until it has been validated and rolled out.
-
-The `@Disabled` reasons, verbatim from the test classes, are what each ❌ means:
+The `@Disabled` reasons, verbatim from the test classes, are what each ❌ means — 03 and 04 have one
+only, for C7.1: `no Condition can compare a field against another field of the same row - values are
+always literals the model supplies`.
 
 | # | 02(a) | 02(b) |
 |---|---|---|
@@ -89,8 +90,9 @@ The `@Disabled` reasons, verbatim from the test classes, are what each ❌ means
 | C5.7 | 02(a) holds one value per field - a whole year needs two bounds | 02(b) holds one value and one operator per field - a whole year needs two bounds |
 | C5.8 | 02(a) has no operator - a date can only be matched exactly, not as 'on or after' | — |
 | C5.9 | 02(a) holds one value per field - a whole week needs two bounds | 02(b) holds one value and one operator per field - a whole week needs two bounds |
+| C7.1 | 02(a)'s tool parameters only take literal values - a field cannot be compared against another field of the same row | 02(b)'s tool parameters only take literal values - a field cannot be compared against another field of the same row |
 
-### A universal gap: comparing a field to itself
+### C7.1, a universal gap: comparing one field to another
 
 `show me companies with their city in the company name` cannot be expressed by **any** of the four
 approaches: every `Condition`/tool parameter compares a named field against a literal value the model
@@ -100,9 +102,8 @@ those six names happen to be the only ones ever seeded — but that is the model
 knowledge of this demo's data, not a real capability; it would silently stop working the moment a company
 name used a city outside that list.
 
-This is being prototyped as a single `@Disabled` test in `04-ai-hybrid-filter`'s service-level IT only
-(method `comparesCompanyNameAgainstItsOwnCity`), before it is rolled out to 02(a), 02(b) and 03 and added
-to the tables above and to `benchmark`.
+It is the one ❌ that no step of the ladder removes: closing it takes a new filter type — a
+`Condition` whose value can name another field — not a better model or a different delivery.
 
 ### What 02(b)'s expressiveness costs: the context window
 
@@ -200,8 +201,7 @@ line: it names the six stored spellings instead of licensing a general correctio
 ## Measuring models against this set
 
 The tables above say what a *filter type* can express. What a *model* actually gets right is measured
-by the `benchmark` module, which replays all 54 queries (35 canonical, 19 robustness — the
-field-against-field prototype excluded until it is validated) against every configured Ollama model and every approach, several
+by the `benchmark` module, which replays all 55 queries (36 canonical, 19 robustness) against every configured Ollama model and every approach, several
 runs each, and reports correctness together with latency, tokens and the model's resident size. Its
 `CaseCatalog` and `Approach` hold copies of the queries and of the ❌ cells above — kept in sync by
 hand, like the IT classes, and pinned by unit tests. ⏸ R5.1 is measured rather than skipped there: it

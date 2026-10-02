@@ -390,9 +390,7 @@ class HybridCustomerSearchIT {
                                 && customer.getLastOrderDate().equals(LocalDate.of(2025, 11, 18))));
     }
 
-    // Prototype of a universal gap (see docs/canonical-query-set.md): no Condition/tool parameter of
-    // any of the four approaches can compare one field against another field of the same row, only
-    // against a literal value the model supplies. Kept to 04 only until validated, then rolled out.
+    // C7 Comparing one field to another
     @Test
     @Disabled("no Condition can compare a field against another field of the same row - "
             + "values are always literals the model supplies")

@@ -17,7 +17,7 @@ import static dev.demo.vaadin.aigridfilter.benchmark.cases.BenchmarkCase.exact;
 import static dev.demo.vaadin.aigridfilter.benchmark.cases.BenchmarkCase.knownFailure;
 
 /**
- * The 54 measured queries — the service-level {@code *CustomerSearchIT} classes of 02, 03 and 04,
+ * The 55 measured queries — the service-level {@code *CustomerSearchIT} classes of 02, 03 and 04,
  * copied here query by query, with the expectation as a predicate over the seeded data.
  *
  * <p>Kept in sync with {@code docs/canonical-query-set.md} and those IT classes by hand; every case
@@ -221,6 +221,12 @@ public final class CaseCatalog {
                             && revenue(customer).compareTo(BigDecimal.valueOf(25_000)) >= 0
                             && customer.getCustomerSince().equals(LocalDate.of(2005, 12, 23))
                             && customer.getLastOrderDate().equals(LocalDate.of(2025, 11, 18))),
+
+            // C7 Comparing one field to another
+            // Inexpressible by every approach - see Approach; listed so the gap shows up in the report.
+            exact("C7.1", CANONICAL, "show me companies with their city in the company name",
+                    "comparesCompanyNameAgainstItsOwnCity",
+                    customer -> customer.getCompanyName().toLowerCase().contains(city(customer).toLowerCase())),
 
             // R1 Off-topic input: no filter was asked for
             exact("R1.1", ROBUSTNESS, "Nice weather today, isn't it?",

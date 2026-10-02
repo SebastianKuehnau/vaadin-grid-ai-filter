@@ -71,12 +71,15 @@ cannot express that query. The queries themselves are in
 | C6.2 | combined AND across fields | `findsCreditworthyCustomersInOneCity` | ✅ | ✅ | ✅ | ✅ |
 | C6.3 | many simultaneous AND conditions | `findsACustomerByCombiningManyFields` | ✅ | ✅ | ✅ | ✅ |
 | C6.4 | every field at once — all 15 | `findsACustomerByCombiningEveryField` | ✅ | ✅ | ✅ | ✅ |
-| | **Capabilities reached** | | **14 / 35** | **26 / 35** | **35 / 35** | **35 / 35** |
+| C7 | **Comparing one field to another** | | | | | |
+| C7.1 | one field compared against another field of the same row | `comparesCompanyNameAgainstItsOwnCity` | ❌ | ❌ | ❌ | ❌ |
+| | **Capabilities reached** | | **14 / 36** | **26 / 36** | **35 / 36** | **35 / 36** |
 
 Every case runs through the AI service (`*CustomerSearchIT`).
 
 ❌ means *architecturally impossible*, not *unreliable*: no prompt and no model can make a filter type
-carry a value it has no slot for. ⏸ (C5.3, C5.6 and C5.8 in 02(b); C5.8 and C5.9 in 03 and 04) is the opposite: expressible, but disabled as a
+carry a value it has no slot for. C7.1 is ❌ in all four: every filter type compares a field against
+a literal the model supplies, never against another field of the same row. ⏸ (C5.3, C5.6 and C5.8 in 02(b); C5.8 and C5.9 in 03 and 04) is the opposite: expressible, but disabled as a
 reliability finding — see below.
 
 ### The robustness set

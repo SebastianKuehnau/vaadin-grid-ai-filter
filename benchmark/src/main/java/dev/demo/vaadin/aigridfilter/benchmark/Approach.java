@@ -33,7 +33,9 @@ public enum Approach {
                     Map.entry("C5.6", "02(a) has no operator - a date can only be matched exactly, not as 'on or after'"),
                     Map.entry("C5.7", "02(a) holds one value per field - a whole year needs two bounds"),
                     Map.entry("C5.8", "02(a) has no operator - a date can only be matched exactly, not as 'on or after'"),
-                    Map.entry("C5.9", "02(a) holds one value per field - a whole week needs two bounds"))),
+                    Map.entry("C5.9", "02(a) holds one value per field - a whole week needs two bounds"),
+                    Map.entry("C7.1", "02(a)'s tool parameters only take literal values - "
+                            + "a field cannot be compared against another field of the same row"))),
 
     OPERATOR_02B("02b", "02(b) tool calling, value + operator + negate per field", "02-ai-agent-filter",
             "operatorSearchAgent", true,
@@ -46,13 +48,17 @@ public enum Approach {
                     Map.entry("C5.4", "02(b) holds one value and one operator per field - a date range needs two bounds"),
                     Map.entry("C5.5", "02(b) holds one value and one operator per field - a range needs two bounds"),
                     Map.entry("C5.7", "02(b) holds one value and one operator per field - a whole year needs two bounds"),
-                    Map.entry("C5.9", "02(b) holds one value and one operator per field - a whole week needs two bounds"))),
+                    Map.entry("C5.9", "02(b) holds one value and one operator per field - a whole week needs two bounds"),
+                    Map.entry("C7.1", "02(b)'s tool parameters only take literal values - "
+                            + "a field cannot be compared against another field of the same row"))),
 
     STRUCTURED_03("03", "03 structured output (CustomerFilter)", "03-ai-structured-filter",
-            null, false, Map.of()),
+            null, false, Map.of("C7.1", "no Condition can compare a field against another field of the same row - "
+                    + "values are always literals the model supplies")),
 
     HYBRID_04("04", "04 tool calling with a condition list", "04-ai-hybrid-filter",
-            null, true, Map.of());
+            null, true, Map.of("C7.1", "no Condition can compare a field against another field of the same row - "
+                    + "values are always literals the model supplies"));
 
     private final String id;
     private final String label;
@@ -94,7 +100,7 @@ public enum Approach {
         return toolBased;
     }
 
-    /** Why this approach cannot express a case, keyed by case id; empty for 03 and 04. */
+    /** Why this approach cannot express a case, keyed by case id; for 03 and 04 only C7.1. */
     public Map<String, String> unsupportedCases() {
         return unsupportedCases;
     }
