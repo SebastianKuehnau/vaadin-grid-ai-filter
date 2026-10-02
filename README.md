@@ -73,9 +73,7 @@ cannot express that query. The queries themselves are in
 | C6.4 | every field at once — all 15 | `findsACustomerByCombiningEveryField` | ✅ | ✅ | ✅ | ✅ |
 | | **Capabilities reached** | | **14 / 35** | **26 / 35** | **35 / 35** | **35 / 35** |
 
-C1.1, C2.1, C2.3, C3.1, C4.3, C5.2, C5.4 and C6.2 run twice per variant — once through the AI service
-(`*CustomerSearchIT`) and once through the UI (`*BrowserlessIT`). All other cases run through the
-service only.
+Every case runs through the AI service (`*CustomerSearchIT`).
 
 ❌ means *architecturally impossible*, not *unreliable*: no prompt and no model can make a filter type
 carry a value it has no slot for. ⏸ (C5.3, C5.6 and C5.8 in 02(b); C5.8 and C5.9 in 03 and 04) is the opposite: expressible, but disabled as a
@@ -127,7 +125,7 @@ reliability findings and open tasks, not limits of any filter type.
 - **Vaadin 25.2.4** (Flow — server-side Java UI, Aura theme)
 - **Spring AI 2.0.0** — used by modules 2, 3 and 4; on every classpath via `00-commons`
 - **Spring Data JPA** + **H2** in-memory database, seeded from `data.sql` on startup
-- **Vaadin Browserless Testing** — drives real Vaadin views and Grid interactions without a browser
+- **Vaadin Browserless Testing** — drives the views of `01-non-ai-filter` in its tests, without a browser
 
 ## Modules
 
@@ -183,8 +181,7 @@ one container serves every Spring context, which is also what keeps the ITs insi
 Remove it with `docker rm -f $(docker ps -q --filter ancestor=ai-grid-filter/ollama:qwen3-8b)`.
 Why a Testcontainer and not a provisioned server: `docs/adr/0002-ollama-as-a-testcontainer.md`.
 
-Each AI module has two IT classes per variant, and both spell out what they do: one `@Test` per
+Each AI module has one IT class per variant, and it spells out what it does: one `@Test` per
 natural-language query, the prompt as a string literal and the expected customer set right next to it.
-The `*CustomerSearchIT` asks the AI service directly (prompt → `Specification` → database); the
-`*BrowserlessIT` types the same queries into the filter field and reads the grid. Queries a variant's
-filter type cannot express are `@Disabled` with the reason.
+The `*CustomerSearchIT` asks the AI service directly (prompt → `Specification` → database). Queries a
+variant's filter type cannot express are `@Disabled` with the reason.

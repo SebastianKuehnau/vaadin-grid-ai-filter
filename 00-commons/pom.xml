@@ -39,17 +39,6 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>com.vaadin</groupId>
-			<artifactId>browserless-test-spring</artifactId>
-			<version>1.1.1</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.awaitility</groupId>
-			<artifactId>awaitility</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
 			<!-- Starts the Ollama image with the model baked in; see OllamaContainerConfig. -->
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-testcontainers</artifactId>
@@ -65,7 +54,7 @@
 	<build>
 		<plugins>
 			<plugin>
-				<!-- Publishes src/test as a test-jar, so JUnit and browserless stay out of the apps' runtime classpath. -->
+				<!-- Publishes src/test as a test-jar, so JUnit stays out of the apps' runtime classpath. -->
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jar-plugin</artifactId>
 				<executions>
