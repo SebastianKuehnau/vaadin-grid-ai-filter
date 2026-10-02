@@ -1,6 +1,7 @@
 package dev.demo.vaadin.aigridfilter.ai.flat;
 
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
+import dev.demo.vaadin.aigridfilter.ai.RelativeDates;
 import dev.demo.vaadin.aigridfilter.ai.TokenUsageAdvisor;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
@@ -17,7 +18,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 /** Variant 02(a): the model calls one {@code searchCustomers} tool with one scalar value per field. */
 @Service("flatSearchAgent")
@@ -28,10 +28,14 @@ class CustomerSearchService implements CustomerSearchAgent {
 
     private static final String SYSTEM_PROMPT = """
             You filter a customer grid with searchCustomers.
-            For a date relative to today ("yesterday", "last year"), call currentLocalDateTime
-            FIRST, WAIT for its answer, then compute the date from it - never guess today.
+            For a date relative to today ("yesterday", "this month", "last year"), call
+            currentLocalDateTime FIRST and WAIT for its answer - never guess today. It returns the
+            dates already computed: copy the matching one ("this month" -> startOfThisMonth) instead
+            of calculating it yourself.
             Then call searchCustomers exactly once and stop.
-            Pass every value in full, e.g. contactName "Max Mustermann", street "Main Street".
+            Text must match the WHOLE field, so pass every value exactly as written, never shortened:
+            a person's first AND last name (contactName "Max Mustermann", never just "Max"),
+            street "Main Street".
             Each parameter takes one value - for two cities, pass only the first.
             Translate German city names: "München" -> Munich, "Köln" -> Cologne.
             """;
@@ -107,8 +111,8 @@ class CustomerSearchService implements CustomerSearchAgent {
         logger.info("searchCustomers -> {}", criteria);
     }
 
-    @Tool(description = "Current date and time")
-    LocalDateTime currentLocalDateTime() {
-        return LocalDateTime.now();
+    @Tool(description = "Today's date and the period boundaries around it, already computed (weeks start on Monday)")
+    RelativeDates currentLocalDateTime() {
+        return RelativeDates.of(LocalDate.now());
     }
 }

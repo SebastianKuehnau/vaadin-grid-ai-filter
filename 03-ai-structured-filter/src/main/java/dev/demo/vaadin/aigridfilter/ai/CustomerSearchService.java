@@ -57,6 +57,7 @@ public class CustomerSearchService implements CustomerSearchAgent {
 
     /** Builds the system prompt for the given "today", so it can be unit-tested without calling the model. */
     static String systemPrompt(LocalDate today) {
+        RelativeDates dates = RelativeDates.of(today);
         return """
                 You translate a request into a CustomerFilter. Today is %s.
                 Conditions are AND-combined, values in one condition OR-combined; negate=true excludes.
@@ -70,17 +71,34 @@ public class CustomerSearchService implements CustomerSearchAgent {
                   - City names are English: "München" -> Munich, "Köln" -> Cologne, "Düsseldorf" -> Dusseldorf.
                   - phone: CONTAINS, exactly as typed.
                   - Dates: yyyy-MM-dd, day-first ('03.05.05' -> 2005-05-03). A day -> EQUALS,
-                    "since" / "last week" / "last month" -> GREATER_OR_EQUAL its first day, "before" -> LESS_OR_EQUAL.
+                    "since" -> GREATER_OR_EQUAL, "before" -> LESS_OR_EQUAL.
+                  - A period still running ("this month", "last 12 months") -> GREATER_OR_EQUAL its first day only;
+                    a period already over ("last week", "last month") -> its first to its last day.
                   - lastOrderDate in a year ("in 2024", "last year") -> January 1 to December 31 of it; "customer since 2020" -> GREATER_OR_EQUAL only.
                   - creditRating EQUALS GOOD (creditworthy), MEDIUM (limited) or POOR (at risk);
                     "not creditworthy" -> creditRating EQUALS [POOR], negate=false.
 
+                Relative dates are already computed - copy the matching one, never calculate a date:
+                  - yesterday: %s
+                  - this week: from %s, last week: %s to %s
+                  - this month: from %s, last month: %s to %s
+                  - this year: from %s, last year: %s to %s - "since the start of last year" is from %s
+                  - 12 months ago: %s
+
                 Examples:
                   "Kunden aus Köln" -> city CONTAINS [Cologne]
+                  "What's the weather?" -> (empty conditions list)
                   "customers in Berlin or Köln with revenue over 100000"
                     -> city CONTAINS [Berlin, Cologne]; annualRevenue GREATER_OR_EQUAL [100000]
                   "customers not from Berlin" -> city CONTAINS [Berlin], negate=true
+                  "customers who are not creditworthy" -> creditRating EQUALS [POOR], negate=false
                   "customers who ordered yesterday" -> lastOrderDate EQUALS [%s]
-                """.formatted(today, today.minusDays(1));
+                """.formatted(dates.today(),
+                dates.yesterday(),
+                dates.startOfThisWeek(), dates.startOfLastWeek(), dates.endOfLastWeek(),
+                dates.startOfThisMonth(), dates.startOfLastMonth(), dates.endOfLastMonth(),
+                dates.startOfThisYear(), dates.startOfLastYear(), dates.endOfLastYear(), dates.startOfLastYear(),
+                dates.twelveMonthsAgo(),
+                dates.yesterday());
     }
 }

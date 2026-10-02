@@ -263,9 +263,7 @@ class OperatorCustomerSearchIT {
                                 && !customer.getLastOrderDate().isAfter(LocalDate.now())));
     }
 
-    // Reliability finding, not a filter-type limit - the model resolves the date wrongly (issue #32).
     @Test
-    @Disabled("not supported yet")
     void findsCustomersWhoRegisteredSinceLastYear() {
         LocalDate startOfLastYear = LocalDate.of(LocalDate.now().getYear() - 1, 1, 1);
 
@@ -301,9 +299,7 @@ class OperatorCustomerSearchIT {
                                 && !customer.getCustomerSince().isAfter(to)));
     }
 
-    // Reliability finding, not a filter-type limit - the model resolves the date wrongly (issue #32).
     @Test
-    @Disabled("not supported yet")
     void findsCustomersWhoOrderedThisYear() {
         assertThat(search("show me all customers who placed an order this year"))
                 .extracting(Customer::getId)
@@ -320,9 +316,7 @@ class OperatorCustomerSearchIT {
                         customer.getLastOrderDate().getYear() == LocalDate.now().getYear() - 1));
     }
 
-    // Reliability finding, not a filter-type limit - the model resolves the date wrongly (issue #32).
     @Test
-    @Disabled("not supported yet")
     void findsCustomersWhoOrderedThisMonth() {
         LocalDate monthStart = LocalDate.now().withDayOfMonth(1);
 
@@ -519,9 +513,7 @@ class OperatorCustomerSearchIT {
                 .containsExactlyInAnyOrderElementsOf(expectedIds(customer -> true));
     }
 
-    // Reliability finding, not a filter-type limit - the model resolves the date wrongly (issue #32).
     @Test
-    @Disabled("not supported yet")
     void findsCustomersWhoOrderedYesterday() {
         LocalDate yesterday = LocalDate.now().minusDays(1);
 

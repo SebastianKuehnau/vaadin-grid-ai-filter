@@ -2,6 +2,7 @@ package dev.demo.vaadin.aigridfilter.ai.operator;
 
 import dev.demo.vaadin.aigridfilter.ai.operator.FieldCriterion.Operator;
 import dev.demo.vaadin.aigridfilter.ai.CustomerSearchAgent;
+import dev.demo.vaadin.aigridfilter.ai.RelativeDates;
 import dev.demo.vaadin.aigridfilter.ai.TokenUsageAdvisor;
 import dev.demo.vaadin.aigridfilter.data.CreditRating;
 import dev.demo.vaadin.aigridfilter.data.Customer;
@@ -18,7 +19,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 /** Variant 02(b): a value, an operator and a negate flag per field - 39 flat tool parameters. */
 @Service("operatorSearchAgent")
@@ -32,9 +32,14 @@ class CustomerSearchService implements CustomerSearchAgent {
             last order date, address, annual revenue and credit rating. The credit rating is
             creditworthy (GOOD), limited (MEDIUM) or at risk / not creditworthy (POOR).
 
-            For a date relative to today ("yesterday", "last year", "last 12 months"), call
-            currentLocalDateTime FIRST, WAIT for its answer, then subtract the WHOLE period from it -
-            never guess today.
+            For a date relative to today, call currentLocalDateTime FIRST and WAIT for its answer -
+            never guess today's date or the year. It returns the dates already computed; copy the
+            matching one, never calculate a date yourself, and pass the date itself (yyyy-MM-dd),
+            never the name it has in the answer:
+              - "yesterday" -> yesterday, "today" -> today, both EQUALS
+              - "this month" -> startOfThisMonth, "this year" -> startOfThisYear, "in the last 12
+                months" -> twelveMonthsAgo, "since the start of last year" -> startOfLastYear, "last
+                week" -> startOfLastWeek, all GREATER_OR_EQUAL
 
             Call searchCustomers to filter the grid. Each field has THREE parameters: the value,
             <field>Operator and <field>Negate. ALWAYS pass the value - an operator or negate flag
@@ -44,15 +49,18 @@ class CustomerSearchService implements CustomerSearchAgent {
               - "not X" / "except X" -> X as the value and <field>Negate=true. There are no NOT_*
                 operators: "does not start with X" is STARTS_WITH + Negate=true. "All customers
                 except X" still filters on X with Negate=true - never pass every parameter null.
+              - "not creditworthy" is no negation but a rating: creditRating=POOR, Negate=false.
               - "begins with" -> STARTS_WITH, "ends with" -> ENDS_WITH, "exactly" -> EQUALS,
                 otherwise CONTAINS (the default).
               - city, country and street: "in X" / "from X" is always CONTAINS, never EQUALS.
-              - A bare place name is a city, unless it clearly names a country.
+              - "in X" / "from X" / "except from X" with a city name goes into city, never country.
+              - A bare place name is a city, unless it clearly names a country. A state or region
+                ("the state Ile-de-France") goes into state.
               - City names are stored in English - Berlin, Hamburg, Munich, Frankfurt, Cologne,
                 Dusseldorf - so translate a German one first: "München" is Munich, "Köln" is Cologne.
               - Dates: an exact day ("today", "yesterday") -> EQUALS; "since" / "after" ->
                 GREATER_OR_EQUAL; "before" / "until" -> LESS_OR_EQUAL; a past period ("last 12
-                months") -> GREATER_OR_EQUAL its first day, never LESS_OR_EQUAL.
+                months", "this month") -> GREATER_OR_EQUAL its first day, never LESS_OR_EQUAL.
               - annualRevenue: "at least" / "over" -> GREATER_OR_EQUAL, "at most" / "under" ->
                 LESS_OR_EQUAL, "exactly" -> EQUALS.
 
@@ -238,8 +246,8 @@ class CustomerSearchService implements CustomerSearchAgent {
         logger.info("searchCustomers -> {}", criteria);
     }
 
-    @Tool(description = "Current date and time")
-    LocalDateTime currentLocalDateTime() {
-        return LocalDateTime.now();
+    @Tool(description = "Today's date and the period boundaries around it, already computed (weeks start on Monday)")
+    RelativeDates currentLocalDateTime() {
+        return RelativeDates.of(LocalDate.now());
     }
 }
