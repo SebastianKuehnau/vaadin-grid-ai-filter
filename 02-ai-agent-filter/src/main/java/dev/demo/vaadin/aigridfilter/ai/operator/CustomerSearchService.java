@@ -32,6 +32,10 @@ class CustomerSearchService implements CustomerSearchAgent {
             last order date, address, annual revenue and credit rating. The credit rating is
             creditworthy (GOOD), limited (MEDIUM) or at risk / not creditworthy (POOR).
 
+            For a date relative to today ("yesterday", "last year", "last 12 months"), call
+            currentLocalDateTime FIRST, WAIT for its answer, then subtract the WHOLE period from it -
+            never guess today.
+
             Call searchCustomers to filter the grid. Each field has THREE parameters: the value,
             <field>Operator and <field>Negate. ALWAYS pass the value - an operator or negate flag
             without it filters nothing.
@@ -54,9 +58,6 @@ class CustomerSearchService implements CustomerSearchAgent {
 
             Each field carries ONE condition; if a request needs two, pass the closest one.
             Call searchCustomers exactly ONCE and then stop.
-
-            For a relative date, call currentLocalDateTime first, then subtract the WHOLE period:
-            "last 12 months" is today minus 12 months.
             """;
 
     // Identical for every field, so kept as constants instead of being repeated 13 times.

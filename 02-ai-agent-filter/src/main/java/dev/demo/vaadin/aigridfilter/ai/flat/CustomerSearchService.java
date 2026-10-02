@@ -28,7 +28,8 @@ class CustomerSearchService implements CustomerSearchAgent {
 
     private static final String SYSTEM_PROMPT = """
             You filter a customer grid with searchCustomers.
-            For a relative date ("yesterday"), first call currentLocalDateTime - never guess today.
+            For a date relative to today ("yesterday", "last year"), call currentLocalDateTime
+            FIRST, WAIT for its answer, then compute the date from it - never guess today.
             Then call searchCustomers exactly once and stop.
             Pass every value in full, e.g. contactName "Max Mustermann", street "Main Street".
             Each parameter takes one value - for two cities, pass only the first.
