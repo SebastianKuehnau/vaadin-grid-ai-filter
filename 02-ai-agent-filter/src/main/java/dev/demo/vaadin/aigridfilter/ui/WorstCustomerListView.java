@@ -81,19 +81,15 @@ public class WorstCustomerListView extends VerticalLayout {
         logger.debug("LLM response: {}", response);
     }
 
-    @Tool(description = """
-            Returns all customers that can be searched."
-            """)
+    @Tool(description = "Returns all customers that can be searched.")
     List<Customer> getAllCustomers() {
         logger.debug("Getting all customers");
         return customerRepository.findAll(PageRequest.of(0, 10)).getContent();
     }
 
-    @Tool(description = """
-            Shows the matching customers in the grid, replacing what is displayed.
-            """)
+    @Tool(description = "Shows the matching customers in the grid.")
     void showCustomers(
-            @ToolParam(description = "IDs of all customers matching the search query")
+            @ToolParam(description = "IDs of the matching customers")
             Set<Long> relevantIds) {
         logger.debug("Showing customers with IDs: {}", relevantIds);
 

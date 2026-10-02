@@ -27,25 +27,12 @@ class CustomerSearchService implements CustomerSearchAgent {
     private static final Logger logger = LoggerFactory.getLogger(CustomerSearchService.class);
 
     private static final String SYSTEM_PROMPT = """
-            You are a helpful assistant that helps users find customers based on their
-            company name, contact name, email, phone, customer since, last order date,
-            country, city, postal code, street, house number, state, country code, annual
-            revenue, and credit rating. The credit rating is one of: creditworthy (GOOD), limited (MEDIUM), or
-            at risk / not creditworthy (POOR).
-            Call the searchCustomers tool ONCE to filter the grid, then stop - it has already been
-            applied, so never call it a second time. Every parameter takes exactly ONE value; there is
-            no way to pass a second value for the same field. If a request mentions several values for
-            one field (e.g. two cities), pass the first one and accept that the rest cannot be
-            expressed - do not call the tool again for them.
-
-            City names are stored in English - Berlin, Hamburg, Munich, Frankfurt, Cologne,
-            Dusseldorf - so translate a German one before passing it: "München" is Munich,
-            "Köln" is Cologne.
-
-            For a relative date ("yesterday", "this year", "last week", "in the last 12 months"), you
-            MUST call the currentLocalDateTime tool first and compute the date from its result - NEVER
-            guess or assume today's date from memory or context. Only after that call, call
-            searchCustomers with the computed date.
+            You filter a customer grid with searchCustomers.
+            For a relative date ("yesterday"), first call currentLocalDateTime - never guess today.
+            Then call searchCustomers exactly once and stop.
+            Pass every value in full, e.g. contactName "Max Mustermann", street "Main Street".
+            Each parameter takes one value - for two cities, pass only the first.
+            Translate German city names: "München" -> Munich, "Köln" -> Cologne.
             """;
 
     private final ChatClient chatClient;
@@ -86,57 +73,25 @@ class CustomerSearchService implements CustomerSearchAgent {
     }
 
     @Tool(description = """
-            Search and filter the customer grid. Returns nothing; it updates the grid in place to show
-            only the matching customers, replacing any previous filter (filters are not additive).
-            All parameters are optional - pass null to ignore one; passing all null shows every
-            customer. Every parameter takes a single scalar value, never a list: one city is "Berlin",
-            and there is no way to search for two cities at once. Different parameters are combined
-            with AND.
-            Text parameters match the whole field, case-insensitively - not a substring.
-            Date parameters (customerSince, lastOrderDate) match that one exact day, in ISO format
-            yyyy-MM-dd; there is no way to express a range or a whole year.
-            annualRevenue is a MINIMUM: it matches customers with at least that revenue. There is no
-            way to express an upper bound or a range.
+            Filters the customer grid. All parameters are optional and AND-combined.
+            Text matches the whole field, case-insensitively - pass the full value, not a part.
             """)
     void searchCustomers(
             @ToolParam(description = "company name") String companyName,
             @ToolParam(description = "contact name") String contactName,
             @ToolParam(description = "email address") String email,
-            @ToolParam(description = """
-                    phone number, part of it to match, or null. Numbers are stored in E.164 format, so
-                    normalize the user input to E.164 before passing it, e.g. '016057123456' or
-                    '0160 57 123456' -> '+4916057123456' (assume Germany / +49 for national numbers).""") String phone,
-            @ToolParam(description = """
-                    the exact 'customer since' day to match, or null. An ISO yyyy-MM-dd date;
-                    interpret ambiguous user input as day-first (German format), e.g. '03.05.05' ->
-                    "2005-05-03". Only one exact day can be matched - "since 2020" cannot be
-                    expressed. For a relative date ("yesterday"), call currentLocalDateTime
-                    first.""") LocalDate customerSince,
-            @ToolParam(description = """
-                    the exact last-order day to match, or null. An ISO yyyy-MM-dd date; interpret
-                    ambiguous user input as day-first (German format), e.g. '03.05.05' ->
-                    "2005-05-03". Only one exact day can be matched, never a range. For a relative
-                    date ("yesterday"), call currentLocalDateTime first.""") LocalDate lastOrderDate,
-            @ToolParam(description = """
-                    country, e.g. "Germany" or "France". A bare city name (Hamburg, Berlin, Munich,
-                    ...) is NOT a country - put it in the city parameter instead.""") String country,
-            @ToolParam(description = """
-                    city, e.g. "Hamburg" or "Berlin". A bare place name defaults to city unless it
-                    unambiguously names a country. City names are stored in English - Berlin,
-                    Hamburg, Munich, Frankfurt, Cologne, Dusseldorf - so translate a German one
-                    before passing it: "München" is Munich, "Köln" is Cologne.""") String city,
+            @ToolParam(description = "phone in E.164, e.g. '0160 57 123456' -> '+4916057123456'") String phone,
+            @ToolParam(description = "exact day, yyyy-MM-dd, day-first: '03.05.05' -> 2005-05-03") LocalDate customerSince,
+            @ToolParam(description = "exact day, yyyy-MM-dd, day-first: '03.05.05' -> 2005-05-03") LocalDate lastOrderDate,
+            @ToolParam(description = "country, e.g. Germany - a city name goes into city") String country,
+            @ToolParam(description = "city, e.g. Berlin") String city,
             @ToolParam(description = "postal code") String postalCode,
             @ToolParam(description = "street") String street,
             @ToolParam(description = "house number") String houseNumber,
-            @ToolParam(description = "state or region, e.g. \"Ile-de-France\"") String state,
-            @ToolParam(description = "two-letter ISO country code, e.g. \"DE\" or \"GB\"") String countryCode,
-            @ToolParam(description = """
-                    credit rating to match, or null. One of: GOOD (creditworthy),
-                    MEDIUM (limited creditworthiness), POOR (at risk / not creditworthy).""") CreditRating creditRating,
-            @ToolParam(description = """
-                    minimum annual revenue to match, as a plain number, or null: "over 500000" ->
-                    500000. Only a lower bound is supported - "under 50000" and "between 50000 and
-                    200000" cannot be expressed.""") BigDecimal annualRevenue
+            @ToolParam(description = "state or region, e.g. Ile-de-France") String state,
+            @ToolParam(description = "two-letter ISO country code, e.g. DE") String countryCode,
+            @ToolParam(description = "GOOD (creditworthy), MEDIUM (limited), POOR (at risk / not creditworthy)") CreditRating creditRating,
+            @ToolParam(description = "minimum annual revenue, e.g. 'over 500000' -> 500000") BigDecimal annualRevenue
     ) {
         CustomerCriteria incoming = new CustomerCriteria(companyName, contactName, email, phone, customerSince,
                 lastOrderDate, country, city, postalCode, street, houseNumber, state, countryCode, creditRating, annualRevenue);

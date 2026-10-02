@@ -57,119 +57,30 @@ public class CustomerSearchService implements CustomerSearchAgent {
 
     /** Builds the system prompt for the given "today", so it can be unit-tested without calling the model. */
     static String systemPrompt(LocalDate today) {
-        LocalDate yesterday = today.minusDays(1);
-        LocalDate thisWeekMonday = today.minusDays(today.getDayOfWeek().getValue() - 1L);
-        LocalDate lastWeekMonday = thisWeekMonday.minusWeeks(1);
-        LocalDate lastMonthStart = today.withDayOfMonth(1).minusMonths(1);
         return """
-                You translate a user's request into a CustomerFilter that filters a list of customers.
+                You translate a request into a CustomerFilter. Today is %s.
+                Conditions are AND-combined, values in one condition OR-combined; negate=true excludes.
+                An empty list shows all customers - also for small talk. Keep every requirement the user names.
+                Fields: companyName, contactName, email, phone, annualRevenue, creditRating, customerSince,
+                lastOrderDate, country, city, postalCode, street, houseNumber, state, countryCode.
+                  - Several values for one field ("Berlin or Köln") -> one condition with all values.
+                  - A range -> GREATER_OR_EQUAL and LESS_OR_EQUAL on the same field.
+                  - "not X" -> negate=true; there are no NOT_* operators.
+                  - Text: CONTAINS by default, STARTS_WITH / ENDS_WITH for "starts/ends with".
+                  - City names are English: "München" -> Munich, "Köln" -> Cologne, "Düsseldorf" -> Dusseldorf.
+                  - phone: CONTAINS, exactly as typed.
+                  - Dates: yyyy-MM-dd, day-first ('03.05.05' -> 2005-05-03). A day -> EQUALS,
+                    "since" / "last week" / "last month" -> GREATER_OR_EQUAL its first day, "before" -> LESS_OR_EQUAL.
+                  - lastOrderDate in a year ("in 2024", "last year") -> January 1 to December 31 of it; "customer since 2020" -> GREATER_OR_EQUAL only.
+                  - creditRating EQUALS GOOD (creditworthy), MEDIUM (limited) or POOR (at risk);
+                    "not creditworthy" -> creditRating EQUALS [POOR], negate=false.
 
-                A CustomerFilter has a flat "conditions" list; ALL conditions must match (AND). Each
-                condition is: { field, operator, values: [...], negate }.
-                  - values: one or more values; the condition matches if the field matches ANY of them
-                    (OR within the field).
-                  - negate: true to exclude matches instead of requiring them (e.g. "not from Berlin").
-                There is no nesting and no OR across different fields — only within one field's values.
-                To show all customers, return an empty conditions list.
-
-                IMPORTANT: include EVERY condition the user mentions. Never drop one (e.g. keep the
-                revenue condition even when cities are also given).
-
-                Building the conditions list:
-                  - Several values for the SAME field ("Berlin or Köln", or the colloquial "Berlin and
-                    Köln" meaning either city) -> one condition on that field with both values.
-                  - Several requirements across DIFFERENT fields that must all hold -> one condition per
-                    field; the list is always AND-combined.
-                  - A value RANGE on one field is two conditions on that field, e.g. revenue between
-                    100000 and 500000 -> [ annualRevenue GREATER_OR_EQUAL [100000],
-                    annualRevenue LESS_OR_EQUAL [500000] ].
-                  - "not X" / "except X" / "excluding X" -> the condition for X with negate=true, NOT a
-                    different operator (there is no NOT_CONTAINS/NOT_EQUALS operator).
-
-                Each condition has:
-                  - field: one of companyName, contactName, email, phone, annualRevenue, creditRating,
-                           customerSince, lastOrderDate, country, city, postalCode, street, houseNumber,
-                           state, countryCode
-                  - operator: CONTAINS, EQUALS, STARTS_WITH, ENDS_WITH, GREATER_OR_EQUAL, LESS_OR_EQUAL
-                  - values: the comparison value(s), as text
-                  - negate: true/false, default false
-
-                Rules:
-                  - Text fields match case-insensitively. Use CONTAINS for partial matches; set
-                    negate=true to exclude (e.g. "not in Berlin" -> field=city, operator=CONTAINS,
-                    values=[Berlin], negate=true).
-                  - city names are stored in English - Berlin, Hamburg, Munich, Frankfurt, Cologne,
-                    Dusseldorf - so translate a German one before passing it: "München" is Munich,
-                    "Köln" is Cologne.
-                  - For "begins with" / "first character/letter is X" use STARTS_WITH; for "ends with"
-                    use ENDS_WITH. The value is just the prefix/suffix, e.g. "name starts with M" ->
-                    field=contactName, operator=STARTS_WITH, values=[M].
-                  - phone: always use CONTAINS with the value exactly as the user typed it (no
-                    normalization, no leading +). Phone numbers are stored in E.164, so a partial
-                    number like '5020000001' will match via substring.
-                  - customerSince and lastOrderDate use ISO date yyyy-MM-dd. Read ambiguous dates
-                    day-first (German), e.g. '03.05.05' -> '2005-05-03'.
-                    Operator choice for dates:
-                    * exact day (today, yesterday, a specific date like 2024-03-15) -> EQUALS
-                    * open-ended past range (since/after/last week/last month/this year) -> GREATER_OR_EQUAL with the first day of that period
-                    * open-ended future/past boundary (before/until) -> LESS_OR_EQUAL
-                    * a bare year with no "since"/"before" qualifier, for lastOrderDate ("last ordered
-                      in 2024", "2024 zuletzt gekauft") -> a CLOSED range: two conditions on
-                      lastOrderDate, GREATER_OR_EQUAL <year>-01-01 and LESS_OR_EQUAL <year>-12-31 (same
-                      two-condition idiom as a revenue range). customerSince is inherently open-ended
-                      even for a bare year ("customer since 2020" -> GREATER_OR_EQUAL only).
-                    Never emit a GREATER_OR_EQUAL + LESS_OR_EQUAL pair for a single named day.
-                  - annualRevenue is a plain number, e.g. 100000; use GREATER_OR_EQUAL / LESS_OR_EQUAL
-                    for "more/less than".
-                  - creditRating is the bank credit rating. Use field=creditRating, operator=EQUALS, and
-                    a value one of GOOD, MEDIUM, POOR:
-                    * "creditworthy" / "good credit" -> GOOD
-                    * "limited" / "medium" -> MEDIUM
-                    * "at risk" / "risky" / "not creditworthy" / "poor credit" -> POOR
-                    For SEVERAL ratings put them all in ONE condition's values (they are alternatives,
-                    OR-combined within the field), e.g. "good or at-risk rating" -> creditRating EQUALS
-                    [GOOD, POOR]. Never express a rating via a numeric score.
-                  - Today is %s. Resolve relative dates ("yesterday", "today", "last month", "this year",
-                    "last week") against this date.
-
-                Examples (conditions written as "field OP [values]" for brevity, negate noted separately):
-                  "customers in Berlin"
-                    -> city CONTAINS [Berlin]
-                  "customers in Berlin or Köln"
-                    -> city CONTAINS [Berlin, Cologne]
-                  "Kunden aus Köln"
-                    -> city CONTAINS [Cologne]
-                  "all customers in Berlin or Köln with a minimal revenue of 100000"
+                Examples:
+                  "Kunden aus Köln" -> city CONTAINS [Cologne]
+                  "customers in Berlin or Köln with revenue over 100000"
                     -> city CONTAINS [Berlin, Cologne]; annualRevenue GREATER_OR_EQUAL [100000]
-                  "customers whose contact name starts with M"
-                    -> contactName STARTS_WITH [M]
-                  "customers who are not from Berlin"
-                    -> city CONTAINS [Berlin], negate=true
-                  "companies not in Munich with revenue between 100000 and 500000"
-                    -> city CONTAINS [Munich], negate=true; annualRevenue GREATER_OR_EQUAL [100000];
-                       annualRevenue LESS_OR_EQUAL [500000]
-                  "creditworthy customers in Berlin"
-                    -> city CONTAINS [Berlin]; creditRating EQUALS [GOOD]
-                  "customers at risk"
-                    -> creditRating EQUALS [POOR]
-                  "customers in Berlin with a good and an at-risk credit rating"
-                    -> city CONTAINS [Berlin]; creditRating EQUALS [GOOD, POOR]
-                  "customers since 2020"
-                    -> customerSince GREATER_OR_EQUAL [2020-01-01]
-                  "customers who last ordered in 2024" (bare year, no "since"/"before" -> CLOSED range,
-                  both bounds required)
-                    -> lastOrderDate GREATER_OR_EQUAL [2024-01-01]; lastOrderDate LESS_OR_EQUAL [2024-12-31]
-                  "customers who placed an order yesterday" (today = %s)
-                    -> lastOrderDate EQUALS [%s]
-                  "customers who placed an order today" (today = %s)
-                    -> lastOrderDate EQUALS [%s]
-                  "customers who ordered last week" (today = %s, week starts Mon %s)
-                    -> lastOrderDate GREATER_OR_EQUAL [%s]
-                  "customers who ordered last month" (today = %s)
-                    -> lastOrderDate GREATER_OR_EQUAL [%s]
-                  "show all customers"
-                    -> (empty conditions list)
-                """.formatted(today, today, yesterday, today, today, today, thisWeekMonday, lastWeekMonday, today,
-                lastMonthStart);
+                  "customers not from Berlin" -> city CONTAINS [Berlin], negate=true
+                  "customers who ordered yesterday" -> lastOrderDate EQUALS [%s]
+                """.formatted(today, today.minusDays(1));
     }
 }
