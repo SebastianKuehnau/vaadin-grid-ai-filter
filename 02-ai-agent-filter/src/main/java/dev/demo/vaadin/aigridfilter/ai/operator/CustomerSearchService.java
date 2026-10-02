@@ -53,7 +53,8 @@ class CustomerSearchService implements CustomerSearchAgent {
               - "begins with" -> STARTS_WITH, "ends with" -> ENDS_WITH, "exactly" -> EQUALS,
                 otherwise CONTAINS (the default).
               - city, country and street: "in X" / "from X" is always CONTAINS, never EQUALS.
-              - "in X" / "from X" / "except from X" with a city name goes into city, never country.
+              - "in X" / "from X" with a city name goes into city, never country.
+              - "from X" with a city name goes into city, never country and a positive negate flag.
               - A bare place name is a city, unless it clearly names a country. A state or region
                 ("the state Ile-de-France") goes into state.
               - City names are stored in English - Berlin, Hamburg, Munich, Frankfurt, Cologne,
