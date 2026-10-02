@@ -28,72 +28,44 @@ class CustomerSearchService implements CustomerSearchAgent {
     private static final Logger logger = LoggerFactory.getLogger(CustomerSearchService.class);
 
     private static final String SYSTEM_PROMPT = """
-            You are a helpful assistant that helps users find customers based on their
-            company name, contact name, email, phone, customer since, last order date,
-            country, city, postal code, street, house number, state, country code, annual
-            revenue, and credit rating. The credit rating is one of: creditworthy (GOOD), limited (MEDIUM), or
-            at risk / not creditworthy (POOR).
+            You help users find customers by company name, contact name, email, phone, customer since,
+            last order date, address, annual revenue and credit rating. The credit rating is
+            creditworthy (GOOD), limited (MEDIUM) or at risk / not creditworthy (POOR).
 
-            Call the searchCustomers tool to filter the grid. Each field has THREE parameters:
-            the value, <field>Operator, and <field>Negate. ALWAYS pass the value parameter for every
-            field you filter on - the value is what gets matched, while <field>Operator only says HOW
-            to compare it. An operator or a negate flag without its value filters nothing, so
-            "company name contains data" is companyName="data" (operator CONTAINS is the default and
-            may be omitted), never companyNameOperator="CONTAINS" on its own.
-
-            Fill the operator and the negate flag whenever the request implies them:
-              - "not X" / "except X" / "excluding X" / "ausser X" -> pass X as the value and set
-                <field>Negate=true. Negation is ALWAYS expressed via the negate flag, never via the
-                operator: there is no NOT_CONTAINS, NOT_STARTS_WITH, NOT_ENDS_WITH, NOT_EQUALS, or any
-                other NOT_* operator - Operator only ever has the plain values CONTAINS, EQUALS,
-                STARTS_WITH, ENDS_WITH, GREATER_OR_EQUAL, LESS_OR_EQUAL. So "does not start with X" /
-                "startet nicht mit X" -> <field>Operator=STARTS_WITH and <field>Negate=true (not an
-                invented "NOT_STARTS_WITH"); "does not end with X" -> ENDS_WITH + Negate=true. This
-                applies even when the request is phrased as "all customers except X" / "show me
-                everyone but X" - the word "all"/"everyone" does NOT mean pass no filter; it means
-                "all of the remaining customers once X is excluded", so you must still call
-                searchCustomers with X as the value and <field>Negate=true, never with every
-                parameter null.
-              - "not creditworthy" is no negation - it NAMES a rating: creditRating=POOR with
-                creditRatingNegate=false, never a negated POOR or GOOD.
-              - "begins with" / "first character/letter is X" -> <field>Operator=STARTS_WITH;
-                "ends with" -> ENDS_WITH; "is exactly" / "precisely X" -> EQUALS; a plain partial
-                match -> CONTAINS (the default).
-              - city, country, and street are components of a larger address, so a plain "in X" /
-                "from X" / "is X" phrasing (e.g. "customers in Berlin") always means
-                <field>Operator=CONTAINS (the default) for these three fields, never EQUALS - reserve
-                EQUALS for these fields for explicit exact-match wording only ("exactly Berlin",
-                "precisely Berlin").
-              - a bare place name is a CITY, never a country, unless it unambiguously names a country
-                (e.g. "Germany", "France") or both are given together (e.g. "Hamburg, Germany"): put
-                "Hamburg", "Berlin", "Munich" etc. into city, not into country. When in doubt, prefer
-                city over country - city is the field actually shown in the grid. A place the user
-                calls a state or region ("in the state Ile-de-France") goes into state, not city.
-              - city names are stored in English - Berlin, Hamburg, Munich, Frankfurt, Cologne,
-                Dusseldorf - so translate a German one before passing it: "München" is Munich,
-                "Köln" is Cologne.
-              - dates: an exact day ("on 2024-03-15", "yesterday", "today") -> EQUALS;
-                "since" / "after" / "from" -> GREATER_OR_EQUAL; "before" / "until" -> LESS_OR_EQUAL;
-                a relative period ("in the last 12 months", "this month", "this year") ->
-                GREATER_OR_EQUAL with the FIRST day of that period, never LESS_OR_EQUAL.
-              - annualRevenue: "at least" / "over" / "more than" -> GREATER_OR_EQUAL;
-                "at most" / "under" / "less than" -> LESS_OR_EQUAL; "exactly" -> EQUALS.
-
-            Each field takes exactly ONE value, ONE operator and ONE negate flag, so a field can only
-            ever carry a single condition. If a request needs two values or two bounds for the same
-            field, pass the single closest condition you can and ignore the rest - that limitation
-            cannot be worked around, so do not retry the call for the part you had to drop.
-
-            Call searchCustomers exactly ONCE and then stop; it has already been applied.
-
-            For a relative date ("yesterday", "today", "last week", "this month", "this year", "in the
-            last 12 months", "since the start of last year") call the currentLocalDateTime tool FIRST -
-            never guess today's date or the year. It returns the dates already computed, so copy the
-            matching one and never calculate a date yourself:
-              - "yesterday" -> yesterday, "today" -> today, both with EQUALS
+            For a date relative to today, call currentLocalDateTime FIRST and WAIT for its answer -
+            never guess today's date or the year. It returns the dates already computed; copy the
+            matching one, never calculate a date yourself, and pass the date itself (yyyy-MM-dd),
+            never the name it has in the answer:
+              - "yesterday" -> yesterday, "today" -> today, both EQUALS
               - "this month" -> startOfThisMonth, "this year" -> startOfThisYear, "in the last 12
                 months" -> twelveMonthsAgo, "since the start of last year" -> startOfLastYear, "last
-                week" -> startOfLastWeek, all with GREATER_OR_EQUAL
+                week" -> startOfLastWeek, all GREATER_OR_EQUAL
+
+            Call searchCustomers to filter the grid. Each field has THREE parameters: the value,
+            <field>Operator and <field>Negate. ALWAYS pass the value - an operator or negate flag
+            without it filters nothing.
+
+            Set operator and negate whenever the request implies them:
+              - "not X" / "except X" -> X as the value and <field>Negate=true. There are no NOT_*
+                operators: "does not start with X" is STARTS_WITH + Negate=true. "All customers
+                except X" still filters on X with Negate=true - never pass every parameter null.
+              - "not creditworthy" is no negation but a rating: creditRating=POOR, Negate=false.
+              - "begins with" -> STARTS_WITH, "ends with" -> ENDS_WITH, "exactly" -> EQUALS,
+                otherwise CONTAINS (the default).
+              - city, country and street: "in X" / "from X" is always CONTAINS, never EQUALS.
+              - "in X" / "from X" / "except from X" with a city name goes into city, never country.
+              - A bare place name is a city, unless it clearly names a country. A state or region
+                ("the state Ile-de-France") goes into state.
+              - City names are stored in English - Berlin, Hamburg, Munich, Frankfurt, Cologne,
+                Dusseldorf - so translate a German one first: "München" is Munich, "Köln" is Cologne.
+              - Dates: an exact day ("today", "yesterday") -> EQUALS; "since" / "after" ->
+                GREATER_OR_EQUAL; "before" / "until" -> LESS_OR_EQUAL; a past period ("last 12
+                months", "this month") -> GREATER_OR_EQUAL its first day, never LESS_OR_EQUAL.
+              - annualRevenue: "at least" / "over" -> GREATER_OR_EQUAL, "at most" / "under" ->
+                LESS_OR_EQUAL, "exactly" -> EQUALS.
+
+            Each field carries ONE condition; if a request needs two, pass the closest one.
+            Call searchCustomers exactly ONCE and then stop.
             """;
 
     // Identical for every field, so kept as constants instead of being repeated 13 times.

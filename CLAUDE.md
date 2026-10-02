@@ -107,13 +107,12 @@ A task is only finished when:
 1. `./mvnw verify -pl <affected modules> -am` passes.
 2. For UI changes: on the development machine, the app has been started and the change verified
    via a Playwright screenshot (save screenshots to `~/screenshots/`). In the sandbox, where the app
-   is not run, the browserless IT takes its place.
+   is not run, say so in the report — there is no UI-level substitute.
 3. For changes to filter/AI logic: the affected module's service-level `*CustomerSearchIT` classes
    pass against an Ollama serving `qwen3:8b`, however the environment provides it (they run in plain
    `verify`) — the Testcontainer on the development machine, the host's Ollama in the sandbox. They
    are the relevant tests: every canonical query and the robustness set, through the service. 02 has
-   one per variant, so two. The browserless ITs only prove the UI wiring with a fixed set of eight
-   queries; they still run in `verify`, but they never take new cases.
+   one per variant, so two.
 4. For new filter capabilities: the query goes into `docs/canonical-query-set.md` first, then into
    every AI module's service-level `*CustomerSearchIT` as one named `@Test` — the prompt as a string
    literal, the expected customer set computed from the seeded data. Where a variant's filter type
@@ -147,10 +146,9 @@ or file changes on your own initiative.
   the talk would need to see it on a slide to understand the difference between two approaches, it
   stays in its module.
 - The test layer is the second exception, and it is shared through `00-commons`' **test-jar**
-  (`<type>test-jar</type><scope>test</scope>`), never through `src/main` — otherwise JUnit and
-  browserless would land in all four apps' runtime classpath. It owns **only mechanism**:
-  `AbstractCustomerSearchViewIT.search(query)` (navigate, type, await, read the grid),
-  `TokenUsageExtension` and `TestNameLoggingExtension`. Every query, every expectation and every
+  (`<type>test-jar</type><scope>test</scope>`), never through `src/main` — otherwise JUnit
+  would land in all four apps' runtime classpath. It owns **only mechanism**:
+  `OllamaContainerConfig`, `TokenUsageExtension` and `TestNameLoggingExtension`. Every query, every expectation and every
   `@Disabled` reason stays in the module's own IT class, spelled out — that is what a reader looks at.
 - Comments are one-liners: a single-line Javadoc per class, and per method or field only where the
   name is not enough. No multi-paragraph rationale in code — this repository is read by beginners at a

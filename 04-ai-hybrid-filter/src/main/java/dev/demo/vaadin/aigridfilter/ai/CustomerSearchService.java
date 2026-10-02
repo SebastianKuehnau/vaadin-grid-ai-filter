@@ -66,96 +66,42 @@ public class CustomerSearchService implements CustomerSearchAgent {
     }
 
     private static final String SYSTEM_PROMPT = """
-            You translate a user's request into a CustomerFilter that filters a customer grid.
+            You translate a request into a CustomerFilter.
 
-            You have one tool, currentLocalDateTime. Use it ONLY when the request names a date
-            relative to today ("yesterday", "today", "last week", "this month", "this year", "in the
-            last 12 months", "since the start of last year"). Then call it
-            FIRST, WAIT for the date it returns, and only THEN answer - never guess today's date
-            and never take one from an example below.
+            For a date relative to today ("today", "yesterday", "this month", "last 12 months"), call
+            currentLocalDateTime FIRST, WAIT for its answer, then answer - never guess today. It
+            returns the dates already computed: copy the matching one, never calculate a date.
+            For no date or an absolute one ("in 2024"), do NOT call it.
 
-            If the request names no date at all, or an absolute one ("18.11.2025", "between
-            2024-07-01 and 2025-03-31", "in 2024"), do NOT call the tool - answer directly.
+            Conditions are AND-combined, values in one condition OR-combined; negate=true excludes.
+            An empty list shows all customers. Keep every requirement the user names.
+              - Several values for one field ("Berlin or Hamburg") -> one condition with all values.
+              - A range -> GREATER_OR_EQUAL and LESS_OR_EQUAL; "in 2024" -> 2024-01-01 to 2024-12-31.
+              - "not X" -> negate=true; there are no NOT_* operators.
+              - city: CONTAINS, one of Berlin, Hamburg, Munich, Frankfurt, Cologne, Dusseldorf -
+                always pass one of these English names: translate German ones ("München" -> Munich),
+                fix typos ("Brelin" -> Berlin), keep negate as written.
+              - country name ("from Germany") -> country, never countryCode; a street -> street.
+              - Dates: yyyy-MM-dd, day-first ('03.05.05' -> 2005-05-03). A single day ("yesterday")
+                -> EQUALS; a period still running ("this month", "last 12 months") -> GREATER_OR_EQUAL
+                its start only; a period already over ("last week", "last month") -> its start to its end.
+              - creditRating EQUALS GOOD (creditworthy), MEDIUM (limited) or POOR (at risk);
+                "not creditworthy" is POOR, not a negated GOOD.
 
-            Conditions are AND-combined, the values inside one condition are OR-combined, and
-            negate=true excludes the matches. There is no nesting and no OR across fields. To show
-            everyone, return an empty conditions list.
-
-            Keep every requirement the user names:
-              - several values for the SAME field ("Berlin or Hamburg") -> ONE condition with both
-                values
-              - requirements on DIFFERENT fields -> one condition each
-              - a range on one field -> TWO conditions, GREATER_OR_EQUAL the lower and LESS_OR_EQUAL
-                the upper bound
-              - "not X" / "except X" -> X's own condition with negate=true; there is no NOT_* operator
-
-            A condition's field is one of companyName, contactName, email, phone, annualRevenue,
-            creditRating, customerSince, lastOrderDate, country, city, postalCode, street,
-            houseNumber, state, countryCode. A country name ("from Germany") goes into country, never
-            into countryCode; a street ("on Market Street") into street, both with CONTAINS.
-
-            city is text, matched case-insensitively: a plain "in Berlin" is CONTAINS, EQUALS only
-            for explicitly exact wording. City names are stored in English - Berlin, Hamburg, Munich,
-            Frankfurt, Cologne, Dusseldorf - so translate a German one before passing it: "München"
-            is Munich, "Köln" is Cologne. The value you pass must be one of those six names: if the
-            user's word is none of them, pass the one it is closest to - "Brelin" is Berlin. That
-            repairs the NAME only; it never changes what the condition asks for, so negate stays
-            exactly as the sentence had it.
-
-            lastOrderDate is an ISO yyyy-MM-dd day: EQUALS an exact day, LESS_OR_EQUAL
-            "before"/"until", GREATER_OR_EQUAL "since"/"after". A date the user wrote ambiguously is
-            day-first (German): '03.05.05' is 2005-05-03. Emit a GREATER_OR_EQUAL + LESS_OR_EQUAL
-            pair only for an explicit "between X and Y", a bare year ("in 2024" is 2024-01-01 to
-            2024-12-31) or a relative period already over (below), never for a single day, named or
-            relative.
-
-            currentLocalDateTime returns today and the period boundaries around it, already
-            computed. Copy the matching date from its answer - never calculate a date yourself, and
-            pass the date itself as the value, never the name it has in the answer:
-              - a single relative DAY ("yesterday", "today") is ONE exact day: EQUALS yesterday or
-                today, never "from that day on".
-              - a period still running is open-ended, GREATER_OR_EQUAL its start and NO upper
-                bound: "this month" is
-                startOfThisMonth, "this year" startOfThisYear, "in the last 12 months"
-                twelveMonthsAgo, "since the start of last year" startOfLastYear.
-              - a period already over is a CLOSED range, two conditions: "last week" is
-                GREATER_OR_EQUAL startOfLastWeek and LESS_OR_EQUAL endOfLastWeek; "last month" and
-                "last year" likewise.
-
-            creditRating EQUALS GOOD (creditworthy), MEDIUM (limited creditworthiness) or POOR (at
-            risk / not creditworthy). Several ratings are alternatives, so they share ONE condition.
-            "Not creditworthy" NAMES POOR: EQUALS [POOR] with negate=false, never a negated GOOD.
-
-            Examples, written as "field OPERATOR [values]":
-              "customers in Berlin"
-                -> city CONTAINS [Berlin]
-              "customers in Berlin or Hamburg"
-                -> city CONTAINS [Berlin, Hamburg]
-              "Kunden aus Köln"
-                -> city CONTAINS [Cologne]
-              "customers in Brelin"
-                -> city CONTAINS [Berlin]
-              "creditworthy customers in Hamburg"
-                -> city CONTAINS [Hamburg]; creditRating EQUALS [GOOD]
-              "customers who are not from Berlin"
-                -> city CONTAINS [Berlin], negate=true
-              "customers from Germany or France"
-                -> country CONTAINS [Germany, France]
-              "customers who ordered in the last 12 months"
-                -> lastOrderDate GREATER_OR_EQUAL [the twelveMonthsAgo date the tool returned]
-              "customers who ordered yesterday"
-                -> lastOrderDate EQUALS [the yesterday date the tool returned]
-              "customers who ordered this year" (still running - no upper bound, not even today)
-                -> lastOrderDate GREATER_OR_EQUAL [the startOfThisYear date the tool returned]
-              "customers who ordered last week"
-                -> lastOrderDate GREATER_OR_EQUAL [the startOfLastWeek date the tool returned];
-                   lastOrderDate LESS_OR_EQUAL [the endOfLastWeek date the tool returned]
-              "customers who last ordered between 2024-07-01 and 2025-03-31"
+            Examples:
+              "Kunden aus Köln" -> city CONTAINS [Cologne]
+              "What's the weather?" -> (empty conditions list)
+              "creditworthy customers in Hamburg" -> city CONTAINS [Hamburg]; creditRating EQUALS [GOOD]
+              "customers not from Berlin" -> city CONTAINS [Berlin], negate=true
+              "customers from Germany or France" -> country CONTAINS [Germany, France]
+              "ordered between 2024-07-01 and 2025-03-31"
                 -> lastOrderDate GREATER_OR_EQUAL [2024-07-01]; lastOrderDate LESS_OR_EQUAL [2025-03-31]
-              "show all customers"
-                -> (empty conditions list)
+              "ordered yesterday" -> lastOrderDate EQUALS [the yesterday date the tool returned]
+              "ordered this year" -> lastOrderDate GREATER_OR_EQUAL [the startOfThisYear date the tool returned]
+              "ordered last week" -> lastOrderDate GREATER_OR_EQUAL [startOfLastWeek];
+                lastOrderDate LESS_OR_EQUAL [endOfLastWeek]
 
-            Answer with exactly ONE JSON object, {"conditions": [...]}, and nothing after it: close
-            every bracket once - no extra "}" or "]" at the end.
+            Answer with exactly ONE JSON object and nothing after it - close every bracket once:
+            {"conditions": [{"field": "city", "operator": "CONTAINS", "values": ["Berlin"], "negate": false}]}
             """;
 }
