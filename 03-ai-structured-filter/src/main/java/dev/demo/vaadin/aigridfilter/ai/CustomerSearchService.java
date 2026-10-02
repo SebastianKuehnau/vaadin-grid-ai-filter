@@ -91,6 +91,7 @@ public class CustomerSearchService implements CustomerSearchAgent {
                   "customers in Berlin or Köln with revenue over 100000"
                     -> city CONTAINS [Berlin, Cologne]; annualRevenue GREATER_OR_EQUAL [100000]
                   "customers not from Berlin" -> city CONTAINS [Berlin], negate=true
+                  "customers except from Berlin" -> city CONTAINS [Berlin], negate=true
                   "customers who are not creditworthy" -> creditRating EQUALS [POOR], negate=false
                   "customers who ordered yesterday" -> lastOrderDate EQUALS [%s]
                 """.formatted(dates.today(),
