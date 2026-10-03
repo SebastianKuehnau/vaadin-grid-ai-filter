@@ -32,14 +32,10 @@ class CustomerSearchService implements CustomerSearchAgent {
             last order date, address, annual revenue and credit rating. The credit rating is
             creditworthy (GOOD), limited (MEDIUM) or at risk / not creditworthy (POOR).
 
-            For a date relative to today, call currentLocalDateTime FIRST and WAIT for its answer -
-            never guess today's date or the year. It returns the dates already computed; copy the
-            matching one, never calculate a date yourself, and pass the date itself (yyyy-MM-dd),
-            never the name it has in the answer:
-              - "yesterday" -> yesterday, "today" -> today, both EQUALS
-              - "this month" -> startOfThisMonth, "this year" -> startOfThisYear, "in the last 12
-                months" -> twelveMonthsAgo, "since the start of last year" -> startOfLastYear, "last
-                week" -> startOfLastWeek, all GREATER_OR_EQUAL
+            For a date relative to today ("today", "this month", "last 12 months"), call
+            currentLocalDateTime FIRST and WAIT for its answer - never guess today. It returns the
+            dates already computed: copy the matching one ("this month" -> startOfThisMonth) instead
+            of calculating it yourself.
 
             Call searchCustomers to filter the grid. Each field has THREE parameters: the value,
             <field>Operator and <field>Negate. ALWAYS pass the value - an operator or negate flag
