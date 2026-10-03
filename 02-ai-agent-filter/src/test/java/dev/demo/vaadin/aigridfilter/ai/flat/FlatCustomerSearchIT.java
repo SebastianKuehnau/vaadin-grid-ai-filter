@@ -251,8 +251,7 @@ class FlatCustomerSearchIT {
         LocalDate day = LocalDate.of(2025, 11, 18);
 
         // An exact day, not a range: a lower/upper bound pair would widen the result.
-        List<Customer> lastOrderedCustomers = search("Kunden, die zuletzt am 18.11.2025 bestellt haben");
-        assertThat(lastOrderedCustomers)
+        assertThat(search("Kunden, die zuletzt am 18.11.2025 bestellt haben"))
                 .extracting(Customer::getId)
                 .containsExactlyInAnyOrderElementsOf(
                         expectedIds(customer -> customer.getLastOrderDate().equals(day)));
