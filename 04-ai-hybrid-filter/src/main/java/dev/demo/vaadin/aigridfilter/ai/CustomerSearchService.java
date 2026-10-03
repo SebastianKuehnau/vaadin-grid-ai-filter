@@ -80,7 +80,7 @@ public class CustomerSearchService implements CustomerSearchAgent {
               - "not X" -> negate=true; there are no NOT_* operators.
               - city: CONTAINS, one of Berlin, Hamburg, Munich, Frankfurt, Cologne, Dusseldorf -
                 always pass one of these English names: translate German ones ("München" -> Munich),
-                fix typos ("Brelin" -> Berlin), keep negate as written.
+                keep negate as written.
               - country name ("from Germany") -> country, never countryCode; a street -> street.
               - Dates: yyyy-MM-dd, day-first ('03.05.05' -> 2005-05-03). A single day ("yesterday")
                 -> EQUALS; a period still running ("this month", "last 12 months") -> GREATER_OR_EQUAL
