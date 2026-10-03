@@ -9,7 +9,7 @@ import java.util.List;
  * Everything the benchmark run is steered by — from {@code application.yaml}, a {@code config/} file
  * next to the working directory, or {@code --benchmark.*} on the command line.
  *
- * @param cases                  the case ids to measure; empty means all 22
+ * @param cases                  the case ids to measure; empty means all 55
  * @param runUnsupported         also measure the cases an approach architecturally cannot express
  * @param maxModelCallsPerQuery  how many model calls one query may make before it is given up on
  * @param projectRoot            where the module directories live; auto-detected when not set
