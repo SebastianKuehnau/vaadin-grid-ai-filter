@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.List;
 
-/** The hybrid step: tool calling like 02, but the tool takes 03's {@code List<Condition>} as its one parameter. */
+/** The hybrid step: 03's structured output for the filter, 02's tool calling for the date the model cannot know. */
 @Service
 @Scope("prototype")
 public class CustomerSearchService implements CustomerSearchAgent {
@@ -31,17 +31,17 @@ public class CustomerSearchService implements CustomerSearchAgent {
         this.tokenUsageAdvisor = tokenUsageAdvisor;
     }
 
-    /** Asks the LLM to call the search tool and turns the conditions it passed into a {@link Specification}. */
+    /** Asks the LLM for a {@link CustomerFilter} and translates it into a {@link Specification}. */
     @Override
     public Specification<Customer> resolveFilter(String naturalLanguageQuery) {
         return CustomerFilterSpecifications.from(requestFilter(naturalLanguageQuery));
     }
 
-    /** Asks the LLM to call {@code searchCustomers}; an empty filter (match all) if it produced nothing usable. */
+    /** Asks the LLM for a {@link CustomerFilter}; an empty one (match all) if it produced nothing usable. */
     CustomerFilter requestFilter(String naturalLanguageQuery) {
         CustomerFilter filter;
         try {
-            // By the time this returns, searchCustomers(...) has run; the answer text is irrelevant.
+            // .tools(...) lets the model ask for the date, .entity(...) parses the JSON answer it gives afterwards.
             filter = chatClient.prompt()
                     .system(SYSTEM_PROMPT)
                     .user(naturalLanguageQuery)
