@@ -19,7 +19,7 @@ The single `data.sql` lives in `00-commons` and is picked up from the jar (Boot'
 `optional:classpath*:data.sql`) — there must never be a second copy, or the data is seeded twice.
 Each module's architecture is meant to be read from its own source; there are no per-module READMEs.
 
-The natural-language queries all AI modules are measured with — 36 canonical and 19 robustness cases,
+The natural-language queries all AI modules are measured with — 40 canonical and 20 robustness cases,
 grouped by theme and numbered `<group>.<position>` (e.g. `C2.3`) — live in
 `docs/canonical-query-set.md`, the single source of truth; see the Definition of Done below.
 
@@ -72,7 +72,7 @@ host's Ollama is not running or lacks the model.
 
 ## The benchmark
 
-`benchmark` measures the models, not the code: the 55 queries of the four `*CustomerSearchIT` classes,
+`benchmark` measures the models, not the code: the 60 queries of the four `*CustomerSearchIT` classes,
 replayed against a **running** Ollama (it never starts one), for every configured model and approach.
 It is only ever started by hand:
 
@@ -95,7 +95,7 @@ Two things about its architecture are worth knowing before changing it:
   qualified names, so they can never share a classpath; each worker gets its own module's
   `target/classes`. That is also why the orchestrator needs a listable classpath — run it with
   `spring-boot:run`, not from a fat jar (there is none, `repackage` is disabled on purpose).
-- **The 55 cases are copied, not imported.** Every query and expectation lives in
+- **The 60 cases are copied, not imported.** Every query and expectation lives in
   `CaseCatalog`, next to the name of the IT test method it came from; the capability gaps and their
   reasons live in `Approach`. Both are kept in sync with `docs/canonical-query-set.md` by hand, exactly
   like the IT classes themselves.
