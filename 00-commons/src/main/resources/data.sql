@@ -106,9 +106,13 @@ INSERT INTO CUSTOMER (ID, COMPANY_NAME, CONTACT_NAME, ACTIVE, ANNUAL_REVENUE, CR
 INSERT INTO CUSTOMER (ID, COMPANY_NAME, CONTACT_NAME, ACTIVE, ANNUAL_REVENUE, CREDIT_SCORE, CUSTOMER_SINCE, LAST_ORDER_DATE, EMAIL, PHONE, STREET, HOUSE_NUMBER, POSTAL_CODE, CITY, STATE, COUNTRY, COUNTRY_CODE) VALUES (98, 'MetroLink Mobility Munich', 'Victoria Schmidt', TRUE, 101300.00, 83, '2005-05-18', '2018-03-27', 'victoria.schmidt@metrolink-mobility-munich.example', '+498910776062', 'Enterprise Drive', '99', '80331', 'Munich', 'Munich', 'Germany', 'DE');
 INSERT INTO CUSTOMER (ID, COMPANY_NAME, CONTACT_NAME, ACTIVE, ANNUAL_REVENUE, CREDIT_SCORE, CUSTOMER_SINCE, LAST_ORDER_DATE, EMAIL, PHONE, STREET, HOUSE_NUMBER, POSTAL_CODE, CITY, STATE, COUNTRY, COUNTRY_CODE) VALUES (99, 'Atlas Construction Cologne', 'William Martin', FALSE, 34000.00, 40, '2025-12-20', '2023-03-23', 'william.martin@atlas-construction-cologne.example', '+492211783981', 'Main Street', '100', '50667', 'Cologne', 'Cologne', 'Germany', 'DE');
 INSERT INTO CUSTOMER (ID, COMPANY_NAME, CONTACT_NAME, ACTIVE, ANNUAL_REVENUE, CREDIT_SCORE, CUSTOMER_SINCE, LAST_ORDER_DATE, EMAIL, PHONE, STREET, HOUSE_NUMBER, POSTAL_CODE, CITY, STATE, COUNTRY, COUNTRY_CODE) VALUES (100, 'Acme Manufacturing Frankfurt', 'Anna Jansen', FALSE, 214600.00, 47, '2018-10-21', '2026-03-03', 'anna.jansen@acme-manufacturing-frankfurt.example', '+496910791900', 'Market Street', '101', '60311', 'Frankfurt', 'Frankfurt', 'Germany', 'DE');
+-- A Berlin customer outside 10115 and without a +4930 number, so city, postal code and phone prefix select different sets.
+INSERT INTO CUSTOMER (ID, COMPANY_NAME, CONTACT_NAME, ACTIVE, ANNUAL_REVENUE, CREDIT_SCORE, CUSTOMER_SINCE, LAST_ORDER_DATE, EMAIL, PHONE, STREET, HOUSE_NUMBER, POSTAL_CODE, CITY, STATE, COUNTRY, COUNTRY_CODE) VALUES (101, 'Spree Logistics GmbH', 'Jonas Becker', TRUE, 64000.00, 66, '2019-04-11', '2025-06-12', 'jonas.becker@spree-logistics.example', '+4915123456789', 'Friedrichstrasse', '27', '10117', 'Berlin', 'Berlin', 'Germany', 'DE');
+-- A French customer outside Ile-de-France, so country and state select different sets.
+INSERT INTO CUSTOMER (ID, COMPANY_NAME, CONTACT_NAME, ACTIVE, ANNUAL_REVENUE, CREDIT_SCORE, CUSTOMER_SINCE, LAST_ORDER_DATE, EMAIL, PHONE, STREET, HOUSE_NUMBER, POSTAL_CODE, CITY, STATE, COUNTRY, COUNTRY_CODE) VALUES (102, 'Rhone Textiles SARL', 'Claire Martin', TRUE, 87000.00, 72, '2021-09-08', '2025-09-30', 'claire.martin@rhone-textiles.example', '+33478123456', 'Rue de la Republique', '15', '69002', 'Lyon', 'Auvergne-Rhone-Alpes', 'France', 'FR');
 
 -- Reset sequences after explicit IDs
 -- H2:
--- ALTER TABLE CUSTOMER ALTER COLUMN ID RESTART WITH 101;
+-- ALTER TABLE CUSTOMER ALTER COLUMN ID RESTART WITH 103;
 -- PostgreSQL:
--- SELECT setval(pg_get_serial_sequence('customer', 'id'), 100);
+-- SELECT setval(pg_get_serial_sequence('customer', 'id'), 102);

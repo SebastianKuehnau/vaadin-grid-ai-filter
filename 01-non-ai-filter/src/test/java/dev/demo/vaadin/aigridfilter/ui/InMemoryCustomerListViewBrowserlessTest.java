@@ -25,7 +25,7 @@ class InMemoryCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
     void allCustomersShownInitially() {
         GridTester<?, Customer> grid = test(navigate(InMemoryCustomerListView.class).grid);
 
-        assertThat(grid.size()).isEqualTo(100);
+        assertThat(grid.size()).isEqualTo(102);
     }
 
     @Test

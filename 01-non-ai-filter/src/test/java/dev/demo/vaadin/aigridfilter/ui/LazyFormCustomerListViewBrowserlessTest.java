@@ -26,7 +26,7 @@ class LazyFormCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
     void allCustomersShownInitially() {
         GridTester<?, Customer> grid = test(navigate(LazyFormCustomerListView.class).grid);
 
-        assertThat(grid.size()).isEqualTo(100);
+        assertThat(grid.size()).isEqualTo(102);
     }
 
     @Test
@@ -82,7 +82,7 @@ class LazyFormCustomerListViewBrowserlessTest extends SpringBrowserlessTest {
 
         view.searchForm.reset();
 
-        assertThat(test(view.grid).size()).isEqualTo(100);
+        assertThat(test(view.grid).size()).isEqualTo(102);
     }
 
     private static List<Customer> rows(GridTester<?, Customer> grid) {

@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 
 @StyleSheet(Aura.STYLESHEET)
@@ -27,6 +28,14 @@ public class AiAgentFilterApplication implements AppShellConfigurator {
 		return args -> jdbcTemplate.update(
 				"UPDATE customer SET last_order_date = ? WHERE company_name = ?",
 				LocalDate.now().minusDays(1), "Berlin Data Works");
+	}
+
+	/** Moves one customer's last order date to last week's Wednesday, so "last week" always has a hit. */
+	@Bean
+	ApplicationRunner setAcmeManufacturingFrankfurtLastOrderToLastWeek(JdbcTemplate jdbcTemplate) {
+		return args -> jdbcTemplate.update(
+				"UPDATE customer SET last_order_date = ? WHERE company_name = ?",
+				LocalDate.now().minusWeeks(1).with(DayOfWeek.WEDNESDAY), "Acme Manufacturing Frankfurt");
 	}
 
 }
