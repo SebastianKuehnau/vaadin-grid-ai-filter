@@ -210,6 +210,16 @@ class FlatCustomerSearchIT {
                         customer.getCompanyName().equalsIgnoreCase("Silverline Consulting")));
     }
 
+    @Test
+    @Disabled("02(a) has no start operator")
+    void findsCompaniesWhoseNameStartsWithEitherOfTwoLetters() {
+        assertThat(search("show me companies whose name starts with \"B\" or \"G\""))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        customer.getCompanyName().toLowerCase().startsWith("b")
+                                || customer.getCompanyName().toLowerCase().startsWith("g")));
+    }
+
     // C4 Revenue: bounds and ranges
     @Test
     void findsCustomersWithAMinimumRevenue() {
@@ -356,6 +366,31 @@ class FlatCustomerSearchIT {
                                 && !customer.getLastOrderDate().isAfter(sunday)));
     }
 
+    @Test
+    @Disabled("02(a) has no operator - a date can only be matched exactly, not as 'before'")
+    void findsCustomersWhoLastOrderedBeforeAYear() {
+        LocalDate startOf2025 = LocalDate.of(2025, 1, 1);
+
+        assertThat(search("show me customers whose last order was before 2025"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        customer.getLastOrderDate().isBefore(startOf2025)));
+    }
+
+    @Test
+    @Disabled("02(a) has no operator - a date can only be matched exactly, not as 'before'")
+    void findsCustomersWithoutAnOrderInTheLastSixMonths() {
+        LocalDate sixMonthsAgo = LocalDate.now().minusMonths(6);
+
+        // No exact set: both "before" and "on or before" six months ago count as correct.
+        assertThat(search("show me customers who haven't ordered in the last 6 months"))
+                .extracting(Customer::getId)
+                .isSubsetOf(expectedIds(customer ->
+                        !customer.getLastOrderDate().isAfter(sixMonthsAgo)))
+                .containsAll(expectedIds(customer ->
+                        customer.getLastOrderDate().isBefore(sixMonthsAgo)));
+    }
+
     // C6 Credit rating and combined conditions
     @Test
     void findsCustomersWhoAreNotCreditworthy() {
@@ -416,6 +451,14 @@ class FlatCustomerSearchIT {
                                 && customer.getAnnualRevenue().compareTo(BigDecimal.valueOf(25_000)) >= 0
                                 && customer.getCustomerSince().equals(LocalDate.of(2005, 12, 23))
                                 && customer.getLastOrderDate().equals(LocalDate.of(2025, 11, 18))));
+    }
+
+    @Test
+    void findsCustomersWithLimitedCreditworthiness() {
+        assertThat(search("zeig mir alle Kunden mit eingeschränkter Kreditwürdigkeit"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
+                        customer.getCreditRating() == CreditRating.MEDIUM));
     }
 
     // C7 Comparing one field to another
@@ -562,6 +605,14 @@ class FlatCustomerSearchIT {
                 .extracting(Customer::getId)
                 .containsExactlyInAnyOrderElementsOf(expectedIds(customer ->
                         city(customer).equals("Tokyo")));
+    }
+
+    @Test
+    @Disabled("sorting and limiting to the top N is not supported yet")
+    void ignoresATopNRequest() {
+        assertThat(search("show me the top 5 customers by revenue"))
+                .extracting(Customer::getId)
+                .containsExactlyInAnyOrderElementsOf(expectedIds(customer -> true));
     }
 
     // R5 Hostile input
