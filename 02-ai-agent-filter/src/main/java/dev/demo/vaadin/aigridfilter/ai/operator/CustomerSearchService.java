@@ -106,7 +106,7 @@ class CustomerSearchService implements CustomerSearchAgent {
     CustomerCriteria requestCriteria(String naturalLanguageQuery) {
         criteria = null;
         try {
-            // By the time this returns, searchCustomers(...) has run; the answer text is irrelevant.
+            // returnDirect ends the exchange right after searchCustomers(...) has run - no answer text follows.
             chatClient.prompt()
                     .system(SYSTEM_PROMPT)
                     .user(naturalLanguageQuery)
@@ -128,7 +128,7 @@ class CustomerSearchService implements CustomerSearchAgent {
         return criteria;
     }
 
-    @Tool(description = """
+    @Tool(returnDirect = true, description = """
             Search and filter the customer grid. Returns nothing; it updates the grid in place to show
             only the matching customers, replacing any previous filter (filters are not additive).
             All parameters are optional - pass null to ignore one; passing all null shows every
