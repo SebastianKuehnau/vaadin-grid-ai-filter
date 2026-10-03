@@ -10,7 +10,7 @@ Top priority for all code: **easy to understand, presentable, extensible** — c
 | `01-non-ai-filter` | 8081 | Classic filtering without AI (baseline): an in-memory `Stream` filter view and a lazy `Specification`-based filter view |
 | `02-ai-agent-filter` | 8082 | AI filtering via tool calling, in two variants behind two routes of one app: 02(a) one scalar value per field (`/`), 02(b) value + operator + negate per field (`/operator`) |
 | `03-ai-structured-filter` | 8083 | AI filtering via structured output (`CustomerFilter` → JPA Specifications), against local Ollama models |
-| `04-ai-hybrid-filter` | 8084 | AI filtering via tool calling with 03's `List<Condition>` filter type, copied 1:1 — same capability, different delivery |
+| `04-ai-hybrid-filter` | 8084 | AI filtering via structured output with 03's `List<Condition>` filter type, copied 1:1, plus a `currentLocalDateTime` tool the model calls for relative dates — same capability, different delivery |
 | `00-commons` | — | Shared **runtime** infrastructure: the domain layer (`Customer`, `Address`, `CreditRating`, `CustomerRepository`, `data.sql`), the shared Vaadin components (`CustomerGrid`, `AbstractCustomerSearchView`) and the AI layer's seam plus token measurement (`CustomerSearchAgent`, `TokenUsageAdvisor`). No numeric prefix — not a step of the talk |
 | `benchmark` | — | Measures the local Ollama models against 02(a), 02(b), 03 and 04: correctness, latency, tokens, resident model size. A standalone CLI app, never started by a build. No numeric prefix — not a step of the talk |
 
