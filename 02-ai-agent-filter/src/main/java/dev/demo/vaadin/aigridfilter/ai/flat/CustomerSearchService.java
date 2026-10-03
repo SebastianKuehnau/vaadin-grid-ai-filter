@@ -60,7 +60,7 @@ class CustomerSearchService implements CustomerSearchAgent {
     CustomerCriteria requestCriteria(String naturalLanguageQuery) {
         criteria = null;
         try {
-            // By the time this returns, searchCustomers(...) has run; the answer text is irrelevant.
+            // returnDirect ends the exchange right after searchCustomers(...) has run - no answer text follows.
             chatClient.prompt()
                     .system(SYSTEM_PROMPT)
                     .user(naturalLanguageQuery)
@@ -77,7 +77,7 @@ class CustomerSearchService implements CustomerSearchAgent {
         return criteria;
     }
 
-    @Tool(description = """
+    @Tool(returnDirect = true, description = """
             Filters the customer grid. All parameters are optional and AND-combined.
             Text matches the whole field, case-insensitively - pass the full value, not a part.
             """)
