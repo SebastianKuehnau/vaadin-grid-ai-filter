@@ -28,7 +28,7 @@ class CustomerSearchService implements CustomerSearchAgent {
 
     private static final String SYSTEM_PROMPT = """
             You filter a customer grid with searchCustomers.
-            For a date relative to today ("yesterday", "this month", "last year"), call
+            For a date relative to today ("today", "yesterday", "this month"), call
             currentLocalDateTime FIRST and WAIT for its answer - never guess today. It returns the
             dates already computed: copy the matching one ("this month" -> startOfThisMonth) instead
             of calculating it yourself.
