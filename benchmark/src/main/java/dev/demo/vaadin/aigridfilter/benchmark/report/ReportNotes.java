@@ -65,10 +65,9 @@ public final class ReportNotes {
         notes.add("A query that exceeds the model-call budget is given up on and counts as a failure, "
                 + "not a timeout: the model kept asking for a tool without ever settling on an answer. "
                 + "The worker log names the query, and its call count is far above the others.");
-        notes.add("R5.1, marked with an asterisk in the case matrix, is the prompt-injection case and is "
-                + "@Disabled in all four IT classes. It is measured here on purpose: its cell says how "
-                + "often the filter intent held against the injection - neither a pass nor a failure "
-                + "there is a regression.");
+        notes.add("R4.1, R4.5 and R5.1, marked with an asterisk in the case matrix, are @Disabled in "
+                + "all four IT classes. They are measured here on purpose: their cells say how often the "
+                + "model got them right anyway - neither a pass nor a failure there is a regression.");
         notes.add("A single green run proves nothing here - even at temperature 0 Ollama reuses a "
                 + "cached prefix whose state depends on what ran before. Compare pass counts, not "
                 + "single cells.");

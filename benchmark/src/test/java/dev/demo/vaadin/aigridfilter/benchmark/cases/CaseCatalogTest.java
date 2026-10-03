@@ -11,19 +11,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class CaseCatalogTest {
 
     @Test
-    void holdsThirtySixCanonicalAndNineteenRobustnessCases() {
+    void holdsFortyCanonicalAndTwentyRobustnessCases() {
         assertThat(CaseCatalog.allIds()).containsExactly(
                 "C1.1", "C1.2", "C1.3", "C1.4", "C1.5", "C1.6", "C1.7",
                 "C2.1", "C2.2", "C2.3", "C2.4", "C2.5",
-                "C3.1", "C3.2", "C3.3", "C3.4", "C3.5", "C3.6", "C3.7",
+                "C3.1", "C3.2", "C3.3", "C3.4", "C3.5", "C3.6", "C3.7", "C3.8",
                 "C4.1", "C4.2", "C4.3",
-                "C5.1", "C5.2", "C5.3", "C5.4", "C5.5", "C5.6", "C5.7", "C5.8", "C5.9",
-                "C6.1", "C6.2", "C6.3", "C6.4",
+                "C5.1", "C5.2", "C5.3", "C5.4", "C5.5", "C5.6", "C5.7", "C5.8", "C5.9", "C5.10", "C5.11",
+                "C6.1", "C6.2", "C6.3", "C6.4", "C6.5",
                 "C7.1",
                 "R1.1", "R1.2", "R1.3", "R1.4",
                 "R2.1", "R2.2", "R2.3", "R2.4", "R2.5",
                 "R3.1", "R3.2", "R3.3", "R3.4",
-                "R4.1", "R4.2", "R4.3", "R4.4",
+                "R4.1", "R4.2", "R4.3", "R4.4", "R4.5",
                 "R5.1", "R5.2");
     }
 
@@ -35,9 +35,9 @@ class CaseCatalogTest {
     }
 
     @Test
-    void marksThePromptInjectionAndNonExistentFieldCasesAsKnownFailures() {
+    void marksTheDisabledRobustnessCasesAsKnownFailures() {
         assertThat(CaseCatalog.all().stream().filter(BenchmarkCase::knownFailure).map(BenchmarkCase::id))
-                .containsExactly("R4.1", "R5.1");
+                .containsExactly("R4.1", "R4.5", "R5.1");
     }
 
     @Test
@@ -60,12 +60,12 @@ class CaseCatalogTest {
     }
 
     @Test
-    void widensOnlyTheTwoOpenEndedRelativeDateCases() {
-        // C5.2 and C5.8 accept more than one correct answer; everywhere else both predicates match.
+    void widensOnlyTheRelativeDateCasesWithMoreThanOneCorrectAnswer() {
+        // C5.2, C5.8 and C5.11 accept more than one correct answer; everywhere else both predicates match.
         List<String> widened = CaseCatalog.all().stream()
                 .filter(benchmarkCase -> benchmarkCase.mustMatch() != benchmarkCase.mayMatch())
                 .map(BenchmarkCase::id)
                 .toList();
-        assertThat(widened).containsExactly("C5.2", "C5.8");
+        assertThat(widened).containsExactly("C5.2", "C5.8", "C5.11");
     }
 }

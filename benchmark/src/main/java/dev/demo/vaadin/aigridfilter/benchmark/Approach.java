@@ -24,6 +24,7 @@ public enum Approach {
                     Map.entry("C3.4", "02(a) has no end operator"),
                     Map.entry("C3.5", "02(a) has no end operator"),
                     Map.entry("C3.6", "02(a) has no contains operator - it only matches a whole field"),
+                    Map.entry("C3.8", "02(a) has no start operator"),
                     Map.entry("C4.2", "02(a)'s annualRevenue is a minimum - an upper bound cannot be expressed"),
                     Map.entry("C4.3", "02(a) holds one value per field - a range needs a lower and an upper bound"),
                     Map.entry("C5.2", "02(a) has no operator - a date can only be matched exactly, not as 'on or after'"),
@@ -34,6 +35,8 @@ public enum Approach {
                     Map.entry("C5.7", "02(a) holds one value per field - a whole year needs two bounds"),
                     Map.entry("C5.8", "02(a) has no operator - a date can only be matched exactly, not as 'on or after'"),
                     Map.entry("C5.9", "02(a) holds one value per field - a whole week needs two bounds"),
+                    Map.entry("C5.10", "02(a) has no operator - a date can only be matched exactly, not as 'before'"),
+                    Map.entry("C5.11", "02(a) has no operator - a date can only be matched exactly, not as 'before'"),
                     Map.entry("C7.1", "02(a)'s tool parameters only take literal values - "
                             + "a field cannot be compared against another field of the same row"))),
 
@@ -44,6 +47,7 @@ public enum Approach {
                     Map.entry("C2.2", "02(b) holds one value per field - four cities need four"),
                     Map.entry("C2.4", "02(b) holds one value per field - excluding Munich and Cologne needs two"),
                     Map.entry("C2.5", "02(b) holds one value per field - 'United Kingdom or France' needs two"),
+                    Map.entry("C3.8", "02(b) holds one value per field - 'B or G' needs two"),
                     Map.entry("C4.3", "02(b) holds one value and one operator per field - a range needs two bounds"),
                     Map.entry("C5.4", "02(b) holds one value and one operator per field - a date range needs two bounds"),
                     Map.entry("C5.5", "02(b) holds one value and one operator per field - a range needs two bounds"),

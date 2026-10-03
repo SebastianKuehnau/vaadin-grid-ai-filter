@@ -17,7 +17,7 @@ import static dev.demo.vaadin.aigridfilter.benchmark.cases.BenchmarkCase.exact;
 import static dev.demo.vaadin.aigridfilter.benchmark.cases.BenchmarkCase.knownFailure;
 
 /**
- * The 55 measured queries — the service-level {@code *CustomerSearchIT} classes of 02, 03 and 04,
+ * The 60 measured queries — the service-level {@code *CustomerSearchIT} classes of 02, 03 and 04,
  * copied here query by query, with the expectation as a predicate over the seeded data.
  *
  * <p>Kept in sync with {@code docs/canonical-query-set.md} and those IT classes by hand; every case
@@ -118,6 +118,11 @@ public final class CaseCatalog {
                     "matchesACompanyNameExactly",
                     customer -> customer.getCompanyName().equalsIgnoreCase("Silverline Consulting")),
 
+            exact("C3.8", CANONICAL, "show me companies whose name starts with \"B\" or \"G\"",
+                    "findsCompaniesWhoseNameStartsWithEitherOfTwoLetters",
+                    customer -> customer.getCompanyName().toLowerCase().startsWith("b")
+                            || customer.getCompanyName().toLowerCase().startsWith("g")),
+
             // C4 Revenue: bounds and ranges
             exact("C4.1", CANONICAL, "show me customers with annual revenue of at least 50000",
                     "findsCustomersWithAMinimumRevenue",
@@ -179,6 +184,16 @@ public final class CaseCatalog {
                     customer -> !customer.getLastOrderDate().isBefore(LAST_WEEK_MONDAY)
                             && !customer.getLastOrderDate().isAfter(LAST_WEEK_MONDAY.plusDays(6))),
 
+            exact("C5.10", CANONICAL, "show me customers whose last order was before 2025",
+                    "findsCustomersWhoLastOrderedBeforeAYear",
+                    customer -> customer.getLastOrderDate().isBefore(LocalDate.of(2025, 1, 1))),
+
+            // Both "before" and "on or before" six months ago count as correct; same as the IT class.
+            between("C5.11", CANONICAL, "show me customers who haven't ordered in the last 6 months",
+                    "findsCustomersWithoutAnOrderInTheLastSixMonths",
+                    customer -> customer.getLastOrderDate().isBefore(TODAY.minusMonths(6)),
+                    customer -> !customer.getLastOrderDate().isAfter(TODAY.minusMonths(6))),
+
             // C6 Credit rating and combined conditions
             // POOR only - negating GOOD instead would wrongly pull in the MEDIUM customers as well.
             exact("C6.1", CANONICAL, "show me all customers who are not creditworthy",
@@ -221,6 +236,10 @@ public final class CaseCatalog {
                             && revenue(customer).compareTo(BigDecimal.valueOf(25_000)) >= 0
                             && customer.getCustomerSince().equals(LocalDate.of(2005, 12, 23))
                             && customer.getLastOrderDate().equals(LocalDate.of(2025, 11, 18))),
+
+            exact("C6.5", CANONICAL, "zeig mir alle Kunden mit eingeschränkter Kreditwürdigkeit",
+                    "findsCustomersWithLimitedCreditworthiness",
+                    customer -> customer.getCreditRating() == CreditRating.MEDIUM),
 
             // C7 Comparing one field to another
             // Inexpressible by every approach - see Approach; listed so the gap shows up in the report.
@@ -293,6 +312,11 @@ public final class CaseCatalog {
             exact("R4.4", ROBUSTNESS, "show me all customers in Tokyo",
                     "findsNoCustomerInAnUnknownCity",
                     customer -> city(customer).equals("Tokyo")),
+
+            // @Disabled("sorting and limiting to the top N is not supported yet") in all four IT classes -
+            // measured anyway, to see whether the model leaves the grid unfiltered or invents a filter.
+            knownFailure("R4.5", ROBUSTNESS, "show me the top 5 customers by revenue",
+                    "ignoresATopNRequest", customer -> true),
 
             // R5 Hostile input
             // @Disabled("not supported yet") in all four IT classes - a reliability finding, not a
