@@ -56,7 +56,8 @@ class CustomerSearchService implements CustomerSearchAgent {
               - City names are stored in English - Berlin, Hamburg, Munich, Frankfurt, Cologne,
                 Dusseldorf - so translate a German one first: "München" is Munich, "Köln" is Cologne.
               - Dates: an exact day ("today", "yesterday") -> EQUALS; "since" / "after" ->
-                GREATER_OR_EQUAL; "before" / "until" -> LESS_OR_EQUAL; a past period ("last 12
+                GREATER_OR_EQUAL; "before" / "until" -> LESS_OR_EQUAL; "before" a year is the last
+                day of the year BEFORE it ("before 2025" -> 2024-12-31); a past period ("last 12
                 months", "this month") -> GREATER_OR_EQUAL its first day, never LESS_OR_EQUAL.
               - annualRevenue: "at least" / "over" -> GREATER_OR_EQUAL, "at most" / "under" ->
                 LESS_OR_EQUAL, "exactly" -> EQUALS.

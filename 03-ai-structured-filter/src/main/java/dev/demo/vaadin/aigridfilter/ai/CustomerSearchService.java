@@ -71,11 +71,13 @@ public class CustomerSearchService implements CustomerSearchAgent {
                   - City names are English: "München" -> Munich, "Köln" -> Cologne, "Düsseldorf" -> Dusseldorf.
                   - phone: CONTAINS, exactly as typed.
                   - Dates: yyyy-MM-dd, day-first ('03.05.05' -> 2005-05-03). A day -> EQUALS,
-                    "since" -> GREATER_OR_EQUAL, "before" -> LESS_OR_EQUAL.
+                    "since" -> GREATER_OR_EQUAL, "before" -> LESS_OR_EQUAL; "before" a year is the last day of
+                    the year BEFORE it ("before 2025" -> 2024-12-31).
                   - A period still running ("this month", "last 12 months") -> GREATER_OR_EQUAL its first day only;
                     a period already over ("last week", "last month") -> its first to its last day.
                   - lastOrderDate in a year ("in 2024", "last year") -> January 1 to December 31 of it; "customer since 2020" -> GREATER_OR_EQUAL only.
-                  - creditRating EQUALS GOOD (creditworthy), MEDIUM (limited) or POOR (at risk);
+                  - creditRating EQUALS GOOD (creditworthy), MEDIUM (limited or restricted, German "eingeschränkt")
+                    or POOR (only at risk);
                     "not creditworthy" -> creditRating EQUALS [POOR], negate=false.
 
                 Relative dates are already computed - copy the matching one, never calculate a date:

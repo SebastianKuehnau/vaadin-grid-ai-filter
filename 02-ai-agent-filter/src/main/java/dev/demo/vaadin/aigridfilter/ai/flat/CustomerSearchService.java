@@ -95,7 +95,7 @@ class CustomerSearchService implements CustomerSearchAgent {
             @ToolParam(description = "house number") String houseNumber,
             @ToolParam(description = "state or region, e.g. Ile-de-France") String state,
             @ToolParam(description = "two-letter ISO country code, e.g. DE") String countryCode,
-            @ToolParam(description = "GOOD (creditworthy), MEDIUM (limited), POOR (at risk / not creditworthy)") CreditRating creditRating,
+            @ToolParam(description = "GOOD (creditworthy), MEDIUM (limited or restricted, German 'eingeschränkt'), POOR (only at risk / not creditworthy)") CreditRating creditRating,
             @ToolParam(description = "minimum annual revenue, e.g. 'over 500000' -> 500000") BigDecimal annualRevenue
     ) {
         CustomerCriteria incoming = new CustomerCriteria(companyName, contactName, email, phone, customerSince,

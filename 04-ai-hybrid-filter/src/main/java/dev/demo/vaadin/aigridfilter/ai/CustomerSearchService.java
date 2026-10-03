@@ -85,7 +85,8 @@ public class CustomerSearchService implements CustomerSearchAgent {
               - Dates: yyyy-MM-dd, day-first ('03.05.05' -> 2005-05-03). A single day ("yesterday")
                 -> EQUALS; a period still running ("this month", "last 12 months") -> GREATER_OR_EQUAL
                 its start only; a period already over ("last week", "last month") -> its start to its end.
-              - creditRating EQUALS GOOD (creditworthy), MEDIUM (limited) or POOR (at risk);
+              - creditRating EQUALS GOOD (creditworthy), MEDIUM (limited or restricted, German
+                "eingeschränkt") or POOR (only at risk);
                 "not creditworthy" is POOR, not a negated GOOD.
 
             Examples:
