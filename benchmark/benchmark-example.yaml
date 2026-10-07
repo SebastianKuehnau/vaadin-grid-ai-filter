@@ -23,8 +23,12 @@ benchmark:
   # The models to measure, exactly as Ollama names them. Every model is measured against every
   # approach, and each combination gets its own JVM.
   models:
-    - qwen3:8b
+    - gemma4:e4b-mlx
+    - gemma4:26b-mlx
     - llama3.1:8b
+    - qwen3:8b
+    - qwen3.5:4b-mlx
+    - qwen3.5:9b-mlx
 
   # Which of the four filtering approaches to measure:
   #   02a  tool calling, one scalar value per field        (14 of 36 capabilities)
@@ -33,13 +37,13 @@ benchmark:
   #   04   tool calling with 03's condition list           (35 of 36)
   approaches: [ 02a, 02b, 03, 04 ]
 
-  # The case ids to measure; empty means all 55. C1.1 to C7.1 are the canonical capability queries,
+  # The case ids to measure; empty means all 60. C1.1 to C7.1 are the canonical capability queries,
   # R1.1 to R5.2 the robustness ones - see docs/canonical-query-set.md.
   cases: [ ]
 
   # How often every case is measured. One run proves nothing: the same prompt can produce different
   # answers even at temperature 0, because Ollama reuses a cached prefix.
-  runs: 3
+  runs: 10
 
   # One unmeasured query per approach, so the first case does not pay the model's load time.
   warmup: true
