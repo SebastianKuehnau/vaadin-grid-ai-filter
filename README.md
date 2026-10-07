@@ -194,3 +194,33 @@ Each AI module has one IT class per variant, and it spells out what it does: one
 natural-language query, the prompt as a string literal and the expected customer set right next to it.
 The `*CustomerSearchIT` asks the AI service directly (prompt → `Specification` → database). Queries a
 variant's filter type cannot express are `@Disabled` with the reason.
+
+## Benchmark
+
+`benchmark` measures the local Ollama models against 02(a), 02(b), 03 and 04: correctness, latency,
+tokens and resident model size, over the 60 queries of `docs/canonical-query-set.md`.
+
+**Prerequisite:** a running Ollama at `http://localhost:11434`. The benchmark never starts one;
+models it lacks are pulled automatically (`auto-pull`).
+
+```bash
+./mvnw install -DskipTests                    # once, so the module jars exist
+./mvnw spring-boot:run -pl benchmark          # all configured models, approaches and cases
+./mvnw spring-boot:run -pl benchmark \
+  -Dspring-boot.run.arguments="--benchmark.models=qwen3:8b --benchmark.cases=C1.1,C6.2 --benchmark.runs=1"
+```
+
+**Configuration:** every setting — models, approaches, cases, runs, timeouts, chat options, Ollama
+URL — is documented in `benchmark/benchmark-example.yaml`. Pass single settings as arguments (above),
+or copy the file to `benchmark/config/application.yaml` to keep a configuration.
+
+**Results:** each run writes `benchmark/results/<timestamp>/` (gitignored) with `report.html`,
+`report.md`, `report.txt` (the aggregation) and `report.json` (every single execution). The
+`workers/` subdirectory holds each worker's request, result and full log — the place to look when a
+combination failed.
+
+**How it works:** the orchestrator starts one worker JVM per model × approach, on that module's own
+classpath (03 and 04 share class names, so they cannot run side by side). Each worker calls the
+module's AI service with every case, executes the resulting `Specification` against the seeded data
+and compares the customers it gets with the expected set from `CaseCatalog`. Between models, the
+benchmark unloads the previous one from Ollama, so every model is measured with the machine to itself.
